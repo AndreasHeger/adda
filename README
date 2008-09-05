@@ -1,0 +1,66 @@
+OVERVIEW
+
+ADDA is a method to find protein domains in protein sequences.
+Briefly, ADDA attempts to split domains into segments that 
+correspond as closely as possible to all-on-all pairwise
+alignments. A detailed description of the method can be found
+in
+
+Heger A, Holm L. (2003)
+Exhaustive enumeration of protein domain families.
+J Mol Biol. 2003 May 2;328(3):749-67.
+PMID: 12706730 
+
+USAGE INSTRUCTIONS
+
+ADDA is controlled with the script adda.py. The script
+expects a file adda.ini with configuration options in
+the directory from which it is called. An example 
+is in the directory ./test.
+
+INPUT DATA
+
+ADDA requires three input files.
+
+   1. sequences in fasta format
+
+   2. the results from an all-on-all sequence comparison (sequence alignment graph)
+
+   3. domain assignments from a reference domain assignment
+
+
+ADDA proceeds in stages. Each stage corresponds to a command to
+the script adda.py. To run all stages, run adda.py as
+
+   python adda.py --steps=all
+
+The specific stages are:
+
+1. Pre-processing of the input. These steps can be performed in
+  parallel.
+
+   1. indexing the sequence database - "index"
+
+   2. building sequence profiles - "profiles"
+
+   3. formatting and filtering the alignment graph - "graph"
+
+   4. indexing the alignment graph - "index"
+
+   5. estimating the error parameters - "fit"
+
+2. Decomposing sequences into domains - "optimise"
+
+3. Convert sequence alignment graph to domain alignment graph - "convert"
+
+4. Build minimum spanning tree of domains - "mst"
+
+5. Align domains - "align"
+
+
+
+
+
+
+
+
