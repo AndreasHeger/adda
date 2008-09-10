@@ -36,12 +36,21 @@ USAGE="""python %s [OPTIONS]
 
 work with library of profiles.
 
-Actions include: 
-   * create: create a profile library
-   * verify: verify a profile library
-   * merge:  merge several profile libraries
-   * split:  split a profile library into smaller sections
+Actions include:
 
+create:  create a profile library from multiple alignments
+   
+verify:  verify a profile library against input
+
+merge:   merge several profile libraries
+
+split:   split a profile library into smaller parts
+
+print:   print a list of profiles to stdout
+
+extract: extract a list of profiles into a new library. Requires
+   the options --source
+   
 This is version $Id$.
 """ % sys.argv[0]
 
@@ -257,8 +266,11 @@ if __name__ == "__main__":
     parser.add_option("-p", "--prefix", dest="prefix", type="string",
                       help="prefix to use for the profile library." )
 
+    parser.add_option("-s", "--source", dest="source_prefix", type="string",
+                      help="prefix to use for the profile library used as source for action 'extract'." )
+
     parser.add_option("-a", "--action", dest="action", type="choice",
-                      choices=("create", "verify", "merge", "split", "stats" ),
+                      choices=("create", "verify", "merge", "split", "stats", "print", "extract" ),
                       help="action to undertake." )
 
     parser.add_option("-w", "--weightor", dest="weightor", type="choice",
@@ -268,6 +280,7 @@ if __name__ == "__main__":
     parser.set_defaults( prefix = "profiles", 
                          action = "create",
                          weightor = None,
+                         source = None,
                          )
 
     (options, args) = Experiment.Start( parser )
@@ -276,7 +289,7 @@ if __name__ == "__main__":
     # main part of script
     mali = Mali.Mali()
 
-    if options.action in ("create", "merge" ):
+    if options.action in ("create", "merge", "extract" ):
         mode = "w"
     else:
         mode = "r"
@@ -313,7 +326,35 @@ if __name__ == "__main__":
 
     elif options.action == "stats":
         options.stdout.write("profiles\t%i\n" % len(plib) )
-        
+
+    elif options.action == "print":
+        for line in sys.stdin:
+            if line[0] == "#": continue
+            id = line[:-1].split()[0]
+            if id not in plib:
+                options.stderr.write("# id %s not found\n" % id )
+                continue
+            profile = plib[id]
+            options.stdout.write( str(profile) )
+
+    elif options.action == "extract":
+        assert options.source_prefix, "please supply a source library"
+
+        source_lib = ProfileLibrary( options.source_prefix, "r" )
+        for line in sys.stdin:
+            if line[0] == "#": continue
+            name = line[:-1].split()[0]
+            if name not in source_lib:
+                options.stderr.write("# id %s not found\n" % name )
+                continue
+            profile = source_lib[name]
+            try:
+                plib.add( name, profile )
+            except IndexError:
+                options.stdlog.write("# profile %s already exists - skipped\n" % name )
+                    
+
+
     #--------------------------------------------------------
     # general cleaning up
     Experiment.Stop()

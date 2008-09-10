@@ -120,7 +120,12 @@ class AddaAlign( AddaModule ):
             else:
                 a = self.mCache[nid]
         else:
-            a = self.mProfileLibrary.getProfile(nid)
+            try:
+                a = self.mProfileLibrary.getProfile(nid)
+            except KeyError:
+                self.warn( "profile for sequence %s not found." % str(nid))
+                return None
+            
             a.prepare()
             if self.mMask: self.mask( nid, a)
 
@@ -144,7 +149,7 @@ class AddaAlign( AddaModule ):
 
         infile = open( self.mFilenameMst, "r" )
 
-        self.mNPassed, self.mNFailed = 0, 0
+        self.mNPassed, self.mNFailed, self.mNNotFound = 0, 0, 0
             
         t_start = time.time()
                           
@@ -168,8 +173,8 @@ class AddaAlign( AddaModule ):
                                             
             if self.mInput % self.mReportStep == 0:
                 t = time.time() 
-                self.info( "iteration=%i, passed=%i, failed=%i, total time=%i, time per step=%f" %\
-                           (self.mInput, self.mNPassed, self.mNFailed,
+                self.info( "iteration=%i, passed=%i, failed=%i, notfound=%i, total time=%i, time per step=%f" %\
+                           (self.mInput, self.mNPassed, self.mNFailed, self.mNNotFound,
                             t - t_start,
                             float(self.mReportStep * ( t - t_start )) / self.mInput, 
                             ) )
@@ -211,8 +216,8 @@ class AddaAlign( AddaModule ):
         
         self.mOutfile.close()
         
-        self.info( "aligned: %i links input, %i links passed, %i links failed" %\
-                   (self.mNInput, self.mNPassed, self.mNFailed ) )
+        self.info( "aligned: %i links input, %i links passed, %i links failed, %i links not found" %\
+                   (self.mNInput, self.mNPassed, self.mNFailed, self.mNNotFound ) )
         
         AddaModule.finish( self )
         
@@ -262,14 +267,21 @@ class AddaAlign( AddaModule ):
         The check is done using a zscore calculation.
         """
 
+        result = alignlib.makeAlignmentVector()
+        
         query_profile = self.getAlignandum( query_nid )
-        query_profile.useSegment( query_from, query_to )
-
         sbjct_profile = self.getAlignandum( sbjct_nid )
+
+        if not query_profile or not sbjct_profile:
+            self.warn( "could not compute link %s_%i_%i - %s_%i_%i\n" % \
+                       (query_nid, query_from, query_to,
+                        sbjct_nid, sbjct_from, sbjct_to) )
+            self.mNNotFound += 1
+            return False, result, ("na",)
+        
+        query_profile.useSegment( query_from, query_to )
         sbjct_profile.useSegment( sbjct_from, sbjct_to )        
         
-        result = alignlib.makeAlignmentVector()
-
         self.mAlignator.align( result, query_profile, sbjct_profile )
         
         self.debug( "# --> %s vs %s: score=%5.2f, length=%i, numgaps=%i, row_from=%i, row_to=%i, col_from=%i, col_to=%i" %\
