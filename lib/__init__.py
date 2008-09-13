@@ -4,20 +4,23 @@ __all__ = [
            "Experiment",
            "AddaAlign",
            "AddaConvert",
-            "AddaFit",
-            "AddaGraph",
-            "AddaIndex",
-            "AddaIO",
-            "AddaModule",
-            "AddaMst",
-            "AddaOptimise",
-            "AddaProfiles",
-            "AddaSegment",
-            "CorrespondenceAnalysis",
-            "Experiment",
-            "IndexedFasta",
-            "MatlabTools",
-            "ProfileLibrary" ]
+           "AddaFit",
+           "AddaGraph",
+           "AddaIndex",
+           "AddaIO",
+           "AddaModule",
+           "AddaMst",
+           "AddaOptimise",
+           "AddaProfiles",
+           "AddaSegment",
+           "CorrespondenceAnalysis",
+           "Experiment",
+           "IndexedFasta",
+           "MatlabTools",
+           "ProfileLibrary",
+           "AddaCluster" ]
+
+
 
 #import MatlabTools
 #from IndexedFasta import IndexedFasta

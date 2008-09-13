@@ -40,7 +40,8 @@ if __name__ == "__main__":
                                 "optimise",
                                 "convert",
                                 "mst", 
-                                "align", ),
+                                "align",
+                                "cluster" ),
                        help="perform this step [default=%default]" )
 
     parser.add_option( "--start-at", dest="start_at", type="string",
@@ -81,11 +82,12 @@ if __name__ == "__main__":
                    'convert' : AddaConvert.AddaConvert,
                    'mst' : AddaMst.AddaMst, 
                    'align' : AddaAlign.AddaAlign, 
+                   'cluster' : AddaCluster.AddaCluster,
                    }
     
     # modules and their hierarchy
     pre_modules = ("fit", "segment", "graph", "profiles" )
-    post_modules = ("index", "check-index", "optimise", "convert", "mst", "align" )
+    post_modules = ("index", "check-index", "optimise", "convert", "mst", "align", "cluster" )
      
     if "all" in options.steps:
         options.steps = pre_modules + post_modules

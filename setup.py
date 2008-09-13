@@ -2,7 +2,7 @@
 
 from distutils.core import setup
 from distutils.extension import Extension
-from Pyrex.Distutils import build_ext
+from Cython.Distutils import build_ext
 import os
 
 # TODO: add tests for required packages
@@ -32,6 +32,15 @@ cadda = Extension(
     language="c++",               # this causes Pyrex/Cython to create C++ source
     )
 
+Components = Extension(
+     "Components",                   # name of extension
+     [ "src/Components.pyx",        # filename of our Pyrex/Cython source
+      'src/connected_components.cpp',],
+     library_dirs=[],
+     libraries=[],
+     language="c++",               # this causes Pyrex/Cython to create C++ source
+     )
+
 setup(name='Adda',
       version='1.0',
       description='ADDA - automatic domain detection algorithm',
@@ -41,7 +50,7 @@ setup(name='Adda',
       package_dir = {'Adda': 'lib'},
       packages = ["Adda",],
       scripts=['scripts/adda.py',],
-      ext_modules=[cadda],
+      ext_modules=[cadda, Components ],
       cmdclass = {'build_ext': build_ext}
      )
     

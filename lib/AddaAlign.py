@@ -61,6 +61,7 @@ class AddaAlign( AddaModule ):
                         "qali",
                         "sstart",
                         "send",
+                        "sali",
                         "score",
                         "naligned",
                         "ngaps",
