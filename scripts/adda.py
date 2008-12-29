@@ -7,7 +7,8 @@ interface to compute adda
 
 import sys, os, re, time, math, copy, glob, optparse
 import fileinput
-
+# segfault on my machine without the print statement - strange
+print 
 from Adda import *
 
 if __name__ == "__main__":
@@ -41,7 +42,8 @@ if __name__ == "__main__":
                                 "convert",
                                 "mst", 
                                 "align",
-                                "cluster" ),
+                                "cluster",
+                                "quality" ),
                        help="perform this step [default=%default]" )
 
     parser.add_option( "--start-at", dest="start_at", type="string",
@@ -83,11 +85,12 @@ if __name__ == "__main__":
                    'mst' : AddaMst.AddaMst, 
                    'align' : AddaAlign.AddaAlign, 
                    'cluster' : AddaCluster.AddaCluster,
+                   'quality' : AddaQuality.AddaQuality,
                    }
     
     # modules and their hierarchy
     pre_modules = ("fit", "segment", "graph", "profiles" )
-    post_modules = ("index", "check-index", "optimise", "convert", "mst", "align", "cluster" )
+    post_modules = ("index", "check-index", "optimise", "convert", "mst", "align", "cluster", "quality" )
      
     if "all" in options.steps:
         options.steps = pre_modules + post_modules

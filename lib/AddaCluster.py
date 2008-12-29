@@ -7,19 +7,17 @@ from AddaModule import AddaModule
 import AddaIO
 import Components
 
-class AddaCluster( AddaModule ):
-    """Cluster the aligned minimum spanning tree into overlapping components."""
+class AddaQuality( AddaModule ):
+    """Do quality control. Compare adda families to references."""
     
-    mName = "Cluster"
+    mName = "Quality"
     
     def __init__(self, *args, **kwargs ):
 
         AddaModule.__init__( self, *args, **kwargs )
                 
-        self.mFilenameAlignments = self.mConfig.get( "files", "output_align", "adda.align" )
-        self.mMinAlignedResidues = self.mConfig.get( "cluster", "min_aligned_residues", 30 )
-        self.mPatternFamily = self.mConfig.get( "cluster", "pattern_family", "AD%6i" )
-
+        self.mFilenameFamilies = self.mConfig.get( "files", "output_families", "adda.families" )
+        
         self.mOutfile = self.openOutputStream( self.mConfig.get("files","output_families", "adda.families" ) )
                             
                             

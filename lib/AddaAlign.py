@@ -131,7 +131,7 @@ class AddaAlign( AddaModule ):
             if self.mMask: self.mask( nid, a)
 
         if self.mOptions.loglevel >= 5:
-            self.mOptions.stdout.write( "# alignandum for rep %i\n" % nid )
+            self.mOptions.stdout.write( "# alignandum for rep %s\n" % nid )
             self.mOptions.stdout.write( str( a ) + "\n" )
             self.mOptions.stdout.flush()
 
@@ -218,7 +218,7 @@ class AddaAlign( AddaModule ):
         self.mOutfile.close()
         
         self.info( "aligned: %i links input, %i links passed, %i links failed, %i links not found" %\
-                   (self.mNInput, self.mNPassed, self.mNFailed, self.mNNotFound ) )
+                   (self.mInput, self.mNPassed, self.mNFailed, self.mNNotFound ) )
         
         AddaModule.finish( self )
         
