@@ -3,6 +3,7 @@ import glob
 __all__ = [ 
            "Experiment",
            "AddaAlign",
+           "AddaBlast",
            "AddaConvert",
            "AddaFit",
            "AddaGraph",
@@ -18,6 +19,7 @@ __all__ = [
            "IndexedFasta",
            "MatlabTools",
            "ProfileLibrary",
+           "AddaSequences",
            "AddaCluster" ]
 
 

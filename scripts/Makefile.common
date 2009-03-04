@@ -73,14 +73,14 @@ EPILOG?=$(CMD_LOG) "$@ completed."
 %.components: %.complist
 	$(PROLOG)
 	@$(CMD_SUBMIT) grep -v "#" < $*.complist |\
-	$(CMD_SUBMIT) perl $(DIR_TOOLS)regextract.pl "\/\/" 0 "\/\/" 0 1 |\
+	$(CMD_SUBMIT) perl $(DIR_SCRIPTS)regextract.pl "\/\/" 0 "\/\/" 0 1 |\
 	$(CMD_SUBMIT) sort -k2n -k1n > $@
 	$(EPILOG)
 
 %.hist: %.complist
 	$(PROLOG)
-	@$(CMD_SUBMIT) perl $(DIR_TOOLS)regtail.pl "total" < $*.complist | grep "^[0-9]" |\
-        $(CMD_SUBMIT) python $(DIR_PAIRSDB_TOOLS)calculate_histogram.py --column=1 > $@  
+	@$(CMD_SUBMIT) perl $(DIR_SCRIPTS)regtail.pl "total" < $*.complist | grep "^[0-9]" |\
+        $(CMD_SUBMIT) python $(DIR_SCRIPTS)data2histogram.py --column=1 > $@  
 	$(EPILOG)
 
 ######################################################
@@ -95,3 +95,9 @@ summary.mail: summary
 		fi \
 	fi
 	$(EPILOG)
+
+######################################################
+CMD_SQL=mysql --user=heger --password=HeinBloed --host=localhost --database=$(PARAM_DATABASE_ADDA) -B -N -e
+CMD_SQL_STDIN=mysql --user=heger --password=HeinBloed --host=localhost --database=$(PARAM_DATABASE_ADDA) 
+
+CMD_STATISTICS=python $(DIR_SCRIPTS_SRC)OutputStatisticsClustering.py --Database=$(PARAM_DATABASE_PAIRSDB)

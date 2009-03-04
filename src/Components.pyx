@@ -26,7 +26,7 @@ This is a cython extension class."""
 cdef extern from "connected_components.h":
 
     ctypedef struct cSComponents "CharComponents":
-        int add (char *, char *)
+        int add ( char *, char *)
         int get( char * )
         int getComponent( int )
         int getIndex( char *)

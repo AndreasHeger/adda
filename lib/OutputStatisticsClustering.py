@@ -16,7 +16,7 @@
 import sys, re, string, os, time, getopt
 
 from Pairsdb import *
-import Tools, Histogram
+import Histogram
 
 from OutputStatisticsAnnotations import OutputStatisticsAnnotations
 
@@ -158,7 +158,7 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
         SELECT
         COUNT(DISTINCT i.rep_nid, i.rep_from) AS nunits,
         COUNT(DISTINCT i.rep_nid) AS nseqs, 
-        i.family, p.description,
+        i.family, "na",
         AVG(LEAST(i.rep_to,a.rep_to)-GREATEST(i.rep_from, a.rep_from)),
         GREATEST(i.rep_to,a.rep_to)-LEAST(i.rep_from, a.rep_from),
         LEAST(i.rep_to,a.rep_to)-GREATEST(i.rep_from, a.rep_from)            
@@ -566,25 +566,25 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
 # NUNITS/SIN:   number of domains without singletons
 # NSIN:         number of singletons with that length
 #"""
-        print "# LENGTH\tNUNITS\tNUNITS/SIN\tNSIN"
+        print "LENGTH\tNUNITS\tNUNITS/SIN\tNSIN"
         sys.stdout.flush()
 
         histograms = []
         
-        statement = "SELECT CEILING((rep_to-rep_from+1)/10) * 10 AS length, COUNT(*) FROM %s GROUP BY length" % self.mTableNameDomains
+        statement = "SELECT CEILING((rep_to-rep_from+1)/10) * 10 AS olength, COUNT(*) FROM %s GROUP BY olength" % self.mTableNameDomains
         h1 = self.mDbhandle.Execute( statement ).fetchall()        
         histograms.append( h1 )
         
-        statement = "SELECT CEILING((rep_to-rep_from+1)/10) * 10 AS length, COUNT(*) FROM %s AS a, %s AS d " %\
+        statement = "SELECT CEILING((rep_to-rep_from+1)/10) * 10 AS dlength, COUNT(*) FROM %s AS a, %s AS d " %\
                     (self.mTableNameDomains, self.mTableNameFamilies) +\
-                    " WHERE d.family = a.family AND d.nunits > 1 GROUP BY length"
+                    " WHERE d.family = a.family AND d.nunits > 1 GROUP BY dlength"
         
         h2 = self.mDbhandle.Execute( statement ).fetchall()
         histograms.append( h2 )
         
-        statement = "SELECT CEILING((rep_to-rep_from+1)/10) * 10 AS length, COUNT(*) FROM %s AS a, %s AS d " %\
+        statement = "SELECT CEILING((rep_to-rep_from+1)/10) * 10 AS alength, COUNT(*) FROM %s AS a, %s AS d " %\
                     (self.mTableNameDomains, self.mTableNameFamilies) +\
-                    " WHERE d.family = a.family AND d.nunits = 1 GROUP BY length"
+                    " WHERE d.family = a.family AND d.nunits = 1 GROUP BY alength"
         
         h3 = self.mDbhandle.Execute( statement ).fetchall()
         histograms.append( h3 )

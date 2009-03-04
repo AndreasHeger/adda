@@ -4,51 +4,53 @@
 #include <map>
 #include <iostream>
 
-template<class T, class C>
-Components<T,C>::Components() 
+template<class T>
+Components<T>::Components() 
 {
 }
 
-template<class T, class C>
-Components<T,C>::~Components() 
+template<class T>
+Components<T>::~Components() 
 {
 }
 
-template<class T, class C>
-int Components<T,C>::addToken( const T & a )
+template<class T>
+bool Components<T>::add( const T & a, const T & b )
 {
-	Index index = 0;
+  Index index1, index2;
 
-	// make a persistent copy
-	C q(a);
-	
-	MapToken2VertexIterator it (mMapToken2Vertex.find(q) );
-	if ( it == mMapToken2Vertex.end() )
-	{
-		index = mMapVertex2Token.size();
-		mMapToken2Vertex[q] = index;
-		mMapVertex2Token.push_back(q);
-	}
-	else
-	{
-		index = (*it).second;
-	}
-	
-	return index + 1;
-	
-}
+  MapToken2VertexIterator it;
+  
+  if ( (it = mMapToken2Vertex.find(a)) == mMapToken2Vertex.end() )
+    {
+      index1 = mMapVertex2Token.size();
+      mMapToken2Vertex[a] = index1;
+      mMapVertex2Token.push_back(a);
+    }
+  else
+    {
+      index1 = (*it).second;
+    }
 
-template<class T, class C>
-bool Components<T,C>::add( const T & a, const T & b )
-{
-  Index index1 = addToken(a);
-  Index index2 = addToken(b);
+  if ( (it = mMapToken2Vertex.find(b)) == mMapToken2Vertex.end())
+    {
+      index2 = mMapVertex2Token.size();
+      mMapToken2Vertex[b] = index2;
+      mMapVertex2Token.push_back(b);
+    }
+  else
+    {
+      index2 = (*it).second;
+    }
 
   if (index1 > index2)
     {
       std::swap( index1, index2 );
     }
-    
+
+  index1 += 1;
+  index2 += 1;
+  
   if ((size_t)index2 + 1 >= mDad.size() )
     {
 #ifdef DEBUG
@@ -115,8 +117,8 @@ bool Components<T,C>::add( const T & a, const T & b )
 }
 
 //------------------------------------------------------------------------
-template<class T,class C>
-int Components<T,C>::get( const T & v) 
+template<class T>
+int Components<T>::get( const T & v) 
 {
   return getComponent( getIndex(v) );
 }
@@ -124,8 +126,8 @@ int Components<T,C>::get( const T & v)
 //------------------------------------------------------------------------
 // Components<T>::Index does not work:
 //  expected constructor, destructor, or type conversion before "Components"
-template<class T,class C>
-int Components<T,C>::getIndex( const T & v) 
+template<class T>
+int Components<T>::getIndex( const T & v) 
 {
   MapToken2VertexIterator it;
   
@@ -136,8 +138,8 @@ int Components<T,C>::getIndex( const T & v)
 }
 
 //------------------------------------------------------------------------
-template<class T, class C>
-int Components<T,C>::getComponent( Components<T,C>::Index in) 
+template<class T>
+int Components<T>::getComponent( Components<T>::Index in) 
 {
   assert( in < mDad.size() );
   assert( in >= 0 );
@@ -152,26 +154,26 @@ int Components<T,C>::getComponent( Components<T,C>::Index in)
 }
 
 //------------------------------------------------------------------------
-template<class T, class C>
-int Components<T,C>::getNumNodes()
+template<class T>
+int Components<T>::getNumNodes()
 {
   return mMapToken2Vertex.size();
 }
 
 
 //------------------------------------------------------------------------
-template<class T, class C>
-const C & Components<T,C>::getToken(Index i)
+template<class T>
+const T & Components<T>::getToken(Index i)
 {
   assert( i > 0);
   assert( i <= mMapVertex2Token.size() );
-  return mMapVertex2Token[i-1];
+  return mMapVertex2Token[i - 1];
 }
 
 
 //------------------------------------------------------------------------
-template<class T, class C>
-void Components<T,C>::reset()
+template<class T>
+void Components<T>::reset()
 {
   mDad.clear();
   mMapToken2Vertex.clear();
@@ -180,8 +182,8 @@ void Components<T,C>::reset()
 
 
 // explicit instantiations
-template class Components<const char *, std::string>;
-template class Components<int,int>;
-template class Components<std::string, std::string>;
+template class Components<const char *>;
+template class Components<int>;
+template class Components<std::string>;
 
  

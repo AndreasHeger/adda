@@ -104,9 +104,6 @@ PARAM_TABLE_NIDS?=$(PARAM_DATABASE_ADDA).nrdb40
 PARAM_TABLE_LINKS?=$(PARAM_DATABASE_PAIRSDB).pairsdb_40x40
 PARAM_TABLE_ALIGN_NEIGHBOURS?=$(PARAM_DATABASE_PAIRSDB).pairsdb_40x40
 
-## what is this for?
-## PARAM_TABLE_REPEATS?=core.nrdb40_core_domains
-
 PARAM_TABLE_MASKS?=$(PARAM_DATABASE_PAIRSDB).nrdb90_masks
 ## table used for annotation minimum spanning trees
 PARAM_TABLE_ANNOTATION?=$(PARAM_DATABASE_PAIRSDB).nrdb40_pfam_domains_nr

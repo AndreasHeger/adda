@@ -7,10 +7,10 @@ from AddaModule import AddaModule
 import AddaIO
 import Components
 
-class AddaQuality( AddaModule ):
+class AddaCluster( AddaModule ):
     """Do quality control. Compare adda families to references."""
     
-    mName = "Quality"
+    mName = "Cluster"
     
     def __init__(self, *args, **kwargs ):
 

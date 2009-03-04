@@ -20,8 +20,8 @@
 import sys, re, string, os, time, getopt, math
 
 from Pairsdb import *
-import Tools
-import Histogram, Numeric, NeighbourTools, MatlabTools
+import Histogram, Numeric
+#import NeighbourTools, MatlabTools
 from OutputStatistics import OutputStatistics
 from TableDomains import TableDomains, TableFamilies
 from TableNids import TableNids
@@ -275,7 +275,7 @@ class OutputStatisticsAnnotations ( OutputStatistics):
 
 
         print "# showing links between %i families" % len(class_ids)
-        print "# family1\tfamily2\tnlinks"
+        print "family1\tfamily2\tnlinks"
             
         sclass_ids = map(str, class_ids)
 

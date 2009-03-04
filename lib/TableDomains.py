@@ -40,11 +40,11 @@ class TableDomains( Table ):
             ('rep_nid', 'INT UNSIGNED NOT NULL'),
             ('rep_from', 'SMALLINT UNSIGNED NOT NULL DEFAULT 0'),
             ('rep_to', 'SMALLINT UNSIGNED NOT NULL DEFAULT 0'),
-            ('rep_ali', 'BLOB NOT NULL DEFAULT ""'),
+            ('rep_ali', 'BLOB NOT NULL'),
             ('domain_id', self.mTypeDomainId),
             ('domain_from', 'SMALLINT UNSIGNED NOT NULL DEFAULT 0'),
             ('domain_to', 'SMALLINT UNSIGNED NOT NULL DEFAULT 0'),
-            ('domain_ali', 'BLOB NOT NULL DEFAULT ""'),
+            ('domain_ali', 'BLOB NOT NULL'),
             ('family', self.mTypeDomainClass ),
             ) + self.mExtraFields
         
@@ -841,6 +841,9 @@ class TableFamilies( Table ):
 
     mTypeDomainClass = "TEXT"
 
+    ## pattern for new families
+    mPatternFamily = "%06i"
+
     def __init__ ( self, handle, root ):
         
         self.mRootName = root
@@ -872,6 +875,28 @@ class TableFamilies( Table ):
         for family in families:
             self.Execute("INSERT INTO %s (family) VALUES ('%s')" % (self.name, str(family)))
 
+    ##-----------------------------------------------------------------------------------------------
+    def HasFamily( self, family ):
+        return len(self.Execute("SELECT family FROM %s WHERE family = '%s'" % (self.name, str(family))).fetchall()) > 0
+
+    ##-----------------------------------------------------------------------------------------------
+    def GetNewFamily( self, known_families = None):
+        """return a new and unique family id."""
+        if known_families != None:
+
+            i = self.RowCount() + 1
+            new_family = self.mPatternFamily % i
+            while self.HasFamily( new_family ):
+                i += 1
+                new_family = self.mPatternFamily % i
+        else:
+            i = len(known_families) + 1
+            new_family = self.mPatternFamily % i
+            while new_family in known_families:
+                i += 1
+                new_family = self.mPatternFamily % i
+
+        return new_family
     ##-----------------------------------------------------------------------------------------------
     def Update( self, src ):
         """update table fields from source table.
@@ -920,7 +945,7 @@ class TableFamilies( Table ):
     def AddFamily(self, family ):
         """insert a new family.
         """
-        statement = "INSERT INTO %s (family) VALUES (%s)" % (self.name, str(family))
+        statement = "INSERT INTO %s (family) VALUES ('%s')" % (self.name, str(family))
         return self.Execute(statement)
 
     #-----------------------------------------------------------------------------------

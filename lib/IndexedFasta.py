@@ -144,7 +144,8 @@ def gzip_demangler(s):
     return m
 
 ##------------------------------------------------------------
-def createDatabase( db, filenames,
+def createDatabase( db, 
+                    filenames,
                     force = False,
                     synonyms = None,
                     compression = None,
@@ -335,20 +336,41 @@ PREFERENCES=('uncompressed', 'lzo', 'dictzip', 'zlib', 'gzip', 'debug')
 
 class IndexedFasta:
 
-    def __init__( self, dbname ):
-
-        for x in PREFERENCES:
-            d =  "%s.%s" % (dbname, NAME_MAP[x][0] )
-            i =  "%s.%s" % (dbname, NAME_MAP[x][1] )
-            if os.path.exists( d ) and os.path.exists( i ):
-                self.mMethod = x
-                self.mDbname = d
-                self.mNameIndex = i
-                self.mNoSeek = NAME_MAP[x][2]
-                break
-        else:
-            raise KeyError, "unknown database %s" % dbname 
+    def __init__( self, dbname, mode="r", method ="uncompressed" ):
         
+        if mode == "r":
+            for x in PREFERENCES:
+                d =  "%s.%s" % (dbname, NAME_MAP[x][0] )
+                i =  "%s.%s" % (dbname, NAME_MAP[x][1] )
+                if os.path.exists( d ) and os.path.exists( i ):
+                    self.mMethod = x
+                    self.mDbname = d
+                    self.mNameIndex = i
+                    self.mNoSeek = NAME_MAP[x][2]
+                    break
+            else:
+                raise KeyError, "unknown database %s" % dbname 
+            self.mCreateMode = False
+            self.mOutfileIndex = None
+            self.mOutfileFasta = None
+
+        elif mode == "w":
+            try:
+                d, i, self.mNoSeek = NAME_MAP[method]
+            except KeyError:
+                raise KeyError("unknown method %s." % method )
+            self.mDbname = "%s.%s" % (dbname, d)
+            self.mNameIndex = "%s.%s" % (dbname, i)
+            self.mNoSeek = NAME_MAP[method][2]
+            self.mCreateMode = True
+
+            if os.path.exists( self.mDbname ):
+                raise ValueError( "database %s already exists." % self.mDbname )
+            if os.path.exists( self.mNameIndex ):
+                raise ValueError( "database index %s already exists." % self.mNameIndex )
+            self.mOutfileIndex = open(self.mNameIndex, "w")
+            self.mOutfileFasta = open(self.mDbname, "w")
+
         self.mIsLoaded = False
         self.mSynonyms = {} 
 
@@ -358,6 +380,8 @@ class IndexedFasta:
         
     def __loadIndex( self ):
         """load complete index into memory."""
+
+        assert self.mCreateMode == False, "asked to read from database opened for writing"
 
         if self.mMethod == "uncompressed":
             self.mDatabaseFile = open( self.mDbname, "r" )
@@ -404,7 +428,24 @@ class IndexedFasta:
             #    self.mSynonyms[identifier] = "chr%s" % identifier
 
         self.mIsLoaded = True
-            
+
+    def addSequence( self, identifier, sequence ):
+
+        identifier_pos = self.mOutfileFasta.tell()
+        self.mOutfileFasta.write( ">%s\n" % identifier )
+        sequence_pos = self.mOutfileFasta.tell()
+        self.mOutfileFasta.write( "%s\n" % sequence )
+
+        self.mOutfileIndex.write( "%s\t%i\t%i\t%i\n" % \
+                                      (identifier, 
+                                       identifier_pos,
+                                       sequence_pos,
+                                       len(sequence) ) )
+
+    def __del__(self):
+        if self.mOutfileIndex: self.mOutfileIndex.close()
+        if self.mOutfileFasta: self.mOutfileFasta.close()
+
     def getDatabaseName( self ):
         """returns the name of the database."""
         return self.mDbname

@@ -1,4 +1,5 @@
-import sys, os, re, time, math, copy, glob, optparse, gzip, types
+import sys, os, re, time, math, copy, glob, optparse, gzip, types, subprocess
+import hashlib, base64, string
 import fcntl
 import logging
 
@@ -26,7 +27,7 @@ class AddaModule:
     
     mName = "Adda"
     
-    def __init__(self, options, config, fasta):
+    def __init__(self, options, config, fasta = None):
 
         self.mOptions = options
         self.mConfig = config
@@ -64,12 +65,25 @@ class AddaModule:
                                                      t2-t1 ) )
     
     def run(self):
-        self.mInput = 1
+        self.mInput = 0
+        self.mOutput = 0
         t1 = time.time()
         self.applyMethod()
         t2 = time.time()
         self.mTime += t2 - t1
-        self.mOutput = 1
+
+    def execute( self, cmd ):
+        """execute a shell command."""
+
+        self.info( "executing command: %s" % cmd )
+        try:
+            retcode = subprocess.call( cmd, shell=True)
+            if retcode < 0:
+                self.error( "command failed with code %i: %s" % ( -retcode, cmd ) )
+                raise AddaError( "child command %s failed, see log for details." % cmd )
+        except OSError, e:
+            self.error( "command failed: %s: %s" % ( -retcode, str(e), cmd ) )
+            raise AddaError( "child command %s failed, see log for details." % cmd )
 
     def finish(self):
         """do aggregate computations (if needed)."""
@@ -78,6 +92,23 @@ class AddaModule:
                                                                  self.mOutput,
                                                                  self.mTime ) )
     
+        
+    def getHID ( self, sequence ):
+        """returns a hash identifier for a sequence.
+        """
+        # do the encryption
+        h = hashlib.md5(sequence).digest()
+        # map to printable letters: hid has length 22
+        r = base64.encodestring(h)[0:22]
+
+        # finally substitute some characters:
+        # '/' for '_', so we have legal file names
+        # '[' for '+' and ']' for '=' for internet-applications
+        hid = string.replace(r  , '/', '_')
+        hid = string.replace(hid, '+', '[')
+        hid = string.replace(hid, '=', ']')
+        return hid
+
     def registerExistingOutput(self, filename ):
         """process existing output in infile to guess correct point to continue computation."""
         raise AddaError( "module does not support appending.""")

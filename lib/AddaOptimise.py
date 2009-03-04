@@ -33,12 +33,7 @@ class AddaOptimise( AddaModule ):
         self.mOutputFilenameProgressDomains = self.mFilenameDomains + "_progress_domains.png"
         self.mOutputFilenameProgressDomainsPerSequence = self.mFilenameDomains + "_progress_domains_per_sequence.png"
                                                                     
-        nids = self.mFasta.getContigSizes().keys()
-        nids.sort()
-        self.mNSequences = len(nids)
-        outfile = self.openOutputStream(self.mFilenameNids)
-        for nid in nids: outfile.write( "%s\n" % nid )
-        outfile.close()
+        self.mNSequences = self.mFasta.getNumSequences()
                         
     def plotProgress(self, 
                      data, 

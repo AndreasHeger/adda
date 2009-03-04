@@ -19,7 +19,7 @@ import string, getopt, sys, os, re, time, math, glob
 import Experiment,Histogram
 
 from Pairsdb import *
-from Table_nrdb90_masks import Table_nrdb90_masks
+# from Table_nrdb90_masks import Table_nrdb90_masks
 from Table_nrdb import Table_nrdb
 from TableDomains import TableDomains
 
@@ -127,7 +127,7 @@ if __name__ == "__main__":
     tbl_reference = TableDomains(dbhandle, "generic")
     tbl_reference.SetName(param_table_name_reference)
     
-    tbl_masks = Table_nrdb90_masks(dbhandle)
+    # tbl_masks = Table_nrdb90_masks(dbhandle)
     tbl_nrdb = Table_nrdb(dbhandle)
 
     if param_table_name_trees:
@@ -281,8 +281,8 @@ if __name__ == "__main__":
             if param_skip_repeats and is_repeat:
                 continue
 
-            if param_skip_tms and tbl_masks.HasMask( nid, 2, domain_from, domain_to):
-                continue
+            # if param_skip_tms and tbl_masks.HasMask( nid, 2, domain_from, domain_to):
+            #    continue
 
             if param_resolution:
                 xdomain_from = int(float(domain_from-1)/param_resolution)

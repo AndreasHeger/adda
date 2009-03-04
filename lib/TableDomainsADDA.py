@@ -20,7 +20,7 @@ from TableDomains import TableDomains, TableFamilies
 class TableDomainsAdda( TableDomains ):
 
     mTypeDomainId       = 'VARCHAR(30) DEFAULT ""'
-    mTypeDomainClass    = 'INT UNSIGNED NOT NULL DEFAULT 0'
+    mTypeDomainClass    = 'VARCHAR(30) NOT NULL'
     mExtraFields        = (
         )
     
@@ -37,11 +37,6 @@ class TableDomainsAdda( TableDomains ):
     def GetAnotherInstance( self ):
         """return a handle to the same table."""
         return TableDomainsAdda( self.dbhandle )
-
-    ##-----------------------------------------------------------------------------------------------
-    def GetMaxFamily( self ):
-        """retrieve maximum family."""
-        return self.Execute( "SELECT MAX(family) FROM " + self.name).fetchone()[0]
 
     ##-----------------------------------------------------------------------------------------------
     def AddDomainsFromDomainsTable( self, table_name_source, offset = 0, extra_fields = "", subset = None):
@@ -69,10 +64,13 @@ class TableDomainsAdda( TableDomains ):
 ##------------------------------------------------------------------------------------------------------
 class TableFamiliesAdda( TableFamilies ):
 
-    mTypeDomainClass    = 'INTEGER UNSIGNED NOT NULL DEFAULT 0'
+    mTypeDomainClass    = 'VARCHAR(30) NOT NULL'
 
     mExtraFields  = ()
     mExtraIndices = ()
+
+    ## pattern for new families
+    mPatternFamily = "AD%06i"
     
     def __init__ ( self, handle, root = "adda" ):
 
@@ -84,7 +82,3 @@ class TableFamiliesAdda( TableFamilies ):
         """return a handle to the same table."""
         return TableFamiliesAdda( self.dbhandle )
 
-    ##-----------------------------------------------------------------------------------------------
-    def GetMaxFamily( self ):
-        """retrieve maximum family."""
-        return self.Execute( "SELECT MAX(family) FROM " + self.name).fetchone()[0]

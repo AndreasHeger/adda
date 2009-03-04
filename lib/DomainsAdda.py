@@ -2,7 +2,7 @@
 
 ## load domains from a domain file
 
-import sys, re ,string, os
+import sys, re ,string, os, gzip
 
 from Domains import Domains
 from Pairsdb import *
@@ -45,7 +45,15 @@ class DomainsAdda (Domains):
         for o,a in optlist:        
             if o in ("-i", "--input"):
                 self.mFileNameInput = a
-                
+
+    ##---------------------------------------------------------------------------------
+    def Open( self, filename, mode= "r" ):
+        """return opened file."""
+        if filename.endswith(".gz"):
+            return gzip.open( filename, "r" )
+        else:
+            return open( filename, "r" )
+
     ##---------------------------------------------------------------------------------
     def Create( self ):
         """select all members of a connected component and
@@ -65,15 +73,14 @@ class DomainsAdda (Domains):
 
         self.OpenOutfiles()
 
-        infile = open(self.mFileNameInput, "r")
+        infile = self.Open(self.mFileNameInput, "r")
 
         families = {}
 
-        while 1:
-            line = infile.readline()
-            if not line: break
-            (domain_nid, domain_from, domain_to, family) = map(string.atoi, re.split("[\s_]", line[:-1]))
-
+        for line in infile:
+            (domain_nid, domain_from, domain_to, family) = line[:-1].split("\t")
+            if domain_nid == "nid": continue
+            domain_from, domain_to = map( int, (domain_from, domain_to) )
             if not families.has_key(family):
                 self.mTableFamilies.AddFamily(family)
                 families[family] = 1

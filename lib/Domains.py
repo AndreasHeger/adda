@@ -3,7 +3,7 @@
 ##
 import sys, re, string, os
 
-import Intervalls
+import Intervals
 from Pairsdb import *
 from Experiment import Experiment
 from Table_nrdb import Table_nrdb
@@ -275,14 +275,14 @@ class Domains (Experiment):
         sys.stdout.flush()
 
     #-------------------------------------------------------------------------------------------------------
-    def WriteIntervalls( self, family, nid, intervalls, repeats = None):
+    def WriteIntervals( self, family, nid, intervalls, repeats = None):
 
         i = intervalls
         if repeats:
             r = []
             for rfamily, rfrom, rto in repeats:
                 r.append( (rfrom, rto) )
-            i = Intervalls.ShortenIntervallsOverlap( i, r )
+            i = Intervals.ShortenIntervalsOverlap( i, r )
 
         for first_res, last_res in i:
             l = last_res - first_res + 1
@@ -308,10 +308,10 @@ class Domains (Experiment):
             print "--> in %s: %i" % (self.mTableNameSource, len(nids))
             sys.stdout.flush()
 
-        new_family = self.mTableFamilies.GetMaxFamily() + 1
-
         self.OpenOutfiles()
         nsingletons = 0
+
+        known_families = set(self.mTableFamilies.GetAllClasses())
         
         for nid in nids:
 
@@ -331,12 +331,12 @@ class Domains (Experiment):
                 if last_family != family:
                     if last_family:
                         if self.mCombineOverlaps:
-                            i = Intervalls.CombineIntervallsLarge( family_intervalls )
+                            i = Intervals.combine( family_intervalls )
                         else:
                             i = family_intervalls
                             
                         all_intervalls += i
-                        self.WriteIntervalls( last_family, nid, i, repeats)
+                        self.WriteIntervals( last_family, nid, i, repeats)
 
                     family_intervalls = []
                     
@@ -345,12 +345,12 @@ class Domains (Experiment):
 
             if last_family:
                 if self.mCombineOverlaps:
-                    i = Intervalls.CombineIntervallsLarge( family_intervalls )
+                    i = Intervals.combine( family_intervalls )
                 else:
                     i = family_intervalls
                     
                 all_intervalls += i                
-                self.WriteIntervalls( last_family, nid, i, repeats)
+                self.WriteIntervals( last_family, nid, i, repeats)
 
             # remove all domains that overlap with repeats by adding the repeats
             if self.mFilterRepeats:
@@ -359,16 +359,18 @@ class Domains (Experiment):
                     all_intervalls.append( (rfrom, rto) )
                     
             # add singletons
-            i = Intervalls.ComplementIntervalls( all_intervalls, 1, length)
+            i = Intervals.complement( all_intervalls, 1, length)
 
             if self.mLogLevel > 3:
                 print "nid=%i" % nid, all_intervalls, repeats, domains, i
 
             for first_res, last_res in i:
                 if last_res-first_res > self.mMinSingletonLength:
+                    
+                    new_family = self.mTableFamilies.GetNewFamily( known_families )
                     self.WriteNewSingleton( new_family, nid, first_res, last_res )
-                    new_family += 1
                     nsingletons += 1
+                    known_families.add( new_family )
             
         self.CloseOutfiles()
 
