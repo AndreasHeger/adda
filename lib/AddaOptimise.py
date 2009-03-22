@@ -5,6 +5,7 @@ import cadda
 
 from AddaModule import AddaModule
 import AddaIO
+import SegmentedFile
 
 class AddaOptimise( AddaModule ):
     """index a graph."""
@@ -33,13 +34,16 @@ class AddaOptimise( AddaModule ):
         self.mOutputFilenameProgressDomains = self.mFilenameDomains + "_progress_domains.png"
         self.mOutputFilenameProgressDomainsPerSequence = self.mFilenameDomains + "_progress_domains_per_sequence.png"
                                                                     
-        self.mNSequences = self.mFasta.getNumSequences()
+        self.mNSequences = len(self.mFasta)
                         
+
+        self.mFilenames= ( self.mFilenameDomains, )
+
     def plotProgress(self, 
                      data, 
                      filename = None,
                      title = None):
-                      
+
         pylab.plot( range(len(data)), data )
 
         pylab.title( title )
@@ -56,6 +60,8 @@ class AddaOptimise( AddaModule ):
     def applyMethod(self ):
         """index the graph.        
         """
+
+        if self.isComplete(): return
         
         self.info( "setting parameters" )
                 
@@ -68,7 +74,7 @@ class AddaOptimise( AddaModule ):
         cadda.setFilenameIndex( self.mFilenameIndex )
         cadda.setFilenameTransfers( self.mFilenameTransfers )
         cadda.setFilenameDomains( self.mFilenameDomains )        
-        cadda.setLogLevel( self.mOptions.loglevel )
+        cadda.setLogLevel( self.mLogLevel )
         cadda.setReportStep( 1000 )
         cadda.setMaxIterations( self.mMaxIterations )
         cadda.setResolution( self.mResolution )

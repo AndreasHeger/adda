@@ -63,11 +63,13 @@ import Experiment
 import Mali
 import alignlib
 
-class ProfileLibrary:
+SUFFIX_DATABASE = ".pdb"
+SUFFIX_INDEX=".pix"
 
+class ProfileLibrary:
     
-    mSuffixDatabase = ".pdb"
-    mSuffixIndex = ".pix"
+    mSuffixDatabase = SUFFIX_DATABASE
+    mSuffixIndex = SUFFIX_INDEX
 
     def __init__(self, name, mode = "r", force=False ):
         """create or open a profile library.
@@ -90,17 +92,28 @@ class ProfileLibrary:
         
         self.mOutfileDatabase = None
         self.mOutfileIndex = None
+        self.mLastInsertedKey = None
 
         if mode == "r":
             self.__loadIndex()
         elif mode == "w":
             if not force and os.path.exists( self.mFilenameProfiles):
-                raise "profile database %s already exists." % self.mFilenameProfiles
+                raise IOError( "profile database %s already exists." % self.mFilenameProfiles )
             self.mOutfileDatabase = open( self.mFilenameProfiles, "wb" )
-            self.mOutfileIndex = open( self.mFilenameIndex, "wb" )
-        else:
-            raise "unknown mode '%s'" % mode
-        
+            self.mOutfileIndex = open( self.mFilenameIndex, "w" )
+        elif mode == "a":
+            self.__loadIndex()
+            self.mInfileDatabase.close()
+            self.mOutfileDatabase = open( self.mFilenameProfiles, "ab" )
+            self.mOutfileIndex = open( self.mFilenameIndex, "a" )
+
+    def close(self):
+        if self.mOutfileDatabase:
+            self.mOutfileDatabase.close()
+        if self.mOutfileIndex:
+            self.mOutfileIndex.write( "#//\n" )
+            self.mOutfileIndex.close()
+
     def __getitem__(self, key):
         return self.getProfile( key )
 
@@ -136,7 +149,13 @@ class ProfileLibrary:
         if self.mOutfileDatabase:
             self.mOutfileDatabase.close()
         if self.mOutfileIndex:
+            # patch for ADDA
+            self.mOutfileIndex.write("#//\n")
             self.mOutfileIndex.close()
+
+    def getLastInsertedKey( self ):
+        """return the key last inserted/read."""
+        return self.mLastInsertedKey
 
     def setOptions( self, options ):
         """set options - access to command line options."""
@@ -160,10 +179,10 @@ class ProfileLibrary:
     def __loadIndex( self ):
 
         if not os.path.exists( self.mFilenameProfiles):
-            raise "profile database %s could not be found." % self.mFilenameProfiles
+            raise IOError( "profile database %s could not be found." % self.mFilenameProfiles )
 
         if not os.path.exists( self.mFilenameIndex):
-            raise "index %s could not be found." % self.mFilenameIndex
+            raise IOError( "index %s could not be found." % self.mFilenameIndex )
         
         infile = open( self.mFilenameIndex, "r" )
         self.mIndex = {}
@@ -172,6 +191,8 @@ class ProfileLibrary:
             if line[0] == "#": continue
             name, first_pos, last_pos = line[:-1].split("\t")
             self.mIndex[name] = (int(first_pos), int(last_pos) )
+
+        self.mLastInsertedKey = name
             
         self.mInfileDatabase = open( self.mFilenameProfiles, "rb" )
 
@@ -192,6 +213,7 @@ class ProfileLibrary:
         self.mOutfileDatabase.flush()
         self.mOutfileIndex.flush()
         self.mIndex[name] = start
+        self.mLastInsertedKey = name
 
     def getProfile( self, name ):
         """append a profile to this library."""
@@ -201,9 +223,9 @@ class ProfileLibrary:
         self.mInfileDatabase.seek( self.mIndex[name][0] )
         p = alignlib.loadAlignandum( self.mInfileDatabase )
         if self.mLogOddor or self.mRegularizor:
-            pp = alignlib.toProfile( p )
-            if self.mLogOddor: pp.setLogOddor( self.mLogOddor )
-            if self.mRegularizor: pp.setRegularizor( self.mRegularizor )
+            # TODO: set toolkit options
+            pass
+            
         return p
     
     def create( self, infile ):
@@ -251,6 +273,10 @@ class ProfileLibrary:
             nfound += 1
 
         return ninput, nfound, nnotfound, ndifferent
+
+def getFileNames( name ):
+    return name + SUFFIX_DATABASE, name + SUFFIX_INDEX
+
 
 #--------------------------------------------------------
 #--------------------------------------------------------

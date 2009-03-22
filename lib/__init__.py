@@ -18,6 +18,8 @@ __all__ = [
            "Experiment",
            "IndexedFasta",
            "MatlabTools",
+           "SegmentedFile",
+           "FileSlice",
            "ProfileLibrary",
            "AddaSequences",
            "AddaCluster" ]

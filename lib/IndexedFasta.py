@@ -337,6 +337,9 @@ PREFERENCES=('uncompressed', 'lzo', 'dictzip', 'zlib', 'gzip', 'debug')
 class IndexedFasta:
 
     def __init__( self, dbname, mode="r", method ="uncompressed" ):
+
+        self.mOutfileIndex = None
+        self.mOutfileFasta = None
         
         if mode == "r":
             for x in PREFERENCES:
@@ -351,8 +354,6 @@ class IndexedFasta:
             else:
                 raise KeyError, "unknown database %s" % dbname 
             self.mCreateMode = False
-            self.mOutfileIndex = None
-            self.mOutfileFasta = None
 
         elif mode == "w":
             try:
@@ -404,12 +405,11 @@ class IndexedFasta:
 
         for line in open(self.mNameIndex, "r"):
 
+            if line.startswith("#"): continue
             data = line[:-1].split("\t")
 
             if len(data) == 2:
-                
                 self.mSynonyms[data[0]] = data[1]
-                
             else:
 
                 ## index with random access points
@@ -443,8 +443,22 @@ class IndexedFasta:
                                        len(sequence) ) )
 
     def __del__(self):
-        if self.mOutfileIndex: self.mOutfileIndex.close()
-        if self.mOutfileFasta: self.mOutfileFasta.close()
+        self.close()
+
+    def close( self ):
+        if self.mOutfileFasta: 
+            self.mOutfileFasta.close()
+        if self.mOutfileIndex: 
+            self.mOutfileIndex.write( "#//\n" )
+            self.mOutfileIndex.close()
+
+    def __len__(self):
+        if not self.mIsLoaded: self.__loadIndex()
+        return len(self.mIndex)
+
+    def keys(self):
+        if not self.mIsLoaded: self.__loadIndex()
+        return self.mIndex.keys()
 
     def getDatabaseName( self ):
         """returns the name of the database."""
@@ -453,7 +467,6 @@ class IndexedFasta:
     def getLength( self, sbjct_token ):
         """return sequence length for sbjct_token."""
         if not self.mIsLoaded: self.__loadIndex()
-        
         return self.mIndex[sbjct_token][2]
 
     def getContigSizes( self ):

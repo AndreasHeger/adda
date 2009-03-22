@@ -6,6 +6,7 @@ import ProfileLibrary
 from AddaModule import AddaModule
 import AddaIO
 import IndexedFasta
+import SegmentedFile
 
 class FastaRecord:
     def __init__(self, title, sequence ):
@@ -58,10 +59,12 @@ class AddaSequences( AddaModule ):
 
         AddaModule.__init__( self, *args, **kwargs )
                 
-        self.mFilenameNids = self.mConfig.get( "files", "output_nids", "adda.nids" )    
-        self.mFilenameInputFasta = self.mConfig.get( "files", "input_fasta", "adda" )
+        self.mFilenameNids = self.mConfig.get( "files", "output_nids", "adda.nids" )  
+        self.mFilenameInputFasta = self.mConfig.get( "files", "input_fasta" )
         self.mFilenameOutputFasta = self.mConfig.get( "files", "output_fasta", "adda" )
         self.mMaxSequenceLength = self.mConfig.get( "segments", "max_sequence_length", 10000 )
+
+        self.mIsComplete = SegmentedFile.isComplete( self.mFilenameNids )
 
     def applyMethod(self ):
 
@@ -69,15 +72,17 @@ class AddaSequences( AddaModule ):
         self.mOutput = 0
         self.mRemoved = 0
 
+        # use existing fasta file
+        iterator = FastaIterator( open( self.mFilenameInputFasta, "r" ) )
+        fasta = IndexedFasta.IndexedFasta( self.mFilenameOutputFasta, "w" )
+
         outfile = self.openOutputStream(self.mFilenameNids)
         outfile.write( "nid\thid\tpid\tlength\tsequence\n" )
 
         nid = 1
         hids = set()
         
-        fasta = IndexedFasta.IndexedFasta( self.mFilenameOutputFasta, "w" )
-
-        for seq in FastaIterator( open( self.mFilenameInputFasta, "r" ) ):
+        for seq in iterator:
             
             self.mInput += 1
             if len( seq.sequence ) > self.mMaxSequenceLength:
@@ -90,11 +95,12 @@ class AddaSequences( AddaModule ):
                 continue
             
             hids.add(hid)
-            outfile.write( "%s\t%s\t%s\t%i\t%s\n" % (nid, hid, seq.pid, len(seq.sequence), seq.sequence) )
-            nid += 1
+            outfile.write( "%s\t%s\t%s\t%i\t%s\n" % (nid, seq.pid, hid, len(seq.sequence), seq.sequence) )
             fasta.addSequence( nid, seq.sequence )
+            nid += 1
             self.mOutput += 1
 
+        fasta.close()
         outfile.close()
 
     def finish(self):

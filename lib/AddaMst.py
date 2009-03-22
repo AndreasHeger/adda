@@ -15,23 +15,27 @@ class AddaMst( AddaModule ):
 
         AddaModule.__init__( self, *args, **kwargs )
                 
-        self.mFilenameDomainGraph = self.mConfig.get( "files", "output_domain_graph" )
-        self.mFilenameMst = self.mConfig.get( "files", "output_mst" )
+        self.mFilenameDomainGraph = self.mConfig.get( "files", "output_domain_graph", "adda.domain_graph" )
+        self.mFilenameMst = self.mConfig.get( "files", "output_mst", "adda.mst" )
                 
         self.mRequirements.append( self.mFilenameDomainGraph )
 
-        cadda.setLogLevel( self.mOptions.loglevel )
+        cadda.setLogLevel( self.mLogLevel )
         # cadda.setReportStep( 1 )
+
+        self.mFilenames = ( self.mFilenameMst, )
         
     def applyMethod(self ):
         """index the graph.        
         """
         
+        if self.isComplete(): return
+
         self.info( "construction of minimum spanning tree started" )
                 
         cadda.dump_parameters()
         
-        tmpdir = tempfile.mkdtemp( dir = self.mOptions.temporary_directory )
+        tmpdir = tempfile.mkdtemp( dir = self.mTemporaryDirectory )
         tmpfile = os.path.join( tmpdir, "sorted" )
 
         if not os.path.exists( tmpfile ):

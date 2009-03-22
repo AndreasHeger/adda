@@ -35,7 +35,7 @@ cadda = Extension(
 Components = Extension(
      "Components",                   # name of extension
      [ "src/Components.pyx",        # filename of our Pyrex/Cython source
-      'src/connected_components.cpp',],
+       'src/connected_components.cpp',],
      library_dirs=[],
      libraries=[],
      language="c++",               # this causes Pyrex/Cython to create C++ source
@@ -47,9 +47,10 @@ setup(name='Adda',
       author='Andreas Heger',
       author_email='andreas.heger@helsinki.fi',
       url='http://wwwfgu.anat.ox.ac.uk/~andreas',
-      package_dir = {'Adda': 'lib'},
       packages = ["Adda",],
-      scripts=['scripts/adda.py',],
+      package_dir = {'Adda': 'lib'},
+      package_data = { "Adda" : [ 'adda_blast_parser.pl',] },
+      scripts=['scripts/adda.py' ],
       ext_modules=[cadda, Components ],
       cmdclass = {'build_ext': build_ext}
      )

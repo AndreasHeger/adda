@@ -16,9 +16,13 @@ class SegmentedFile(object):
         return l
 
     def close(self):
-        if self._mode != "r": 
-            self._file.write(TOKEN)
+        if self._file is None: return
+        if self._mode != "r": self._file.write(TOKEN)
         self._file.close()
+        object.__setattr__(self, '_file', None)
+
+    def __del__(self):
+        self.close()
 
     def __getattr__(self, name):
         return getattr(self._file, name)
@@ -91,7 +95,14 @@ def checkTailForToken( filename, token ):
     return read_str == token
 
 #--------------------------------------------------------------------------
-def fileopen( filename, mode = "r", slice = None, force = None, has_header = True ):
+def getParts( filename ):
+    filenames = [ x for x in glob.glob( "%s*" % filename ) if x != filename ]
+    filenames.sort()
+    return filenames
+
+#--------------------------------------------------------------------------
+def openfile( filename, mode = "r", slice = None, force = None, has_header = True,
+              append_callback = None ):
     """open a segmented file for reading/writing.
     
     Open 'filename': Possible 'mode's are 'r' for reading, 'w' for writing and 'a'
@@ -101,43 +112,49 @@ def fileopen( filename, mode = "r", slice = None, force = None, has_header = Tru
     that is not a comment is interpreted as column headers unless 'has_header' is set 
     to False. Appending to a file that already ends in the EOF token raises OSError.
     """
-    
+
     if mode[0] == "r":
-        if os.path.exists( filename ) and checkTailForToken( filename, TOKEN ):
+        if isComplete(filename):
             return SegmentedFile( filename, mode )
-        
-        filenames = glob.glob( "%s.*" % filename )
-        filenames.sort()
+        filenames = getParts( filename )
         for filename in filenames:
             if not checkTailForToken( filename, TOKEN ):
                 raise ValueError( "incomplete file %s" % filename )
         return SegmentedFiles( files = filenames, has_header = has_header )
     elif mode[0] == "w":
-        if slice: filename += ".%s" % slice
+        if slice: filename += slice
         if os.path.exists( filename ):
             raise OSError( "file %s already exists." % filename )
         return SegmentedFile( filename, mode )
     elif mode[0] == "a":
-        if os.path.exists( filename ) and checkTailForToken( filename, TOKEN ):
+        if isComplete(filename):
             raise OSError( "file %s contains already the EOF token" % filename )
-        if slice: filename += ".%s" % slice
+        if slice: filename += slice
+        if append_callback: append_callback( filename )
         return SegmentedFile( filename, mode )
     else:
         raise ValueError("unknown file mode '%s'" % mode )
 
 #--------------------------------------------------------------------------
+def isComplete( filename ):
+    """returns true if file exists and is complete."""
+    return os.path.exists( filename ) and checkTailForToken(filename, TOKEN)
+
+#--------------------------------------------------------------------------
 def merge( filename, has_header = True ):
-    
+    """return False if file is already merged.
+    """
+
     # do nothing if result exists and is complete
-    if os.path.exists( filename ) and checkTailForToken(filename, TOKEN):
-        return True
+    if isComplete(filename):
+        return False
     
-    infile = fileopen( filename, "r", has_header = has_header )
+    infile = openfile( filename, "r", has_header = has_header )
     outfile = SegmentedFile( filename, "w" )
     for line in infile: outfile.write(line)
     outfile.close()
     infile.close()
-    for f in glob.glob( "%s.*" % filename ): os.remove( f )
+    for f in getParts( filename ): os.remove( f )
 
     return True
 

@@ -13,9 +13,8 @@ PMID: 12706730
 
 USAGE INSTRUCTIONS
 
-ADDA is controlled with the script adda.py. The script
-expects a file adda.ini with configuration options in
-the directory from which it is called. An example 
+ADDA is controlled with the script adda.py. The script expects a file adda.ini 
+with configuration options in the directory from which it is called. An example 
 is in the directory ./test.
 
 INPUT DATA
@@ -27,7 +26,6 @@ ADDA requires three input files.
    2. the results from an all-on-all sequence comparison (sequence alignment graph)
 
    3. domain assignments from a reference domain assignment
-
 
 ADDA proceeds in stages. Each stage corresponds to a command to
 the script adda.py. To run all stages, run adda.py as

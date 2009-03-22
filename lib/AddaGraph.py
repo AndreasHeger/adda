@@ -1,6 +1,7 @@
 import sys, os, re, time, math, copy
 
 from AddaModule import AddaModule
+import SegmentedFile
 
 class AddaGraph( AddaModule ):
     """write a links table for adda processing."""
@@ -11,14 +12,19 @@ class AddaGraph( AddaModule ):
 
         AddaModule.__init__( self, *args, **kwargs )
 
-        self.mOutfile = self.openOutputStream( self.mConfig.get("files", "output_graph") )
-                
+        self.mFilenameGraph = self.mConfig.get("files", "output_graph", "adda.graph" )
+        self.mFilenames = (self.mFilenameGraph, )
         self.mMergeRepeats = self.mConfig.get( "graph", "merge_repeats") == "True"
         self.mMinDomainSize = int(self.mConfig.get('adda','min_domain_size'))
+        
+    def startUp( self ):
+        
+        if not self.isComplete():
+            self.mOutfile = self.openOutputStream( self.mFilenameGraph )
                 
-        self.mNJoined = 0
-        self.mNLinksInput = 0
-        self.mNLinksOutput = 0        
+            self.mNJoined = 0
+            self.mNLinksInput = 0
+            self.mNLinksOutput = 0        
         
     def applyMethod(self, neighbours ):
         """output the graph.
@@ -31,6 +37,14 @@ class AddaGraph( AddaModule ):
         cover alignments split by transmembrane regions.
         
         """
+
+        nid = neighbours.mQueryToken
+
+        if self.mContinueAt:
+            if nid == self.mContinueAt:
+                self.info("continuing processing at %s" % str(self.mContinueAt ) )
+                self.mContinueAt = None
+            return
 
         if len(neighbours.mMatches) == 0:
             return
@@ -72,13 +86,50 @@ class AddaGraph( AddaModule ):
         self.mNLinksOutput += len(matches)
         for m in matches:
             self.mOutfile.write( "%s\t%s\t%f\t%i\t%i\t%i\t%i\n" % \
-                                 ( m.mQueryToken, 
-                                   m.mSbjctToken, 
-                                   m.mEvalue,
-                                   m.mQueryFrom, m.mQueryTo,
-                                   m.mSbjctFrom, m.mSbjctTo ) )    
+                                     ( m.mQueryToken, 
+                                       m.mSbjctToken, 
+                                       m.mEvalue,
+                                       m.mQueryFrom, m.mQueryTo,
+                                       m.mSbjctFrom, m.mSbjctTo ) )    
             self.mOutfile.flush()
+
+    def readPreviousData(self, filename ):
+        """process existing output in filename to guess correct point to continue computation."""
+        
+        self.info( "reading previous data from %s" % filename )
+        
+        infile = open( filename, "r" )
+        
+        def iterate_per_query(infile):
             
+            last_nid = None
+            values = []
+            for line in infile:
+
+                data = line[:-1].split("\t")
+                if len(data) != 7:
+                    self.warn( "parsing error in line %s" % line[:-1])
+
+                nid = data[0]
+                
+                if nid != last_nid:
+                    if last_nid: yield last_nid, values
+                    last_nid = nid
+                    
+            if last_nid: yield last_nid, values
+            
+            raise StopIteration
+            
+        nnids = 0
+        for nid, values in iterate_per_query(infile):
+            nnids += 1
+            self.mContinueAt = nid
+        
+        self.info("found %i nids, processing will continue after nid %s" % (nnids, str( self.mContinueAt ) ) )
+            
+        infile.close()
+            
+    #--------------------------------------------------------------------------
     def finish(self):
         
         self.mOutfile.close()
@@ -87,3 +138,45 @@ class AddaGraph( AddaModule ):
                    (self.mNLinksInput, self.mNLinksOutput, self.mNJoined ) )
         
         AddaModule.finish( self )
+
+    #--------------------------------------------------------------------------
+    def merge(self):
+        SegmentedFile.merge( self.mFilenameGraph )
+
+    #--------------------------------------------------------------------------
+    def validate(self):
+        """merge runs from parallel computations.
+
+        Note: duplicated code with AddaSegments - can be merged.
+
+        returns true if merging was succecss.
+        """
+        infiles = self.getPartialResults()
+        last_nid = None
+        found = set()
+        nfound, nunknown, nduplicate = 0, 0, 0
+        infile = SegmentedFile.fileopen( self.mFilenameGraph )
+        for line in infile:
+            ninput += 1
+            nid = line[:line.index("\t")]
+            if nid != last_nid:
+                if nid in found:
+                    nduplicates += 1
+                    self.warn("duplicate nid: %i in file %s" % (nid, filename))
+                if nid not in tokens:
+                    nunknown += 1
+                    self.warn("unknown nid: %i in file %s" % (nid, filename))
+                found.add(nid)
+                nfound += 1
+                last_nid = nid
+            noutput += 1
+
+        missing = set(self.mFasta.getTokens()).difference( found ) 
+        if len(missing) > 0:
+            self.warn( "the following nids were missing: %s" % str(missing) )
+
+        self.info( "merging: ninput=%i, noutput=%i, nfound=%i, nmissing=%i, nduplicate=%i, nunknown=%i" %\
+                       (ninput, noutput, nfound, len(missing), nduplicate, nunknown ) )
+        
+        return len(missing) == 0 and nduplicate == 0 and nunknown == 0
+

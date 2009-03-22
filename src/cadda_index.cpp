@@ -62,6 +62,8 @@ int cadda_build_index()
 	if (x == NULL) return 0;
       }
 
+      if (buffer[0] == '#') continue;
+      
       {
 	int r = sscanf(buffer, "%ld", &nid);
 	if ( r != 1 ) 

@@ -151,6 +151,9 @@ int cadda_build_mst( const char * output_filename,
 
 		}
 	}
+
+	outfile << TOKEN;
+	
 	outfile.close();
 	infile.close();
 	return noutput;

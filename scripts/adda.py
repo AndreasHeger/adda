@@ -6,9 +6,11 @@ interface to compute adda
 """
 
 import sys, os, re, time, math, copy, glob, optparse
+from multiprocessing import Process
 import fileinput
 # segfault on my machine without the print statement - strange
 print 
+import Adda.Experiment as E
 from Adda import *
 
 def run( options, order, map_module, config, fasta = None ):
@@ -22,21 +24,28 @@ def run( options, order, map_module, config, fasta = None ):
 
     for step in order:
         if step in steps:
-            modules.append( map_module[step]( options, config, fasta = fasta ) )
+            module = map_module[step]( options, config, fasta = fasta )
             
+            if not module.isComplete():
+                modules.append( module )
+            else:
+                E.info( "%s complete" % step )
+    print steps, order, modules        
     if len(modules) == 0: return
 
-    options.stdlog.write( "running modules: %s\n" % (",".join(map(str, modules))) )
+    E.info( "running apply on modules: %s" % (",".join(map(str, modules))) )
 
     for module in modules:
         module.run()
         module.finish()
 
+def mergeGraph( options, 
+                order, 
+                map_module, 
+                config, 
+                fasta ):
 
-def runGraph( options, order, map_module, config, fasta ):
 
-    tokens = set(fasta.getContigSizes().keys())
-    
     if "all" in options.steps:
         steps = order
     else:
@@ -45,77 +54,147 @@ def runGraph( options, order, map_module, config, fasta ):
     modules = []
     for step in order:
         if step in steps:
-            modules.append( map_module[step]( options, config, fasta ) )
+            modules.append( map_module[step]( options, 
+                                              config, 
+                                              fasta = fasta ) )
 
-    if len(modules) == 0: return
+    E.info( "performing merge on modules: %s" % str(modules) )
 
-    options.stdlog.write( "modules on graph: %s\n" % (",".join(map(str, modules))))
-            
-    if modules_on_graph:
-        
-        files = config.get( "files", "input_graph" ).split(",")
-        
-        infile = fileinput.FileInput(files = files,
-                                     openhook=fileinput.hook_compressed)
-    
-        iterator = AddaIO.NeighboursIterator(infile,
-                                             tokens = tokens )
-    
-        ninput, noutput = 0, 0
-        t0 = time.time()
+    for module in modules:
+        module.merge()
 
-        keep = options.start_at == None
-        
-        while 1:
+class Runner( Process ):
+    """run adda jobs."""
+
+    def __init__(self, options, order, map_module, config, chunk, nchunks ):
+
+        Process.__init__( self )
+
+        fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
+
+        if "all" in options.steps: steps = order
+        else: steps = options.steps
+
+        modules = []
+        for step in order:
+            if step in steps:
+                module = map_module[step]( options, 
+                                           config = config, 
+                                           fasta = fasta,
+                                           num_chunks = nchunks,
+                                           chunk = chunk )
             
-            t1 = time.time()
-            
-            neighbours = iterator.next()
-            
-            if neighbours == None: break
-        
-            if options.start_at and neighbours.mQueryToken == options.start_at: 
-                keep = True
+                module.startUp()
                 
-            if not keep: 
-                if options.loglevel >= 3:
-                    options.stdlog.write( "# skipping: %s, will start at %s\n" %\
-                                              ( neighbours.mQueryToken, options.start_at) )
-                continue
-                
-            if options.stop_at and neighbours.mQueryToken == options.stop_at: break
-            
-            ninput += 1
+                if not module.isComplete():
+                    modules.append( module )
+                else:
+                    E.info( "%s complete" % step )
         
-            if options.old_alignment_format:
-                for match in neighbours.mMatches:
-                    match.mQueryFrom -= 1
-                    match.mSbjctFrom -= 1
-            
-            for module in modules_on_graph:
-                module.apply( neighbours )
-    
-            noutput += 1
-                
-            t2 = time.time()
-            
-            options.stdlog.write( "# iteration=%i, token=%s, time: this=%i, total=%i, avg=%f\n" %\
-                                  (ninput, neighbours.mQueryToken, t2-t1, t2-t0, float(t2-t0) / ninput) )
+        self.mModules = modules
+        
+class RunnerOnFile(Runner):
+    """run jobs on a file per line."""
 
-            if options.test and ninput >= options.test:
-                break
-    
-        for module in modules_on_graph:
+    def __init__(self, filename, options, order, map_module, config, chunk, nchunks ):
+
+        Runner.__init__( self, options, order, map_module, config, chunk, nchunks )
+
+        E.info( "opening file %s at chunk %i" % (filename, chunk) )
+        
+        self.mIterator = FileSlice.Iterator( filename, 
+                                             nchunks,
+                                             chunk,
+                                             FileSlice.iterator )
+
+    def run( self ):
+
+        if len(self.mModules) == 0: return
+
+        E.info( "running apply on modules: %s" % (",".join(map(str, self.mModules))) )
+
+        for line in self.mIterator:
+            for module in self.mModules:
+                module.apply( line )
+
+        for module in self.mModules:
             module.finish()
     
-        if options.loglevel >= 1:
-            options.stdlog.write( "# ninput=%i, noutput=%i\n" % (ninput, noutput ) )
+class RunnerOnGraph(Runner):
+    """run jobs in parallel on graph."""
 
+    def __init__(self, filename, options, order, map_module, config, chunk, nchunks ):
 
+        Runner.__init__( self, options, order, map_module, config, chunk, nchunks )
 
+        if len(self.mModules) == 0: return
 
+        self.mOldAlignmentFormat = options.old_alignment_format
 
-if __name__ == "__main__":
+        E.info( "opening graph %s at chunk %i" % (filename, chunk) )
+
+        self.mIterator = FileSlice.IteratorMultiline( filename, 
+                                                      nchunks,
+                                                      chunk,
+                                                      FileSlice.groupby,
+                                                      key = lambda x: x[:x.index("\t")] )
+
+        self.mMapId2Nid = AddaIO.readMapId2Nid( open(config.get( "files", "output_nids", "adda.nids" ), "r" ) )
+
+    def run( self ):
+
+        if len(self.mModules) == 0: return
+
+        E.info( "running apply on modules: %s" % (",".join(map(str, self.mModules))) )
+
+        for record in self.mIterator:
+            neighbours = []
+            for line in record:
+                n = AddaIO.NeighbourRecord( line )
+                if self.mMapId2Nid:
+                    if (n.mQueryToken not in self.mMapId2Nid or \
+                            n.mSbjctToken not in self.mMapId2Nid ):
+                        continue 
+                    q = n.mQueryToken = self.mMapId2Nid[n.mQueryToken]
+                    n.mSbjctToken = self.mMapId2Nid[n.mSbjctToken]
+  
+                if self.mOldAlignmentFormat:
+                    n.mQueryFrom -= 1
+                    m.mSbjctFrom -= 1
+  
+                neighbours.append( n )
+
+            if neighbours:
+                for module in self.mModules:
+                    module.apply( AddaIO.NeighboursRecord( q, neighbours ) )
+
+        E.info( "running finish on modules: %s" % (",".join(map(str, self.mModules))) )
+        
+        for module in self.mModules:
+            module.finish()
+
+def mergeConvert( options ):
+    pass
+
+def runParallel( runner, filename, options, order, map_module, config ):
+
+    nchunks = config.get( "adda", "num_jobs", 4 )
+
+    E.info( "running %i jobs" % nchunks )
+
+    processes = []
+    for chunk in range(nchunks):
+        E.info( "starting job %i" % chunk )
+        process = runner( filename, options, order, map_module, config, chunk, nchunks )
+        process.start()
+        processes.append( process )
+
+    for p in processes:
+        p.join()
+
+    E.info( "all jobs finished" )
+
+def main():
     
     parser = optparse.OptionParser( version = "%prog version: $Id$", usage = USAGE )
 
@@ -142,12 +221,15 @@ if __name__ == "__main__":
                                 "graph",
                                 "index",
                                 "check-index",
-                                "profiles", 
+                                "profiles",
                                 "segment", 
+                                "merge-graph",
                                 "optimise",
                                 "convert",
+                                "merge-convert",
                                 "mst", 
                                 "align",
+                                "merge-align",
                                 "cluster", ),
                        help="perform this step [default=%default]" )
 
@@ -161,7 +243,6 @@ if __name__ == "__main__":
     parser.set_defaults( 
                         filename_config = "adda.ini",
                         steps = [],
-                        suffix = "",
                         start_at = None,
                         stop_at = None,
                         old_alignment_format = False,
@@ -171,7 +252,7 @@ if __name__ == "__main__":
                         temporary_directory = ".",
                         )
     
-    (options, args) = Experiment.Start( parser )
+    (options, args) = E.Start( parser )
 
     config = AddaIO.ConfigParser()
     config.read( os.path.expanduser( options.filename_config ) )
@@ -193,32 +274,75 @@ if __name__ == "__main__":
                    'align' : AddaAlign.AddaAlign, 
                    'cluster' : AddaCluster.AddaCluster,
                    }
-    
+
     # modules and their hierarchy
-    run( options, 
-         order = ( "sequences", "blast", ), 
-         map_module = map_module,
-         config = config )
+#    run( options, 
+#          order = ( "sequences", ), 
+#          map_module = map_module,
+#          config = config )
 
-    fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta" ) )
-        
-    runGraph( options, 
-              order = ("fit", "segment", "graph", "profiles" ),
-              map_module = map_module,
-              config = config,
-              fasta = fasta)
+    runParallel( 
+        RunnerOnGraph,
+        filename = config.get( "files", "input_graph", "adda.graph" ),
+        options = options, 
+        order = ("fit", "segment", "graph", "profiles" ),
+        map_module = map_module,
+        config = config )
+
+    fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
+    
+    mergeGraph( options,
+                order = ("fit", "segment", "graph", "profiles" ),
+                map_module = map_module,
+                config = config,
+                fasta = fasta )
 
     run( options, 
-         order = ("index", "check-index", "optimise", "convert", "mst", "align", "cluster" ),
+         order = ("index", "check-index", "optimise" ),
          map_module = map_module,
          config = config,
          fasta = fasta)
 
-    Experiment.Stop()
+    E.info( "building domain graph" )
+
+    run( options, 
+         order = ( "convert", ),
+         map_module = map_module,
+         config = config,
+         fasta = fasta)
+
+    mergeConvert( options )
+
+    E.info( "computing minimum spanning tree" )
+    run( options, 
+         order = ( "mst", ),
+         map_module = map_module,
+         config = config,
+         fasta = fasta)
+
+    E.info( "alignment of domains" )
+
+    runParallel( 
+        RunnerOnFile,
+        config.get( "files", "output_mst", "adda.mst" ),
+        options = options, 
+        order = ( "align", ),
+        map_module = map_module,
+        config = config )
+
+    mergeAlign( options )
+
+    run( options, 
+         order = ( "cluster", ),
+         map_module = map_module,
+         config = config,
+         fasta = fasta)
+
+    E.Stop()
     
                 
-    
-
+if __name__ == "__main__":    
+    sys.exit(main())
 
 
 

@@ -1,10 +1,11 @@
-import sys, os, re, time, math, copy
+import sys, os, re, time, math, copy, random
 import numpy
 import scipy, scipy.stats, scipy.optimize
 import matplotlib, pylab
 
 from AddaModule import AddaModule
 import AddaIO
+import SegmentedFile
 
 class Parameter:
     def __init__(self, value):
@@ -31,13 +32,61 @@ class AddaFit( AddaModule ):
     mName = "Fit"
     
     def __init__(self, *args, **kwargs ):
+
         AddaModule.__init__( self, *args, **kwargs )
+
+        self.mFilenameFit = self.mConfig.get("files","output_fit", "adda.fit" )
+        self.mFilenameOverhang = self.mConfig.get( "files", "output_fit_overhang" )
+        self.mFilenameTransfer = self.mConfig.get( "files", "output_fit_transfer" )
+        self.mFilenameDetails = self.mConfig.get( "files", "output_fit_details" )
+        self.mMinTransfer = float(self.mConfig.get( "fit", "min_transfer" ))
+        self.mMinOverhang = float(self.mConfig.get( "fit", "min_overhang" ))
+
+        self.mFilenames = (self.mFilenameFit, self.mFilenameTransfer, self.mFilenameDetails, self.mFilenameOverhang )
+
+    #--------------------------------------------------------------------------        
+    def startUp( self ):
+
+        if self.isComplete(): return
 
         self.mDomainBoundaries = {}
 
         rx_include = re.compile( self.mConfig.get( "fit", "family_include") )
 
-        t = """# FAMILY:          domain family
+        self.info( "reading domains from %s" % self.mConfig.get( "files", "input_reference") )
+        infile = AddaIO.openStream( self.mConfig.get( "files", "input_reference") )
+
+        for line in infile:
+            if line[0] == "#": continue
+            token, start, end, family = line[:-1].split( "\t" )[:4]
+
+            if not rx_include.search( family): continue
+            start, end = int(start), int(end)
+            if token not in self.mDomainBoundaries:
+                a = { family : [ (start, end) ] }
+                self.mDomainBoundaries[token] = a
+            else:
+                a = self.mDomainBoundaries[token]
+                if family not in a:
+                    a[family] = [ (start, end) ]
+                else:
+                    a[family].append( (start,end) )
+
+        self.info( "read domain information for %i sequences" % (len(self.mDomainBoundaries)))
+
+        # result containers
+        self.mTransferValues = []
+        self.mOverhangValues = []
+
+        # used to store data from an aborted run
+        self.mValues = []
+        self.mContinueAt = None
+
+        # extract options
+        self.mOutfileDetails  = self.openOutputStream( self.mFilenameDetails, register = True )
+
+        if not self.mContinueAt:
+            self.mOutfileDetails.write( """# FAMILY:          domain family
 # NID1:         sequence nid1
 # DFROM1:       domain start on nid1
 # DTO1:         domain end on nid1
@@ -55,61 +104,19 @@ class AddaFit( AddaModule ):
 # PTRAN:        percentage transfer (transfer/lali)
 # ATRAN:        average percentage transfer (transfer/ sqrt( LX * LY))
 # SCORE:        score of alignment
-# CLASS NID1  DFROM1  DTO1    AFROM1  ATO1    DNID2   DFROM2  DTO2    AFROM2  ATO2    LALI    LX      LY      TRANS   PTRAN   ATRAN SCORE"""
+class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali\tlx\tly\ttrans\tptran\tatran\tscore\n""")
+            ## flushing is important with multiprocessing - why?
+            ## if not flushed, the header and the EOF token appear twice.
+            self.mOutfileDetails.flush()
 
-        self.info( "reading domains from %s" % self.mConfig.get( "files", "input_reference") )
-        infile = AddaIO.openStream( self.mConfig.get( "files", "input_reference") )
+    #--------------------------------------------------------------------------        
+    def registerExistingOutput(self, filename):    
 
-        for line in infile:
-            if line[0] == "#": continue
-            token, start, end, family = line[:-1].split( "\t" )[:4]
-            
-            if not rx_include.search( family): continue
-            start, end = int(start), int(end)
-            if token not in self.mDomainBoundaries:
-                a = { family : [ (start, end) ] }
-                self.mDomainBoundaries[token] = a
-            else:
-                a = self.mDomainBoundaries[token]
-                if family not in a:
-                    a[family] = [ (start, end) ]
-                else:
-                    a[family].append( (start,end) )
-            
-        self.info( "read domain information for %i sequences" % (len(self.mDomainBoundaries)))
+        if os.path.exists(filename):
+            self.readPreviousData( filename )
+            self.info("processing will continue after %s" % (str( self.mContinueAt ) ) )
 
-        # result containers
-        self.mTransferValues = []
-        self.mOverhangValues = []
-        
-        # used to store data from an aborted run
-        self.mValues = []
-        self.mContinueAt = None
-        
-        # extract options
-        self.mMinTransfer = float(self.mConfig.get( "fit", "min_transfer" ))
-        self.mMinOverhang = float(self.mConfig.get( "fit", "min_overhang" ))
-        
-        self.mFilenameOverhang = self.mConfig.get( "files", "output_fit_overhang" )
-        self.mFilenameTransfer = self.mConfig.get( "files", "output_fit_transfer" )
-        self.mFilenameDetails = self.mConfig.get( "files", "output_fit_details" )
-
-        self.mOutfileDetails = None
-        self.mOutfile = self.openOutputStream( self.mConfig.get("files","output_fit", "adda.fit" ) )
-
-        if not self.mOutfileDetails:
-            self.mOutfileDetails  = open( self.mFilenameDetails, "w" )
-            
-        self.mOutfileTransfer = open( self.mFilenameTransfer, "w" )
-        self.mOutfileOverhang = open( self.mFilenameOverhang, "w" )        
-
-    def registerExistingOutput(self, filename):
-
-        if os.path.exists(self.mFilenameDetails):
-            self.readPreviousData( self.mFilenameDetails )
-            self.mOutfileDetails  = open( self.mFilenameDetails, "a" )
-        
-        
+    #--------------------------------------------------------------------------
     def processValues(self, values):
         """process data for a single query.
         
@@ -175,21 +182,27 @@ class AddaFit( AddaModule ):
                 self.mTransferValues.append( transfer )
             if overhang:
                 self.mOverhangValues.append( overhang )
-    
-        
-    
-    def readPreviousData(self, filename):
+
+    #--------------------------------------------------------------------------    
+    def readPreviousData(self, filename = None):
         """process existing output in filename to guess correct point to continue computation."""
         
-        self.info( "reading previous data from %s" % self.mFilenameDetails )
+        if filename == None: filename = self.mFilenameDetails
+
+        self.info( "reading previous data from %s" % filename )
         
-        infile = open( self.mFilenameDetails, "r" )
+        infile = open( filename, "r" )
+
+        self.mTransferValues = []
+        self.mOverhangValues = []
         
         def iterate_per_query(infile):
             
             last_query = None
             
             for line in infile:
+                if line.startswith("#"): continue
+                if line.startswith("class"): continue
 
                 try: 
                     (family,
@@ -210,21 +223,21 @@ class AddaFit( AddaModule ):
                 if transfer >= 0:
                     values.append( (family, query_token, sbjct_token, transfer, lx-transfer, ly-transfer) ) 
                     
-            if last_query: yield values
-        
-            self.mContinueAt = (query_token, sbjct_token)
+            if last_query: 
+                yield values
+                self.mContinueAt = (query_token, sbjct_token)
+
             raise StopIteration
             
         for values in iterate_per_query(infile):
             self.processValues(values)
             
-        self.info("read previous data: transfer=%i, overhang=%i" % \
-                  (len(self.mTransferValues), len(self.mOverhangValues) ))
-            
-        self.info("processing will continue after pair %s" % str( self.mContinueAt) )
+        self.info("read previous data from %s: transfer=%i, overhang=%i" % \
+                      (filename, len(self.mTransferValues), len(self.mOverhangValues) ))
             
         infile.close()
-                
+
+    #--------------------------------------------------------------------------                    
     def applyMethod(self, neighbours ):
         """estimate ADDA penalties.
 
@@ -255,7 +268,6 @@ class AddaFit( AddaModule ):
         values = []
 
         for n in neighbours.mMatches:
-
             if n.mQueryToken not in self.mDomainBoundaries or \
                 n.mSbjctToken not in self.mDomainBoundaries: continue
  
@@ -264,7 +276,7 @@ class AddaFit( AddaModule ):
                     self.info("continuing processing at pair %s" % str(self.mContinueAt ) )
                     self.mContinueAt = None
                 continue
-                
+
             qdomains = self.mDomainBoundaries[n.mQueryToken]
             sdomains = self.mDomainBoundaries[n.mSbjctToken]
             
@@ -295,26 +307,26 @@ class AddaFit( AddaModule ):
                         A = float(transfer) / float( lali )
                         B = float(transfer) / math.sqrt( float(lx * ly))
                         
-                        if self.mOutfileDetails:
-                            self.mOutfileDetails.write( "\t".join( \
-                                        map(str, (family,
+                        self.mOutfileDetails.write( "\t".join( \
+                                map(str, (family,
                                           n.mQueryToken, xfrom, xto, n.mQueryFrom, n.mQueryTo,
                                           n.mSbjctToken, yfrom, yto, n.mSbjctFrom, n.mSbjctTo,
                                           lali, lx, ly, transfer, A, B, n.mEvalue) )) + "\n" )
-                            self.mOutfileDetails.flush()
-                            
+                        self.mOutfileDetails.flush()
+
                         if transfer >= 0:
                             values.append( (family, n.mQueryToken, n.mSbjctToken, transfer, lx-transfer, ly-transfer) ) 
                                          
         values.sort()
-        
         self.processValues( values )
                                         
+    #--------------------------------------------------------------------------
     def writeHistogram(self, outfile, intervals, frequencies ):
         
         for bin, value in zip(intervals, frequencies ):
             outfile.write( "%i\t%f\n" % (bin, value) )
 
+    #--------------------------------------------------------------------------
     def cumulateHistogram( self, values ):
         t = 0
         v = []
@@ -323,7 +335,7 @@ class AddaFit( AddaModule ):
             v.append( t )
         return v
 
-    
+    #--------------------------------------------------------------------------    
     def getCumulativeHistogram(self, values, reverse = False):
 
         x = numpy.arange( int(min(values)), int(max(values)) )
@@ -337,6 +349,7 @@ class AddaFit( AddaModule ):
         if reverse: y = y[::-1].copy()
         return x,y
     
+    #--------------------------------------------------------------------------
     def plotHistogram(self, bins, vals,
                       title = None, 
                       filename = None,
@@ -360,13 +373,17 @@ class AddaFit( AddaModule ):
             pylab.show()
             
         pylab.clf()
-    
+
+    #--------------------------------------------------------------------------    
     def finish(self):
+
+        self.mOutfile = self.openOutputStream( self.mFilenameFit, register = False )
+        self.mOutfileTransfer = self.openOutputStream( self.mFilenameTransfer, register = False )
+        self.mOutfileOverhang = self.openOutputStream( self.mFilenameOverhang, register = False )        
         
         self.info( "number of values: transfer=%i, overhang=%i" % (len(self.mTransferValues),
                                                                    len(self.mOverhangValues)) )
         
- 
         x,y = self.getCumulativeHistogram(self.mTransferValues, reverse = True )
         self.writeHistogram( self.mOutfileTransfer, x, y )
 
@@ -377,7 +394,6 @@ class AddaFit( AddaModule ):
         B = Parameter(1.0)
         C = Parameter(76.0)
         K = Parameter(8.6)
-
 
         result = fit(f,[A,B,C,K], y=y, x=x)
 
@@ -411,6 +427,16 @@ class AddaFit( AddaModule ):
         self.mOutfile.write( "exponential_F=%f\n" % F() )
 
         self.mOutfile.close()
+        self.mOutfileTransfer.close()
+        self.mOutfileOverhang.close()
         AddaModule.finish( self )
         
-        
+    #--------------------------------------------------------------------------
+    def merge(self):
+        """merge runs from parallel computations.
+        """
+
+        if SegmentedFile.merge( self.mFilenameDetails ):
+            self.readPreviousData( self.mFilenameDetails )
+            self.finish()
+            

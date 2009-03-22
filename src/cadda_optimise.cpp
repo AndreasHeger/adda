@@ -352,10 +352,19 @@ void fillTrees( ifstream & infile,
 
 	while (!infile.eof())
 	{
+		char c = infile.peek();
+		
+		if (c == '#')
+		  {
+		    infile.ignore(10000, '\n');
+		    continue;
+		  }
+
 		Nid nid;
 		int node, parent, level, xfrom, xto;
 
 		infile >> nid >> node >> parent >> level >> xfrom >> xto;
+		infile.ignore(10000, '\n');
 		if (infile.eof()) break;
 
 		IndexMap::const_iterator it = map_nid2index.find(nid);
@@ -424,18 +433,26 @@ void fillNidsFromFile( ifstream & infile,
 	std::string header("");
 	infile >> header;
 	assert( header == "nid" );
-
+	infile.ignore(10000, '\n');
+	
 	Nid nid;
-	int length;
 	
 	while (!infile.eof())
 	{
-	  infile >> nid >> length;
+	  // skip comments 
+	  char c = infile.peek();
+	  if (c == '#' ) 
+	    {
+	      infile.ignore(10000, '\n');
+	      continue;
+	    }
+	  
+	  infile >> nid;
+	  infile.ignore(10000, '\n');
 	  if (infile.eof()) break;
 	  *it = nid;
 	  ++it;
 	}
-
 }
 
 inline double getTransfer( Residue & transfer )
@@ -508,6 +525,8 @@ inline double calculateScore(
 
 	// surprise score for splitting the alignment into a domain of size transfer
 	double p = 1.0 - getTransfer( transfer );
+	if (p <= 0) p = SMALL_PROBABILITY;
+	
 	double s = -log(p);
 
 	// surprise score for missing out on residues:
@@ -630,15 +649,14 @@ void fillFileIndexMap( FileIndexMap & map_nid2fileindex, std::string & file_name
 		FileIndex index;
 
 		{
-			int r = fread(&nid,sizeof(Nid), 1, file);
-			assert( r == 1 );
+		  int r = fread(&nid,sizeof(Nid), 1, file);
+		  assert( r == 1 );
 		}
 		if (feof(file)) break;
 		{
-			int r = fread(&index, sizeof(FileIndex), 1, file);
-			assert( r == 1 );
+		  int r = fread(&index, sizeof(FileIndex), 1, file);
+		  assert( r == 1 );
 		}
-
 		map_nid2fileindex[nid] = index;
 	}
 
@@ -823,6 +841,7 @@ int cadda_optimise_save_partitions( const char * filename )
 		std::cout << "# partitions written to " << filename << endl;
 
 	printPartitions( outfile, global_partitions, global_map_index2nid);
+	outfile << TOKEN;
 	outfile.close();
 
 	return 1;
@@ -916,8 +935,8 @@ int cadda_optimise_initialise()
 	// read tree
 	if (param_loglevel >= 1)
 	{
-		cout << "# retrieving trees: ";
-		std::cout.flush();
+	  cout << "# retrieving trees: ";
+	  std::cout.flush();
 	}
 
 	global_trees.resize(global_map_index2nid.size());

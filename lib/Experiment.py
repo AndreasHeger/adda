@@ -231,12 +231,12 @@ def Start( parser = None,
     if global_options.stdout == global_options.stdlog:
         logging.basicConfig(
             level=lvl,
-            format='# %(asctime)s %(levelname)s %(message)s',
+            format='# %(asctime)s %(name)s %(levelname)s %(message)s',
             stream = global_options.stdlog )
     else:
         logging.basicConfig(
             level=lvl,
-            format='%(asctime)s %(levelname)s %(message)s',
+            format='%(asctime)s %(name)s %(levelname)s %(message)s',
             stream = global_options.stdlog )
         
     return global_options, global_args
@@ -486,3 +486,6 @@ def error( message ):
         
 def critical( message):
     logging.critical( message )
+
+def getLogLevel():
+    return global_options.loglevel

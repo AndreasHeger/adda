@@ -43,6 +43,11 @@ typedef std::map< Nid, Index > MapNid2Index;
 #define MAX_LINE_LENGTH 10000000
 #define SEPARATOR '\t'
 #define SEPARATOR_RANGE '_'
+// end of file token
+#define TOKEN "#//\n"
+
+// minimum probability to avoid taking the log of 0
+#define SMALL_PROBABILITY 1e-20
 
 //------------------------------------------------------------------------
 template< class Array >
@@ -55,6 +60,14 @@ void fillParameterArrays( std::ifstream & infile,
 
   while (!infile.eof()) 
   {
+    // skip comments
+    char c = infile.peek();
+    if (c == '#')
+      {
+	infile.ignore(10000, '\n');
+	continue;
+      }
+    
     infile >> x >> y;
     infile.ignore(10000, '\n');
     if (infile.eof()) break;

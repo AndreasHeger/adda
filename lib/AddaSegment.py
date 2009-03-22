@@ -4,34 +4,130 @@ import Numeric
 from AddaModule import AddaModule
 import CorrespondenceAnalysis
 import MatlabTools
+import SegmentedFile
+import Experiment as E
 
 class AddaSegment( AddaModule ):
 
     mName = "Segment"
 
     def __init__(self, *args, **kwargs ):
+
         AddaModule.__init__( self, *args, **kwargs )
 
-        self.mOutfile = self.openOutputStream( self.mConfig.get("files","output_segments") )
+        self.mFilenameSegments = self.mConfig.get("files","output_segments", "adda.segments" ) 
+        self.mFilenames = (self.mFilenameSegments, )
 
-        self.mMinDomainSize = int(self.mConfig.get('adda','min_domain_size'))
-        self.mResolution = float( self.mConfig.get('segments','resolution') )
+    #--------------------------------------------------------------------------
+    def startUp( self ):
 
+        if not self.isComplete():
+            self.mOutfile = self.openOutputStream( self.mFilenameSegments )
+            self.mMinDomainSize = int(self.mConfig.get('adda','min_domain_size'), 30)
+            self.mResolution = float( self.mConfig.get('segments','resolution', 10.0) )
+
+    #--------------------------------------------------------------------------
     def finish(self):
         self.mOutfile.close()        
         AddaModule.finish( self )
+
+    #--------------------------------------------------------------------------
+    def validate(self):
         
+        infile = SegmentedFile.fileopen( self.mFilenameSegments )
+
+        last_nid = None
+        found = set()
+        nfound, nunknown, nduplicate = 0, 0, 0
+        for line in infile:
+            ninput += 1
+            nid = line[:line.index("\t")]
+            if nid != last_nid:
+                if nid in found:
+                    nduplicates += 1
+                    self.warn("duplicate nid: %i in file %s" % (nid, filename))
+                if nid not in tokens:
+                    nunknown += 1
+                    self.warn("unknown nid: %i in file %s" % (nid, filename))
+                found.add(nid)
+                nfound += 1
+                last_nid = nid
+            noutput += 1
+
+        missing = set(self.mFasta.getTokens()).difference( found ) 
+        if len(missing) > 0:
+            self.warn( "the following nids were missing: %s" % str(missing) )
+
+        self.info( "merging: ninput=%i, noutput=%i, nfound=%i, nmissing=%i, nduplicate=%i, nunknown=%i" %\
+                       (ninput, noutput, nfound, len(missing), nduplicate, nunknown ) )
+        
+        return len(missing) == 0 and nduplicate == 0 and nunknown == 0
+        
+    #--------------------------------------------------------------------------
+    def merge(self):
+        """merge runs from parallel computations.
+        """
+        SegmentedFile.merge( self.mFilenameSegments )
+
+    #--------------------------------------------------------------------------
+    def readPreviousData(self, filename ):
+        """process existing output in filename to guess correct point to continue computation."""
+        
+        self.info( "reading previous data from %s" % filename )
+        
+        infile = open( filename, "r" )
+        
+        def iterate_per_query(infile):
+            
+            last_nid = None
+            
+            for line in infile:
+
+                try: 
+                    (nid,node,parent,level,xfrom,xto) = line[:-1].split("\t")
+                except ValueError:
+                    self.warn( "parsing error in line %s\n" % line[:-1] )
+                    continue
+                
+                if nid != last_nid:
+                    if last_nid: yield last_nid, values
+                    values = []
+                    last_nid = nid
+                    
+                values.append( map( int, (nid,node,parent,level,xfrom,xto) ) )
+                    
+            if last_nid: yield last_nid, values
+            
+            raise StopIteration
+            
+        nnids = 0
+        for nid, values in iterate_per_query(infile):
+            nnids += 1
+            self.mContinueAt = nid
+        
+        self.info("found %i nids" % (nnids,)  )
+            
+        infile.close()
+
+    #--------------------------------------------------------------------------
     def applyMethod(self, neighbours ):
         """split a sequence into putative domains."""
         
         nid = neighbours.mQueryToken
+
+        if self.mContinueAt:
+            if nid == self.mContinueAt:
+                self.info("continuing processing at %s" % str(self.mContinueAt ) )
+                self.mContinueAt = None
+            return
+
         length = self.mFasta.getLength( nid )
         
         if length > self.mConfig.get("segments", "max_sequence_length"):
             self.warn( "skipped: nid=%s, length=%i -> too long" % (nid, length) )
             return False
         
-        self.info( "starting nid=%s, length=%i" % (nid, length) )
+        self.debug( "starting nid=%s, length=%i" % (nid, length) )
 
         tree = self.getTree( nid, length, neighbours ) 
 
@@ -47,7 +143,7 @@ class AddaSegment( AddaModule ):
                     self.mOutfile.write("\t".join( map(str,(nid,node,parent,level,xfrom,xto)))+ "\n")
                 self.mOutfile.flush()
 
-            self.info( "finished: nid=%s, length=%i, size=%i, depth=%i" % (nid, length,
+            self.debug( "finished: nid=%s, length=%i, size=%i, depth=%i" % (nid, length,
                                                                           len(tree), max_depth ) )
             return True
         else:
@@ -70,7 +166,7 @@ class AddaSegment( AddaModule ):
         Numeric.divide( matrix, sums, matrix )
         matrix *= 100
         return matrix.astype( Numeric.Int )
-    
+
     #--------------------------------------------------------------------------
     def addLocalBiasToMatrix( self, matrix ):
         """adds a local bias to the correlation matrix.
@@ -486,7 +582,7 @@ class AddaSegment( AddaModule ):
         max_range = covering_tree[0][4][0][1]
     
         self.debug( "resulting tree" )
-        if self.mOptions.loglevel >= 2:
+        if E.getLogLevel() >= 2:
             self.printTree( covering_tree )
         
         ###################################
@@ -516,7 +612,7 @@ class AddaSegment( AddaModule ):
         ## delete nodes with empty ranges or only a single child.
         ## renumber nodes so that there are no gaps
     
-        if self.mOptions.loglevel >= 2:
+        if E.getLogLevel() >= 2:
             self.printTree( covering_tree )
         
         return self.collapseTree( covering_tree )
@@ -586,14 +682,14 @@ class AddaSegment( AddaModule ):
         ## todo
         blast_matrix = self.buildMatrix( nid, lsequence, neighbours )
         
-        self.info( "blast matrix for %s: %s" % (nid, str(blast_matrix.shape)))
-        
-        if self.mOptions.loglevel >= 3:
+        self.debug( "blast matrix for %s: %s" % (nid, str(blast_matrix.shape)))
+
+        if E.getLogLevel() >= 3:
             MatlabTools.WriteMatrix(blast_matrix, outfile=open("blast_%s.matrix" % nid, "w"))
     
         nneighbours, lmatrix = blast_matrix.shape
 
-        self.info( "rows in blast matrix for %s: %s" % (nid, str(nneighbours))) 
+        self.debug( "rows in blast matrix for %s: %s" % (nid, str(nneighbours))) 
     
         if nneighbours < int(self.mConfig.get("segments", "min_neighbours")):
             return []
@@ -605,7 +701,8 @@ class AddaSegment( AddaModule ):
         if int(self.mConfig.get('segments','multiply')) > 0:
             for x in range(0, int(self.mConfig.get('segments','multiply'))):
                 dot_matrix = Numeric.matrixmultiply( dot_matrix, dot_matrix)
-                if self.mOptions.loglevel >= 3:
+
+                if E.getLogLevel() >= 3:
                     MatlabTools.WriteMatrix(dot_matrix, outfile=open("correlation_%s_%i.matrix" % (nid, x), "w"))
     
         if self.mConfig.get('segments','matrix_add_local_bias'):
@@ -614,7 +711,7 @@ class AddaSegment( AddaModule ):
         if self.mConfig.get('segments','normalize'):
             dot_matrix = self.normalizeMatrix( dot_matrix, Numeric.sum( blast_matrix ))
             
-        if self.mOptions.loglevel >= 3:
+        if E.getLogLevel() >= 3:
             self.debug( "correlation matrix for %s: %s" % (nid, str(dot_matrix.shape)))            
             MatlabTools.WriteMatrix(dot_matrix, outfile=open("correlation_%s.matrix" % nid, "w"))
             
@@ -630,7 +727,7 @@ class AddaSegment( AddaModule ):
             
             dot_matrix = CorrespondenceAnalysis.GetPermutatedMatrix( dot_matrix, map_row_new2old, map_row_new2old)
                 
-            if self.mOptions.loglevel >= 3:
+            if E.getLogLevel() >= 3:
                 self.debug( "permuted matrix for %s: %s" % (nid, str(dot_matrix.shape)))            
                 MatlabTools.WriteMatrix(dot_matrix, outfile=open("permuted_%s.matrix" % nid, "w"))
         

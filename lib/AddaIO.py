@@ -42,8 +42,7 @@ def openStream( filename ):
 
 class NeighbourRecord:
 
-    def __init__(self, line):
-    
+    def __init__(self, line ): 
         (self.mQueryToken, self.mSbjctToken, self.mEvalue,
          self.mQueryFrom, self.mQueryTo, self.mQueryAli,
          self.mSbjctFrom, self.mSbjctTo, self.mSbjctAli) = line[:-1].split("\t")[:9]
@@ -68,7 +67,7 @@ class NeighbourRecord:
         f.mColFrom, f.mColTo, f.mColAlignment = self.mSbjctFrom, self.mSbjctTo, self.mSbjctAli     
         f.copy( r )
         return r   
-        
+
 class NeighbourIterator:
 
     def _iterate( self, infile ):
@@ -76,7 +75,7 @@ class NeighbourIterator:
         for line in infile:
 
             if line[0] == "#": continue
-    
+            
             if not line.strip(): continue
             
             yield NeighbourRecord( line )
@@ -113,10 +112,12 @@ class NeighboursIterator:
 
             r = iterator.next()
             if not r: break
-            if self.mTokens and \
-                (r.mQueryToken not in self.mTokens or \
-                 r.mSbjctToken not in self.mTokens ):
-                continue 
+            if self.mMapId2Nid:
+                if (r.mQueryToken not in self.mMapId2Nid or \
+                        r.mSbjctToken not in self.mMapId2Nid ):
+                    continue 
+                r.mQueryToken = self.mMapId2Nid[r.mQueryToken]
+                r.mSbjctToken = self.mMapId2Nid[r.mSbjctToken]
             if r.mQueryToken != last_token:
                 if last_token:
                     yield NeighboursRecord( last_token, matches )
@@ -129,14 +130,14 @@ class NeighboursIterator:
             yield NeighboursRecord( last_token, matches )
         raise StopIteration
 
-    def __init__(self, f, tokens = None, *args, **kwargs):
+    def __init__(self, f, map_id2nid = None, *args, **kwargs):
         """
         f: the input file object.
         tokens: a collection of tokens to filter with.
         """
         
         self.mIterator = self._iterate(f)
-        if tokens: self.mTokens = tokens
+        self.mMapId2Nid = map_id2nid
 
     def __iter__(self):
         return self
@@ -147,6 +148,13 @@ class NeighboursIterator:
         except StopIteration:
             return None
 
-        
-        
-        
+
+def readMapId2Nid( infile ):
+    """read map from adda.nids file."""
+    
+    m = {}
+    for line in infile:
+        if line.startswith("#"): continue
+        data = line[:-1].split("\t")[:2]
+        m[data[1]] = data[0]
+    return m

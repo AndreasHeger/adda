@@ -2,6 +2,7 @@ import sys, os, re, time, math, copy
 import alignlib
 import ProfileLibrary
 from AddaModule import AddaModule
+import SegmentedFile
 
 class AddaAlign( AddaModule ):
     """align domains."""
@@ -11,7 +12,9 @@ class AddaAlign( AddaModule ):
     def __init__(self, *args, **kwargs ):
 
         AddaModule.__init__( self, *args, **kwargs )
-                
+
+        self.mFilenameAlignments = self.mConfig.get("files","output_align", "adda.align" )
+
         self.mFilenameProfiles = self.mConfig.get( "files", "output_profiles", "adda.profiles")
         self.mFilenameMst = self.mConfig.get( "files", "output_mst", "adda.mst" )              
         
@@ -47,6 +50,13 @@ class AddaAlign( AddaModule ):
         # threshold parameters for significance check
         self.mMinAlignmentScore  = self.mConfig.get( "align", "min_alignment_score", 83.0 )
         self.mMinAlignmentMotifLength = self.mConfig.get( "align", "min_motif_length", 10 )
+
+        self.mFilenames = (self.mFilenameAlignments, )
+                
+    #--------------------------------------------------------------------------------
+    def startUp( self ):
+
+        if self.isComplete(): return
 
         ###############################################
         # create objects for algorithm 
@@ -84,9 +94,15 @@ class AddaAlign( AddaModule ):
         
         alignlib.setDefaultEncoder( alignlib.getEncoder( alignlib.Protein20 ) )
 
-        self.mContinueAt = None
-        self.mOutfile = self.openOutputStream( self.mConfig.get("files","output_align", "adda.align" ) )
-                
+        ## initialize counters
+        self.mNPassed, self.mNFailed, self.mNNotFound = 0, 0, 0
+
+        self.mOutfile = self.openOutputStream( self.mFilenameAlignments )
+
+        if self.mContinueAt == None:
+            self.mOutfile.write( "\t".join( self.mHeader ) + "\n" ) 
+            self.mOutfile.flush()
+
     #--------------------------------------------------------------------------------
     def mask( self, nid, alignandum):
         """mask a sequence or profile with nid.
@@ -130,10 +146,8 @@ class AddaAlign( AddaModule ):
             a.prepare()
             if self.mMask: self.mask( nid, a)
 
-        if self.mOptions.loglevel >= 5:
-            self.mOptions.stdout.write( "# alignandum for rep %s\n" % nid )
-            self.mOptions.stdout.write( str( a ) + "\n" )
-            self.mOptions.stdout.flush()
+        if self.mLogLevel >= 5:
+            E.debug( "alignandum for rep %s\n%s" % ( nid, str(a) ) )
 
         return a
     
@@ -145,74 +159,58 @@ class AddaAlign( AddaModule ):
             self.mContinueAt = (query_token, sbjct_token)
             self.info("processing will continue after pair %s" % str( self.mContinueAt) )    
 
-    def applyMethod( self ):
+    def applyMethod( self, line ):
         """output the graph."""
 
-        infile = open( self.mFilenameMst, "r" )
-
-        self.mNPassed, self.mNFailed, self.mNNotFound = 0, 0, 0
-            
         t_start = time.time()
-                          
-        keep = self.mContinueAt == None
-
-        if keep:
-            self.mOutfile.write( "\t".join( self.mHeader ) + "\n" ) 
-        
-        for line in infile:
             
-            self.mInput += 1
+        self.mInput += 1
+              
+        if self.mContinueAt and (query_token,sbjct_token) == self.mContinueAt:
+            self.mContinueAt = None
+            t_start = time.time() 
+            self.info("continuing processing after iteration %i" % self.mInput )
+            return
 
-            (query_token, sbjct_token) = line[:-1].split("\t")[:2]
-
-            if not keep:
-                if self.mContinueAt and (query_token,sbjct_token) == self.mContinueAt:
-                    keep = True
-                    t_start = time.time() 
-                    self.info("continuing processing after iteration %i" % self.mInput )
-                continue
-                                            
-            if self.mInput % self.mReportStep == 0:
-                t = time.time() 
-                self.info( "iteration=%i, passed=%i, failed=%i, notfound=%i, total time=%i, time per step=%f" %\
+        (query_token, sbjct_token) = line[:-1].split("\t")[:2]
+        
+        if self.mInput % self.mReportStep == 0:
+            t = time.time() 
+            self.info( "iteration=%i, passed=%i, failed=%i, notfound=%i, total time=%i, time per step=%f" %\
                            (self.mInput, self.mNPassed, self.mNFailed, self.mNNotFound,
                             t - t_start,
                             float(self.mReportStep * ( t - t_start )) / self.mInput, 
                             ) )
 
+        query_nid, query_from, query_to = query_token.split("_")
+        sbjct_nid, sbjct_from, sbjct_to = sbjct_token.split("_")
+        query_from, query_to = map(int, (query_from, query_to) )
+        sbjct_from, sbjct_to = map(int, (sbjct_from, sbjct_to) )
 
+        self.debug( "# --> checking link between %s (%i-%i) and %s (%i-%i)" %\
+                    (query_nid, query_from, query_to,
+                     sbjct_nid, sbjct_from, sbjct_to) )
 
-            query_nid, query_from, query_to = query_token.split("_")
-            sbjct_nid, sbjct_from, sbjct_to = sbjct_token.split("_")
-            query_from, query_to = map(int, (query_from, query_to) )
-            sbjct_from, sbjct_to = map(int, (sbjct_from, sbjct_to) )
-                            
-            self.debug( "# --> checking link between %s (%i-%i) and %s (%i-%i)" %\
-                        (query_nid, query_from, query_to,
-                         sbjct_nid, sbjct_from, sbjct_to) )
-                            
-            passed, alignment, extra_info = self.mChecker( query_nid, query_from, query_to,
-                                                           sbjct_nid, sbjct_from, sbjct_to)
+        passed, alignment, extra_info = self.mChecker( query_nid, query_from, query_to,
+                                                       sbjct_nid, sbjct_from, sbjct_to)
 
-            if passed: 
-                code = "+"
-                self.mNPassed += 1
-            else:
-                code = "-"
-                self.mNFailed += 1
+        if passed: 
+            code = "+"
+            self.mNPassed += 1
+        else:
+            code = "-"
+            self.mNFailed += 1
 
-            self.mOutfile.write( "\t".join( ( code,
-                                        line[:-1],
-                                        str(alignlib.AlignmentFormatEmissions( alignment )),
-                                        str(alignment.getScore()), 
-                                        str(alignment.getNumAligned()), 
-                                        str(alignment.getNumGaps())) + extra_info ) + "\n" )                    
-            self.mOutfile.flush()
-            
-            self.mOutput += 1
+        self.mOutfile.write( "\t".join( ( code,
+                                    line[:-1],
+                                    str(alignlib.AlignmentFormatEmissions( alignment )),
+                                    str(alignment.getScore()), 
+                                    str(alignment.getNumAligned()), 
+                                    str(alignment.getNumGaps())) + extra_info ) + "\n" )                    
+        self.mOutfile.flush()
+
+        self.mOutput += 1
            
-        infile.close()
-        
     def finish(self):    
         
         self.mOutfile.close()

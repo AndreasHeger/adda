@@ -1,10 +1,13 @@
-import sys, os, re, time
+import sys, os, re, time, glob
 
 import alignlib
 import ProfileLibrary
 
 from AddaModule import AddaModule
 import AddaIO
+import SegmentedFile
+
+import Experiment as E
 
 class AddaProfiles( AddaModule ):
     """write a links table for adda processing."""
@@ -14,19 +17,37 @@ class AddaProfiles( AddaModule ):
     def __init__(self, *args, **kwargs ):
 
         AddaModule.__init__( self, *args, **kwargs )
-                
-        self.mProfileLibrary = ProfileLibrary.ProfileLibrary( self.mConfig.get( "files", "output_profiles"), 
-                                                              "w",
-                                                              force=self.mOptions.force )
-        
+
+        self.mFilenameProfile = self.mConfig.get( "files", "output_profiles", "adda.profiles" )
         self.mScaleFactor  = self.mConfig.get( "profiles", "scale_factor", 0.3 )
         self.mMaxNumNeighbours = self.mConfig.get( "profiles", "max_neighbours", 1000)
         self.mPrepareProfile = self.mConfig.get( "profiles", "prepare_profile", False ) 
-        
-        self.mLogOddor    = alignlib.makeLogOddorDirichlet( self.mScaleFactor )
-        self.mRegularizor = alignlib.makeRegularizorDirichletPrecomputed()
-        self.mWeightor    = alignlib.makeWeightor()
-        
+
+    def isComplete( self ):
+
+        fn, fi = ProfileLibrary.getFileNames( self.mFilenameProfile + self.getSlice() )
+        return SegmentedFile.isComplete( fi )
+
+    def startUp( self ):
+
+        if self.isComplete(): return
+
+        if self.mAppend:
+            self.mProfileLibrary = ProfileLibrary.ProfileLibrary( self.mFilenameProfile + self.getSlice(),
+                                                                  "a" )
+            self.mContinueAt = self.mProfileLibrary.getLastInsertedKey()
+            self.info("processing will continue after %s" % (str( self.mContinueAt ) ) )
+        else:
+            self.mProfileLibrary = ProfileLibrary.ProfileLibrary( self.mFilenameProfile + self.getSlice(),
+                                                                  "w",
+                                                                  force=self.mForce )
+
+
+        # set default values
+        # self.mLogOddor    = alignlib.makeLogOddorDirichlet( self.mScaleFactor )
+        # self.mRegularizor = alignlib.makeRegularizoprDirichletPrecomputed()
+        # self.mWeightor    = alignlib.makeWeightor()
+
         alignlib.setDefaultEncoder( alignlib.getEncoder( alignlib.Protein20 ) )
 
     def buildMali(self, neighbours):
@@ -59,7 +80,7 @@ class AddaProfiles( AddaModule ):
                       use_end_mali = True,
                       use_end_alignatum = False )
             
-        if self.mOptions.loglevel >= 6:
+        if E.getLogLevel() >= 6:
             x = 1
             outfile = open( "mali_%s" % query_nid, "w" )
             for line in str(mali).split("\n"):
@@ -84,6 +105,11 @@ class AddaProfiles( AddaModule ):
         cover alignments split by transmembrane regions.
         
         """
+        if self.mContinueAt:
+            if neighbours.mQueryToken == self.mContinueAt:
+                self.info("continuing processing at %s" % str(self.mContinueAt ) )
+                self.mContinueAt = None
+            return
 
         mali = self.buildMali( neighbours )
 
@@ -91,12 +117,7 @@ class AddaProfiles( AddaModule ):
 
         self.debug( "working on profile %s" % query_nid )
             
-        profile = alignlib.makeProfile( mali,
-                                        alignlib.getDefaultEncoder(),
-                                        self.mWeightor,
-                                        self.mRegularizor, 
-                                        self.mLogOddor )
-        
+        profile = alignlib.makeProfile( mali )
         profile.setStorageType( alignlib.Sparse )
         if self.mPrepareProfile: profile.prepare()
 
@@ -107,16 +128,74 @@ class AddaProfiles( AddaModule ):
         
         add entries for sequences who only appear in the sbjct field.
         """
-        nids = self.mFasta.getContigSizes().keys()
-        
-        nadded = 0
+        if not self.isSubset():
+            nids = self.mFasta.getContigSizes().keys()
+            nadded = 0
 
-        for nid in sorted(nids):
-            if nid not in self.mProfileLibrary:
-                self.applyMethod( AddaIO.NeighboursRecord( nid, [] ) )
-                nadded += 1
+            for nid in sorted(nids):
+                if nid not in self.mProfileLibrary:
+                    self.applyMethod( AddaIO.NeighboursRecord( nid, [] ) )
+                    nadded += 1
                 
-        self.mOutput += nadded
-        self.info( "added %i profiles for sequences without neighbours" % nadded )
+            self.mOutput += nadded
+            self.info( "added %i profiles for sequences without neighbours" % nadded )
         
         AddaModule.finish(self)        
+
+    #--------------------------------------------------------------------------
+    def merge(self):
+        """merge runs from parallel computations.
+
+        returns true if merging was succecss.
+        """
+        if self.isComplete(): return
+        
+        infiles = glob.glob( "%s*" % self.mFilenameProfile )
+        # remove suffixes
+        infiles = list(set([ x[:-4] for x in infiles if x != self.mFilenameProfile ]))
+        infiles.sort()
+
+        last_nid = None
+        found = set()
+        ninput, noutput, nfound, nunknown, nduplicate = 0, 0, 0, 0, 0
+        tokens = set(self.mFasta.keys())
+
+        self.mProfileLibrary = ProfileLibrary.ProfileLibrary( self.mFilenameProfile,
+                                                              "w" )
+
+        for filename in infiles:
+            infile = ProfileLibrary.ProfileLibrary( filename, "r" )
+
+            for nid, profile in infile.iteritems_sorted():
+                ninput += 1
+                
+                if nid in found:
+                    nduplicates += 1
+                    self.warn("duplicate nid: %i in file %s" % (nid, filename))
+                if nid not in tokens:
+                    nunknown += 1
+                    self.warn("unknown nid: %i in file %s" % (nid, filename))
+                found.add(nid)
+                nfound += 1
+                self.mProfileLibrary.add( nid, profile )
+                noutput += 1
+
+        missing = tokens.difference( found ) 
+        if len(missing) > 0:
+            self.warn( "the following nids were missing: %s" % str(missing) )
+            
+        self.info( "adding %i missing nids" % len(missing))
+        
+        for nid in missing:
+            self.applyMethod( AddaIO.NeighboursRecord( nid, [] ) )
+
+        self.info( "merging: parts=%i, ninput=%i, noutput=%i, nfound=%i, nmissing=%i, nduplicate=%i, nunknown=%i" %\
+                       (len(infiles), ninput, noutput, nfound, len(missing), nduplicate, nunknown ) )
+
+        self.info( "deleting %i parts" % len(infiles) )
+        for infile in infiles:
+            fn, fi = ProfileLibrary.getFileNames( infile )
+            os.remove( fn )
+            os.remove( fi )
+        
+        return len(missing) == 0 and nduplicate == 0 and nunknown == 0
