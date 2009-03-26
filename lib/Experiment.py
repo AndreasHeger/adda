@@ -235,9 +235,9 @@ def Start( parser = None,
             stream = global_options.stdlog )
     else:
         logging.basicConfig(
-            level=lvl,
-            format='%(asctime)s %(name)s %(levelname)s %(message)s',
-            stream = global_options.stdlog )
+             level=lvl,
+             format='%(asctime)s %(name)s %(levelname)s %(message)s',
+             stream = global_options.stdlog )
         
     return global_options, global_args
     

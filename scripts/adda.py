@@ -5,7 +5,7 @@ USAGE="""adda.py [OPTIONS] cmds
 interface to compute adda
 """
 
-import sys, os, re, time, math, copy, glob, optparse
+import sys, os, re, time, math, copy, glob, optparse, logging
 from multiprocessing import Process
 import fileinput
 # segfault on my machine without the print statement - strange
@@ -30,26 +30,24 @@ def run( options, order, map_module, config, fasta = None ):
                 modules.append( module )
             else:
                 E.info( "%s complete" % step )
-    print steps, order, modules        
     if len(modules) == 0: return
 
     E.info( "running apply on modules: %s" % (",".join(map(str, modules))) )
 
     for module in modules:
+        module.startUp()
         module.run()
         module.finish()
 
-def mergeGraph( options, 
-                order, 
-                map_module, 
-                config, 
-                fasta ):
+def merge( options, 
+           order, 
+           map_module, 
+           config, 
+           fasta ):
 
 
-    if "all" in options.steps:
-        steps = order
-    else:
-        steps = options.steps
+    if "all" in options.steps: steps = order
+    else: steps = options.steps
 
     modules = []
     for step in order:
@@ -78,21 +76,25 @@ class Runner( Process ):
         modules = []
         for step in order:
             if step in steps:
+                if map_module[step]( options, 
+                                     config = config, 
+                                     fasta = fasta ).isComplete():
+                    E.info( "%s complete" % step )
+                    continue
+                
                 module = map_module[step]( options, 
                                            config = config, 
                                            fasta = fasta,
                                            num_chunks = nchunks,
                                            chunk = chunk )
             
-                module.startUp()
-                
                 if not module.isComplete():
                     modules.append( module )
                 else:
                     E.info( "%s complete" % step )
         
         self.mModules = modules
-        
+
 class RunnerOnFile(Runner):
     """run jobs on a file per line."""
 
@@ -111,9 +113,13 @@ class RunnerOnFile(Runner):
 
         if len(self.mModules) == 0: return
 
+        for module in self.mModules: module.startUp()
+
         E.info( "running apply on modules: %s" % (",".join(map(str, self.mModules))) )
 
         for line in self.mIterator:
+            if line.startswith("#"): continue
+
             for module in self.mModules:
                 module.apply( line )
 
@@ -145,6 +151,8 @@ class RunnerOnGraph(Runner):
 
         if len(self.mModules) == 0: return
 
+        for module in self.mModules: module.startUp()
+
         E.info( "running apply on modules: %s" % (",".join(map(str, self.mModules))) )
 
         for record in self.mIterator:
@@ -173,9 +181,6 @@ class RunnerOnGraph(Runner):
         for module in self.mModules:
             module.finish()
 
-def mergeConvert( options ):
-    pass
-
 def runParallel( runner, filename, options, order, map_module, config ):
 
     nchunks = config.get( "adda", "num_jobs", 4 )
@@ -193,7 +198,7 @@ def runParallel( runner, filename, options, order, map_module, config ):
         p.join()
 
     E.info( "all jobs finished" )
-
+    
 def main():
     
     parser = optparse.OptionParser( version = "%prog version: $Id$", usage = USAGE )
@@ -223,13 +228,10 @@ def main():
                                 "check-index",
                                 "profiles",
                                 "segment", 
-                                "merge-graph",
                                 "optimise",
                                 "convert",
-                                "merge-convert",
                                 "mst", 
                                 "align",
-                                "merge-align",
                                 "cluster", ),
                        help="perform this step [default=%default]" )
 
@@ -253,6 +255,11 @@ def main():
                         )
     
     (options, args) = E.Start( parser )
+
+    logging.basicConfig(
+        lvl = logging.DEBUG,
+        format='%(asctime)s %(name)s %(levelname)s %(message)s',
+        filename = "adda.log" )
 
     config = AddaIO.ConfigParser()
     config.read( os.path.expanduser( options.filename_config ) )
@@ -291,12 +298,12 @@ def main():
 
     fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
     
-    mergeGraph( options,
-                order = ("fit", "segment", "graph", "profiles" ),
-                map_module = map_module,
-                config = config,
-                fasta = fasta )
-
+    merge( options,
+           order = ("fit", "segment", "graph", "profiles" ),
+           map_module = map_module,
+           config = config,
+           fasta = fasta )
+    
     run( options, 
          order = ("index", "check-index", "optimise" ),
          map_module = map_module,
@@ -310,8 +317,6 @@ def main():
          map_module = map_module,
          config = config,
          fasta = fasta)
-
-    mergeConvert( options )
 
     E.info( "computing minimum spanning tree" )
     run( options, 
@@ -330,7 +335,11 @@ def main():
         map_module = map_module,
         config = config )
 
-    mergeAlign( options )
+    merge( options,
+           order = ("align", ),
+           map_module = map_module,
+           config = config,
+           fasta = fasta )
 
     run( options, 
          order = ( "cluster", ),

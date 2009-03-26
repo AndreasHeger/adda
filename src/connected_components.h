@@ -28,6 +28,13 @@ class Components
   */
   virtual bool add( const T & a, const T & b);
 
+  
+  /** @brief lookup a token. If it does not exist, it is entered.
+      @param a token of first link
+      @return index of token
+  */
+  virtual Index lookup( const T & a);
+  
   // start from new
   virtual void reset();
   

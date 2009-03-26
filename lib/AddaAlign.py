@@ -77,7 +77,6 @@ class AddaAlign( AddaModule ):
                         "ngaps",
                         "zscore" )
 
-
         self.mAlignator = alignlib.makeAlignatorDPFull( alignlib.ALIGNMENT_LOCAL, 
                                                         self.mGop,
                                                         self.mGep )
@@ -172,8 +171,11 @@ class AddaAlign( AddaModule ):
             self.info("continuing processing after iteration %i" % self.mInput )
             return
 
-        (query_token, sbjct_token) = line[:-1].split("\t")[:2]
-        
+        try:
+            (query_token, sbjct_token) = line[:-1].split("\t")[:2]
+        except ValueError:
+            raise ValueError( "parsing error in line %s" % line )
+
         if self.mInput % self.mReportStep == 0:
             t = time.time() 
             self.info( "iteration=%i, passed=%i, failed=%i, notfound=%i, total time=%i, time per step=%f" %\
@@ -187,7 +189,7 @@ class AddaAlign( AddaModule ):
         query_from, query_to = map(int, (query_from, query_to) )
         sbjct_from, sbjct_to = map(int, (sbjct_from, sbjct_to) )
 
-        self.debug( "# --> checking link between %s (%i-%i) and %s (%i-%i)" %\
+        self.debug( "checking link between %s (%i-%i) and %s (%i-%i)" %\
                     (query_nid, query_from, query_to,
                      sbjct_nid, sbjct_from, sbjct_to) )
 
@@ -216,7 +218,7 @@ class AddaAlign( AddaModule ):
         self.mOutfile.close()
         
         self.info( "aligned: %i links input, %i links passed, %i links failed, %i links not found" %\
-                   (self.mInput, self.mNPassed, self.mNFailed, self.mNNotFound ) )
+                       (self.mInput, self.mNPassed, self.mNFailed, self.mNNotFound ) )
         
         AddaModule.finish( self )
         
@@ -239,15 +241,13 @@ class AddaAlign( AddaModule ):
 
         alignator.align( result, query_profile, sbjct_profile )
 
-        if self.mLogLevel >= 3:
-            print "# --> %i vs %i: score=%5.2f, length=%i, numgaps=%i, row_from=%i, row_to=%i, col_from=%i, col_to=%i" %\
+        self.debug( "--> %i vs %i: score=%5.2f, length=%i, numgaps=%i, row_from=%i, row_to=%i, col_from=%i, col_to=%i" %\
                   (query_nid, sbjct_nid,
                    result.getScore(),
                    result.getLength(),
                    result.getNumGaps(),
                    result.getRowFrom(), result.getRowTo(),
-                   result.getColFrom(), result.getColTo())
-            sys.stdout.flush()
+                   result.getColFrom(), result.getColTo()) )
 
         query_profile.useFullLength()
         sbjct_profile.useFullLength()
@@ -319,7 +319,7 @@ class AddaAlign( AddaModule ):
         
         zscore = (result.getScore() - mean) / stddev
         
-        self.debug( "# --> mean=%f, stdev=%f, zscore=%f" % (mean, stddev, zscore) )
+        self.debug( "--> mean=%f, stdev=%f, zscore=%f" % (mean, stddev, zscore) )
         
         query_profile.useSegment()
         sbjct_profile.useSegment()

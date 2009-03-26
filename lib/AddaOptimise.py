@@ -27,9 +27,6 @@ class AddaOptimise( AddaModule ):
         self.mMinAbsImprovement = float(self.mConfig.get( "optimise", "min_abs_improvement" ))
         self.mMinRelImprovement = float(self.mConfig.get( "optimise", "min_rel_improvement" ))
         
-        self.mRequirements.append( self.mFilenameTransfers )
-        self.mRequirements.append( self.mFilenameFit )
-            
         self.mOutputFilenameProgressImprovement = self.mFilenameDomains + "_progress_improvement.png"
         self.mOutputFilenameProgressDomains = self.mFilenameDomains + "_progress_domains.png"
         self.mOutputFilenameProgressDomainsPerSequence = self.mFilenameDomains + "_progress_domains_per_sequence.png"

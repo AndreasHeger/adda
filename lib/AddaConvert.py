@@ -17,18 +17,19 @@ class AddaConvert( AddaModule ):
         self.mEvalueThresholdTrustedLinks = float(self.mConfig.get( "convert", "evalue_threshold_trusted_links", -12.0 ))
         self.mFilenameDomainGraph = self.mConfig.get( "files", "output_domain_graph", "adda.domain_graph" )
 
-        self.mRequirements.append( self.mFilenameGraph )
-        self.mRequirements.append( self.mFilenameDomains )
-            
         cadda.setFilenameGraph( self.mFilenameGraph )
         cadda.setFilenameDomains( self.mFilenameDomains )
         cadda.setLogLevel( self.mLogLevel )
         cadda.setEvalueThresholdTrustedLinks( self.mEvalueThresholdTrustedLinks )                         
 
-        self.mIsComplete = os.path.exists( self.mFilenameDomains )
-
         self.mFilenames = (self.mFilenameDomainGraph, )
-        
+
+    def isComplete( self ):
+        return os.path.exists( self.mFilenameDomains )
+
+    def startUp():
+        if self.isComplete(): return
+
     def applyMethod(self ):
         """index the graph.        
         """

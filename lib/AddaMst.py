@@ -18,12 +18,13 @@ class AddaMst( AddaModule ):
         self.mFilenameDomainGraph = self.mConfig.get( "files", "output_domain_graph", "adda.domain_graph" )
         self.mFilenameMst = self.mConfig.get( "files", "output_mst", "adda.mst" )
                 
-        self.mRequirements.append( self.mFilenameDomainGraph )
-
         cadda.setLogLevel( self.mLogLevel )
         # cadda.setReportStep( 1 )
 
         self.mFilenames = ( self.mFilenameMst, )
+
+    def startUp():
+        if self.isComplete(): return
         
     def applyMethod(self ):
         """index the graph.        

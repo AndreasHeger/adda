@@ -64,12 +64,6 @@ class AddaSegment( AddaModule ):
         return len(missing) == 0 and nduplicate == 0 and nunknown == 0
         
     #--------------------------------------------------------------------------
-    def merge(self):
-        """merge runs from parallel computations.
-        """
-        SegmentedFile.merge( self.mFilenameSegments )
-
-    #--------------------------------------------------------------------------
     def readPreviousData(self, filename ):
         """process existing output in filename to guess correct point to continue computation."""
         

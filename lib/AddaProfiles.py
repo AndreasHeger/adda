@@ -44,10 +44,9 @@ class AddaProfiles( AddaModule ):
 
 
         # set default values
-        # self.mLogOddor    = alignlib.makeLogOddorDirichlet( self.mScaleFactor )
-        # self.mRegularizor = alignlib.makeRegularizoprDirichletPrecomputed()
-        # self.mWeightor    = alignlib.makeWeightor()
-
+        self.mProfileLibrary.setLogOddor( alignlib.makeLogOddorDirichlet( self.mScaleFactor ) )
+        self.mProfileLibrary.setRegularizor( alignlib.makeRegularizorDirichletPrecomputed() )
+        self.mProfileLibrary.setWeightor( alignlib.makeWeightor() )
         alignlib.setDefaultEncoder( alignlib.getEncoder( alignlib.Protein20 ) )
 
     def buildMali(self, neighbours):

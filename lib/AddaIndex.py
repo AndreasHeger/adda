@@ -23,6 +23,10 @@ class AddaIndex( AddaModule ):
         
         self.mFilenames = (self.mFilenameIndex, )
 
+    def startUp( self ):
+        pass
+
+
 class AddaIndexBuild( AddaIndex ):
     """index a graph."""
     
@@ -30,20 +34,24 @@ class AddaIndexBuild( AddaIndex ):
     
     def __init__(self, *args, **kwargs ):
         AddaIndex.__init__( self, *args, **kwargs )
+           
+    def isComplete( self ):
+        if not os.path.exists( self.mFilenameIndex ): return False
 
-        self.mRequirements.append( self.mFilenameIndex )
-                        
+        self.info( "checking index %s against %s: started" % (self.mFilenameIndex, self.mFilenameGraph ) )
+        retval = cadda.check_index() 
+        self.info( "checking index %s against %s: finished" % (self.mFilenameIndex, self.mFilenameGraph ) )
+        return retval == 0
+             
     def applyMethod(self ):
         """index the graph.        
         """
-                
         self.info( "indexing of %s started" % self.mFilenameGraph )
         retval = cadda.build_index()
         if retval != 0:
             self.warn( "indexing of %s failed with error %i" % (self.mFilenameGraph, retval))
         else:
             self.info( "indexing of %s success" % (self.mFilenameGraph,))        
-
         
 class AddaIndexCheck( AddaIndex ):
     """check indexed graph."""

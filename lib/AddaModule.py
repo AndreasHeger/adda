@@ -10,7 +10,6 @@ class Error(Exception):
     def __str__(self):
         return str(self.message)
 
-
 class AddaError(Error):
     """Exception raised for errors while parsing
 
@@ -53,8 +52,6 @@ class AddaModule:
             raise ValueError( "chunk is None for num_chunks > 1" )
         self.mChunk = chunk
 
-        self.mRequirements = []
-        
         self.mInput = 0
         self.mOutput = 0
         self.mTime = 0
@@ -62,20 +59,21 @@ class AddaModule:
         ## whether or not to append to existing output
         self.mAppend = options.append
         self.mForce = options.force
-        self.mLogger = logging.getLogger( "adda.%s" % self.mName )
-        h = logging.FileHandler( 
-            filename='adda.log',
-            mode='a')
 
-        if chunk:
-            h.setFormatter(  
-                logging.Formatter( '%%(asctime)s %%(name)-12s:%i %%(levelname)-8s %%(message)s' % self.mChunk,
-                                   datefmt='%m-%d %H:%M' ) )
+        ## setup the logging facility
+        ## There is some cross-talk with the Experiment
+        ## module: logging message are output both on
+        ## stdlog and in adda.log.
+        if self.mChunk != None:
+            name = "adda.%s:%i" % (self.mName, self.mChunk)
         else:
-            h.setFormatter(  
-                logging.Formatter( '%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
-                                   datefmt='%m-%d %H:%M' ) )
+            name = "adda.%s" % (self.mName)
 
+        self.mLogger = logging.getLogger( name )
+        h = logging.FileHandler( filename='adda.log', mode='a')
+        h.setFormatter(  
+            logging.Formatter( '%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
+                                   datefmt='%m-%d %H:%M' ) )
         self.mLogger.addHandler( h )
         
         self.mReportStep = self.mConfig.get( "adda", "report_step", 1000 )
@@ -136,6 +134,14 @@ class AddaModule:
     #--------------------------------------------------------------------------
     def isSubset( self ):
         return self.mNumChunks > 0
+
+    #--------------------------------------------------------------------------
+    def merge(self):
+        """merge runs from parallel computations.
+        """
+        for f in self.mFilenames: 
+            self.info( "merging file %s" % f )
+            SegmentedFile.merge( f )
         
     #--------------------------------------------------------------------------
     def execute( self, cmd ):
@@ -240,7 +246,7 @@ class AddaModule:
         else:
             mode = "w"
 
-        self.info( "%s%s opening with mode %s" % (filename, self.getSlice(), mode ))
+        self.debug( "%s%s opening with mode %s" % (filename, self.getSlice(), mode ))
         return SegmentedFile.openfile( filename, 
                                        mode,
                                        slice = self.getSlice(),

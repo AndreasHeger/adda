@@ -44,6 +44,7 @@ class AddaFit( AddaModule ):
 
         self.mFilenames = (self.mFilenameFit, self.mFilenameTransfer, self.mFilenameDetails, self.mFilenameOverhang )
 
+        self.mOutfileDetails = None
     #--------------------------------------------------------------------------        
     def startUp( self ):
 
@@ -429,6 +430,10 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         self.mOutfile.close()
         self.mOutfileTransfer.close()
         self.mOutfileOverhang.close()
+
+        ## close here, so that all is flushed before merge is called
+        if self.mOutfileDetails: self.mOutfileDetails.close()
+
         AddaModule.finish( self )
         
     #--------------------------------------------------------------------------
@@ -436,6 +441,13 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         """merge runs from parallel computations.
         """
 
+        # These files will no be used - they are merged
+        # simply for cleaning up
+        SegmentedFile.merge( self.mFilenameTransfer )
+        SegmentedFile.merge( self.mFilenameOverhang )
+        SegmentedFile.merge( self.mFilenameFit )
+
+        # merge the details file and compute stats
         if SegmentedFile.merge( self.mFilenameDetails ):
             self.readPreviousData( self.mFilenameDetails )
             self.finish()

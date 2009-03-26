@@ -107,6 +107,9 @@ class ProfileLibrary:
             self.mOutfileDatabase = open( self.mFilenameProfiles, "ab" )
             self.mOutfileIndex = open( self.mFilenameIndex, "a" )
 
+        self.mToolkit = alignlib.makeToolkit()
+        alignlib.setDefaultToolkit( self.mToolkit )
+
     def close(self):
         if self.mOutfileDatabase:
             self.mOutfileDatabase.close()
@@ -166,15 +169,15 @@ class ProfileLibrary:
         
     def setWeightor( self, weightor ):
         """set the sequence weightor to use for profile creation."""
-        self.mWeightor = weightor
+        self.mToolkit.setWeightor(weightor)
 
     def setLogOddor( self, logoddor ):
         """set the logoddor to use for profile creation."""
-        self.mLogOddor = logoddor
+        self.mToolkit.setLogOddor(logoddor)
 
     def setRegularizor( self, regularizor ):
         """set the regularizor to use for profile creation."""
-        self.mRegularizor = regularizor
+        self.mToolkit.setRegularizor( regularizor )
 
     def __loadIndex( self ):
 
@@ -207,6 +210,7 @@ class ProfileLibrary:
         
         start = self.mOutfileDatabase.tell()
         profile.save( self.mOutfileDatabase )
+        
         self.mOutfileIndex.write( "%s\t%s\t%s\n" % (name, 
                                                     str(start),
                                                     str(self.mOutfileDatabase.tell()) ))
@@ -222,9 +226,6 @@ class ProfileLibrary:
 
         self.mInfileDatabase.seek( self.mIndex[name][0] )
         p = alignlib.loadAlignandum( self.mInfileDatabase )
-        if self.mLogOddor or self.mRegularizor:
-            # TODO: set toolkit options
-            pass
             
         return p
     
@@ -241,7 +242,7 @@ class ProfileLibrary:
             ninput += 1
 
             m = Mali.convertMali2Alignlib( mali )
-            p = alignlib.makeProfile( m, weightor = self.mWeightor )
+            p = alignlib.makeProfile( m )
             p.prepare()
 
             self.add( mali.getName(), p )

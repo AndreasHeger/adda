@@ -3,6 +3,10 @@
 #include <vector>
 #include <map>
 #include <iostream>
+#include <cstdlib>
+#include <cstring>
+
+typedef const char * CHARTYPE;
 
 template<class T>
 Components<T>::Components() 
@@ -12,37 +16,33 @@ Components<T>::Components()
 template<class T>
 Components<T>::~Components() 
 {
+  reset();
+}
+
+template<class T>
+int Components<T>::lookup( const T & a )
+{
+  MapToken2VertexIterator it = mMapToken2Vertex.find(a);
+  Index index;
+  if ( it == mMapToken2Vertex.end() )
+    {
+      index = mMapVertex2Token.size();
+      mMapToken2Vertex[a] = index;
+      mMapVertex2Token.push_back(a);
+    }
+  else
+    {
+      index = (*it).second;
+    }
+  return index;
 }
 
 template<class T>
 bool Components<T>::add( const T & a, const T & b )
 {
-  Index index1, index2;
-
-  MapToken2VertexIterator it;
+  Index index1 = lookup( a );
+  Index index2 = lookup( b );
   
-  if ( (it = mMapToken2Vertex.find(a)) == mMapToken2Vertex.end() )
-    {
-      index1 = mMapVertex2Token.size();
-      mMapToken2Vertex[a] = index1;
-      mMapVertex2Token.push_back(a);
-    }
-  else
-    {
-      index1 = (*it).second;
-    }
-
-  if ( (it = mMapToken2Vertex.find(b)) == mMapToken2Vertex.end())
-    {
-      index2 = mMapVertex2Token.size();
-      mMapToken2Vertex[b] = index2;
-      mMapVertex2Token.push_back(b);
-    }
-  else
-    {
-      index2 = (*it).second;
-    }
-
   if (index1 > index2)
     {
       std::swap( index1, index2 );
@@ -170,7 +170,6 @@ const T & Components<T>::getToken(Index i)
   return mMapVertex2Token[i - 1];
 }
 
-
 //------------------------------------------------------------------------
 template<class T>
 void Components<T>::reset()
@@ -180,7 +179,41 @@ void Components<T>::reset()
   mMapVertex2Token.clear();
 }
 
+//------------------------------------------------------------------------
+// specialization for char types. Need to keep a copy of the token.
+template<>
+int Components<CHARTYPE>::lookup( const CHARTYPE & a )
+{
+  MapToken2VertexIterator it = mMapToken2Vertex.find(a);
+  Index index;
+  if ( it == mMapToken2Vertex.end() )
+    {
+      index = mMapVertex2Token.size();
+      char * copy = (char *)malloc( strlen(a) + 1);
+      strcpy( copy, a );
+      mMapToken2Vertex[copy] = index;
+      mMapVertex2Token.push_back(copy);
+    }
+  else
+    {
+      index = (*it).second;
+    }
+  return index;
+}
 
+template<>
+void Components<CHARTYPE>::reset()
+{
+  for (int x = 0; x < mMapVertex2Token.size(); ++x)
+    delete [] mMapVertex2Token[x];
+  
+  mDad.clear();
+  mMapToken2Vertex.clear();
+  mMapVertex2Token.clear();
+
+}
+
+//------------------------------------------------------------------------
 // explicit instantiations
 template class Components<const char *>;
 template class Components<int>;
