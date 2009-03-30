@@ -58,7 +58,6 @@ int cadda_build_mst( const char * output_filename,
 	
 	while (!infile.eof()) 
 	{
-
 		if (++iteration % param_report_step == 0) 
 		{
 			std::cout << "## iteration=" << iteration << std::endl;
@@ -70,8 +69,8 @@ int cadda_build_mst( const char * output_filename,
 		infile >> token1 >> token2 >> weight;
 		infile.ignore(MAX_LINE_LENGTH, '\n');
 
-		// do not allow self-loops
-		if (token1 == token2) continue;
+		// do not allow self-loops and skip header
+		if (token1 == token2 ) continue;
 
 		unsigned int index1, index2; 
 		std::map< Token, int >::iterator it;

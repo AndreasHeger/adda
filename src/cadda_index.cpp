@@ -16,6 +16,7 @@
 #include <fstream>
 #include <iomanip>
 #include <string>
+#include <cstring>
 #include <cstdlib>
 #include <fcntl.h>
 #include <cstdio>
@@ -43,6 +44,8 @@ int cadda_build_index()
   Nid last_nid = 0;
 
   std::cout << "# size of index=" << sizeof(FileIndex) << " bytes" << std::endl;
+
+
   
   while(!feof(infile)) 
   { 
@@ -62,8 +65,9 @@ int cadda_build_index()
 	if (x == NULL) return 0;
       }
 
-      if (buffer[0] == '#') continue;
-      
+      // skip comments or header (starting with query_nid)
+      if (buffer[0] == '#' || strncmp(buffer, "query_nid", 9) == 0 ) continue;
+
       {
 	int r = sscanf(buffer, "%ld", &nid);
 	if ( r != 1 ) 

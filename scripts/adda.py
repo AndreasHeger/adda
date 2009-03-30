@@ -171,6 +171,8 @@ class RunnerOnGraph(Runner):
                     m.mSbjctFrom -= 1
   
                 neighbours.append( n )
+                
+            E.debug( "working on: %s with %i neighbours" % (str(q), len(neighbours) ) )
 
             if neighbours:
                 for module in self.mModules:
@@ -194,8 +196,7 @@ def runParallel( runner, filename, options, order, map_module, config ):
         process.start()
         processes.append( process )
 
-    for p in processes:
-        p.join()
+    for p in processes: p.join()        
 
     E.info( "all jobs finished" )
     
@@ -283,11 +284,11 @@ def main():
                    }
 
     # modules and their hierarchy
-#    run( options, 
-#          order = ( "sequences", ), 
-#          map_module = map_module,
-#          config = config )
-
+    run( options, 
+         order = ( "sequences", ), 
+         map_module = map_module,
+         config = config )
+    
     runParallel( 
         RunnerOnGraph,
         filename = config.get( "files", "input_graph", "adda.graph" ),
@@ -297,7 +298,7 @@ def main():
         config = config )
 
     fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
-    
+
     merge( options,
            order = ("fit", "segment", "graph", "profiles" ),
            map_module = map_module,

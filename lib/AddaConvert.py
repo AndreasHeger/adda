@@ -24,10 +24,7 @@ class AddaConvert( AddaModule ):
 
         self.mFilenames = (self.mFilenameDomainGraph, )
 
-    def isComplete( self ):
-        return os.path.exists( self.mFilenameDomains )
-
-    def startUp():
+    def startUp( self ):
         if self.isComplete(): return
 
     def applyMethod(self ):

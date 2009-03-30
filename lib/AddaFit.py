@@ -1,4 +1,4 @@
-import sys, os, re, time, math, copy, random
+import sys, os, re, time, math, copy, random, glob  
 import numpy
 import scipy, scipy.stats, scipy.optimize
 import matplotlib, pylab
@@ -441,11 +441,10 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         """merge runs from parallel computations.
         """
 
-        # These files will no be used - they are merged
-        # simply for cleaning up
-        SegmentedFile.merge( self.mFilenameTransfer )
-        SegmentedFile.merge( self.mFilenameOverhang )
-        SegmentedFile.merge( self.mFilenameFit )
+        # remove unwanted results
+        for x in (self.mFilenameTransfer, self.mFilenameOverhang, self.mFilenameFit):
+            for fn in glob.glob( "%s.0*" % x ):
+                os.remove(fn)
 
         # merge the details file and compute stats
         if SegmentedFile.merge( self.mFilenameDetails ):

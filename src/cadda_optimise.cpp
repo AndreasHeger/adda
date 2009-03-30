@@ -349,33 +349,34 @@ void fillTrees( ifstream & infile,
 		const IndexMap & map_nid2index,
 		Trees & trees)
 {
+    
+  while (!infile.eof())
+    {
+      char c = infile.peek();
 
-	while (!infile.eof())
+      // skip comments or header line (starting with 'nid')
+      if (c == '#' || c == 'n')
 	{
-		char c = infile.peek();
-		
-		if (c == '#')
-		  {
-		    infile.ignore(10000, '\n');
-		    continue;
-		  }
-
-		Nid nid;
-		int node, parent, level, xfrom, xto;
-
-		infile >> nid >> node >> parent >> level >> xfrom >> xto;
-		infile.ignore(10000, '\n');
-		if (infile.eof()) break;
-
-		IndexMap::const_iterator it = map_nid2index.find(nid);
-
-		if (it != map_nid2index.end())
-		{
-			Index index = it->second;
-			// std::cout << nid << "\t" << parent << "\t" << xfrom << "\t" << xto << "\t" << index <<endl;
-			trees[index].push_back( TreeNode(parent,0,0,xfrom,xto) );
-		}
+	  infile.ignore(10000, '\n');
+	  continue;
 	}
+		
+      Nid nid;
+      int node, parent, level, xfrom, xto;
+		
+      infile >> nid >> node >> parent >> level >> xfrom >> xto;
+      infile.ignore(10000, '\n');
+      if (infile.eof()) break;
+		
+      IndexMap::const_iterator it = map_nid2index.find(nid);
+      
+      if (it != map_nid2index.end())
+	{
+	  Index index = it->second;
+	  // std::cout << nid << "\t" << parent << "\t" << xfrom << "\t" << xto << "\t" << index <<endl;
+	  trees[index].push_back( TreeNode(parent,0,0,xfrom,xto) );
+	}
+    }
 
 	Trees::iterator it(trees.begin()), end(trees.end());
 	for (;it!=end;++it)
@@ -840,6 +841,7 @@ int cadda_optimise_save_partitions( const char * filename )
 	if (param_loglevel >= 2)
 		std::cout << "# partitions written to " << filename << endl;
 
+	outfile << "nid\tstart\tend" << std::endl;	
 	printPartitions( outfile, global_partitions, global_map_index2nid);
 	outfile << TOKEN;
 	outfile.close();

@@ -23,9 +23,9 @@ class AddaMst( AddaModule ):
 
         self.mFilenames = ( self.mFilenameMst, )
 
-    def startUp():
+    def startUp( self ):
         if self.isComplete(): return
-        
+
     def applyMethod(self ):
         """index the graph.        
         """

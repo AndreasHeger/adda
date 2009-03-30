@@ -16,15 +16,21 @@ class AddaGraph( AddaModule ):
         self.mFilenames = (self.mFilenameGraph, )
         self.mMergeRepeats = self.mConfig.get( "graph", "merge_repeats") == "True"
         self.mMinDomainSize = int(self.mConfig.get('adda','min_domain_size'))
+        self.mHeaders = ("query_nid","sbjct_nid","evalue","query_start","query_end","sbjct_start", "sbjct_end") 
         
     def startUp( self ):
+
+        if self.isComplete(): return
+
+        self.mOutfile = self.openOutputStream( self.mFilenameGraph )
         
-        if not self.isComplete():
-            self.mOutfile = self.openOutputStream( self.mFilenameGraph )
-                
-            self.mNJoined = 0
-            self.mNLinksInput = 0
-            self.mNLinksOutput = 0        
+        self.mNJoined = 0
+        self.mNLinksInput = 0
+        self.mNLinksOutput = 0        
+
+        if self.mContinueAt == None:
+            self.mOutfile.write( "\t".join( self.mHeaders) + "\n" )
+            self.mOutfile.flush()
         
     def applyMethod(self, neighbours ):
         """output the graph.

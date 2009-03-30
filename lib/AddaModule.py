@@ -48,9 +48,11 @@ class AddaModule:
 
         ## if slice is given, use it to mangle the filename.
         self.mNumChunks = num_chunks
-        if self.mNumChunks > 1 and chunk == None:
-            raise ValueError( "chunk is None for num_chunks > 1" )
-        self.mChunk = chunk
+        if self.mNumChunks > 1:
+            if chunk == None: raise ValueError( "chunk is None for num_chunks > 1" )
+            self.mChunk = chunk
+        elif self.mNumChunks == 1:
+            self.mChunk = None
 
         self.mInput = 0
         self.mOutput = 0

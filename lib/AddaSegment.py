@@ -21,10 +21,15 @@ class AddaSegment( AddaModule ):
     #--------------------------------------------------------------------------
     def startUp( self ):
 
+        self.mHeaders = ("nid","node","parent","level","start","end") 
         if not self.isComplete():
             self.mOutfile = self.openOutputStream( self.mFilenameSegments )
             self.mMinDomainSize = int(self.mConfig.get('adda','min_domain_size'), 30)
             self.mResolution = float( self.mConfig.get('segments','resolution', 10.0) )
+            
+            if self.mContinueAt == None:
+                self.mOutfile.write( "\t".join( self.mHeaders) + "\n" )
+                self.mOutfile.flush()
 
     #--------------------------------------------------------------------------
     def finish(self):

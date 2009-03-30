@@ -64,8 +64,11 @@ class AddaSequences( AddaModule ):
         self.mFilenameOutputFasta = self.mConfig.get( "files", "output_fasta", "adda" )
         self.mMaxSequenceLength = self.mConfig.get( "segments", "max_sequence_length", 10000 )
 
-        self.mIsComplete = SegmentedFile.isComplete( self.mFilenameNids )
+        self.mFilenames = (self.mFilenameNids, )
 
+    def startUp(self):
+        if self.isComplete(): return
+    
     def applyMethod(self ):
 
         self.mInput = 0

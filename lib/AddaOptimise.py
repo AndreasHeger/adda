@@ -36,6 +36,9 @@ class AddaOptimise( AddaModule ):
 
         self.mFilenames= ( self.mFilenameDomains, )
 
+    def startUp( self ):
+        if self.isComplete(): return
+
     def plotProgress(self, 
                      data, 
                      filename = None,

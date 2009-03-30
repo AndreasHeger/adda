@@ -138,6 +138,8 @@ class AddaProfiles( AddaModule ):
                 
             self.mOutput += nadded
             self.info( "added %i profiles for sequences without neighbours" % nadded )
+
+        self.mProfileLibrary.close()
         
         AddaModule.finish(self)        
 

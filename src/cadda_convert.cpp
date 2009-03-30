@@ -19,6 +19,8 @@
 #include <iterator>
 
 #include <cstdio>
+#include <cassert>
+#include <cstring>
 
 #include <algorithm>
 #include <string>
@@ -101,11 +103,13 @@ public:
 	{
 
 		mLine = line;
-
+		// skip comments and header
+		if (line[0] == '#' || strncmp(line, "query_nid", 9 == 0) ) return;
+		
 		parse();
 
 		if (mQueryNid == mSbjctNid)
-			return;
+		  return;
 
 		calculateLinks();
 
@@ -153,12 +157,12 @@ protected:
 		float score;
 
 		sscanf( mLine,
-				"%d\t%d\t%f\t%i\t%i\t%i\t%i", 
-				&query_nid, 
-				&sbjct_nid, 
-				&score,
-				&mQueryFrom, &mQueryTo,
-				&mSbjctFrom, &mSbjctTo);
+			"%d\t%d\t%f\t%i\t%i\t%i\t%i", 
+			&query_nid, 
+			&sbjct_nid, 
+			&score,
+			&mQueryFrom, &mQueryTo,
+			&mSbjctFrom, &mSbjctTo);
 
 		mScore = score;
 		mQueryNid = query_nid;
@@ -352,66 +356,83 @@ protected:
 /** read domains and build map_nid2index at the same time.
  */
 void readDomains( FILE * file,
-					std::vector< Domains > & domains,
-					MapNid2Index & map_nid2index) 
+		  std::vector< Domains > & domains,
+		  MapNid2Index & map_nid2index) 
 {
-	domains.clear();
-	map_nid2index.clear();
+  domains.clear();
+  map_nid2index.clear();
 
-	int nid = 0;
-	int start = 0;
-	int end = 0;
-	while (!feof(file) && fscanf(file, "%i\t%i\t%i", &nid, &start, &end) == 3)
+  int nid = 0;
+  int start = 0;
+  int end = 0;
+
+  size_t max_length = MAX_LINE_LENGTH;
+  char * buffer = new char[MAX_LINE_LENGTH+1];
+  
+  while (!feof(file))
+    {
+
+      // skip over header
+      ssize_t r = getline( &buffer, &max_length, file);
+      if (r != -1)
 	{
-		Index index;
-		if (map_nid2index.find( nid ) == map_nid2index.end())
-		{
-			index = map_nid2index.size();
-			map_nid2index[nid] = index;
-			domains.resize( index + 1 );
-		}
-		else
-		{
-			index = map_nid2index[nid];      	    
-		}
 
-		domains[index].push_back( Domain(start, end)) ;
+	  // skip comments or header (starting with query_nid)
+	  if (buffer[0] == '#' || strncmp(buffer, "nid", 3) == 0 ) continue;
 
-		// skip rest of line
-		while (!feof(file) && fgetc(file) != '\n') {}
+	  if (sscanf(buffer, "%i\t%i\t%i", &nid, &start, &end) != 3)
+	    break;
+	  
+	  Index index;
+	  if (map_nid2index.find( nid ) == map_nid2index.end())
+	    {
+	      index = map_nid2index.size();
+	      map_nid2index[nid] = index;
+	      domains.resize( index + 1 );
+	    }
+	  else
+	    {
+	      index = map_nid2index[nid];      	    
+	    }
+	  
+	  domains[index].push_back( Domain(start, end)) ;
 	}
+
+    }
+  delete [] buffer;
+  
 }
 
 
 //--------------------------------------------------------------------------------
 int cadda_convert( const char * filename )
 {
-	//------------------------------------------------------------
-	if (param_loglevel >= 1)
-		std::cout << "# reading domains from " << param_file_name_domains << std::endl;
+  //------------------------------------------------------------
+  if (param_loglevel >= 1)
+    std::cout << "# reading domains from " << param_file_name_domains << std::endl;
+  
+  std::vector< Domains > domains;
+  MapNid2Index map_nid2index;
+  
+  {
+    FILE * file = openFileForRead( param_file_name_domains );
+    readDomains( file, domains, map_nid2index );
+    fclose(file );
+  }
+  
+  if (param_loglevel >= 1)
+    std::cout << "# read domains for " << domains.size() << " nids." << std::endl;
 
-	std::vector< Domains > domains;
-	MapNid2Index map_nid2index;
-
-	{
-		FILE * file = openFileForRead( param_file_name_domains );
-		readDomains( file, domains, map_nid2index );
-		fclose(file );
-	}
-
-	if (param_loglevel >= 1)
-		std::cout << "# read domains for " << domains.size() << " nids." << std::endl;
-
-	LinkProcessor * parser = NULL;
-
-	std::ofstream outstream( filename );
+  LinkProcessor * parser = NULL;
+  
+  std::ofstream outstream( filename );
 	
-	switch (param_mode )
-	{
-	case 0: 
-		parser = new LinkProcessor( domains,
-				map_nid2index,
-				param_min_residues_overlap );
+  switch (param_mode )
+    {
+    case 0: 
+      parser = new LinkProcessor( domains,
+				  map_nid2index,
+				  param_min_residues_overlap );
 		break;
 	case 1:
 		parser = new LinkProcessorMax( domains,
@@ -429,15 +450,19 @@ int cadda_convert( const char * filename )
 
 	{
 
-		char * line = NULL;
+		char * line = new char[MAX_LINE_LENGTH + 1];
 		size_t max_length = MAX_LINE_LENGTH;
+
+		// skip over header
+		ssize_t r = getline( &line, &max_length, infile);
+		assert (strncmp( line, "nid", 3) == 0);
 
 		while (!feof(infile) && getline( &line, &max_length, infile) != -1)
 		{
 			if (line[0] == '#') continue;
 			parser->process( outstream, line );
 		}
-		free(line);
+		delete [] line;
 	}
 
 	delete parser;
