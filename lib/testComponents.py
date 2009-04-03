@@ -1,53 +1,37 @@
-import Components
+import unittest, os, glob, re, tempfile, gzip
 
-c = Components.SComponents()
+from Components import *
 
-links = ( ( "1", "2"),
-          ( "1", "3"),
-          ( "2", "3"),
-          ( "3", "3"),
-          ( "4", "5"),
-          ( "5", "6"),
-           )
+class MyTest:
+    links = ( ( 1, 2),
+              ( 1, 3),
+              ( 2, 3),
+              ( 3, 3),
+              ( 4, 5),
+              ( 5, 6),
+              )
 
-for a,b in links:
-    print a, b, c.add( a, b)
+class TestIComponents(unittest.TestCase, MyTest):
 
-for x in "01234567":
-    print x, c.get( x )
+    def testAdd( self ):
 
-print c.getNumNodes()
+        c = IComponents()
+        for a, b in self.links: c.add( a, b )
+        components = [ c.get(x) for x in range(0,8) ]
+        self.assertEqual( components, [0,1,1,1,4,4,4,0] )
+        self.assertEqual( c.getNumNodes(), 6 )
+        self.assertEqual( c.getComponents(), [[1, 2, 3], [4, 5, 6]] )
 
-print c.getComponents()
+class TestSComponents(unittest.TestCase, MyTest):
 
-c = Components.IComponents()
+    def testAdd( self ):
 
-for a,b in links:
-    print a, b, c.add( int(a), int(b))
+        c = SComponents()
+        for a, b in self.links: c.add( str(a), str(b) )
+        components = [ c.get(str(x)) for x in range(0,8) ]
+        self.assertEqual( components, [0,1,1,1,4,4,4,0] )
+        self.assertEqual( c.getNumNodes(), 6 )
+        self.assertEqual( c.getComponents(), [["1", "2", "3"], ["4", "5", "6"]] )
 
-for x in range( 0, 8):
-    print x, c.get( x )
-
-print c.getNumNodes()
-
-print c.getComponents()
-
-c = Components.IComponents()
-print c.getComponents()
-print c.getNumNodes()
-
-c = Components.IComponents()
-
-for x in range( 3):
-    c.add( x, x)
-print c.getNumNodes()
-print c.getComponents()
-
-b = Components.SComponents()
-
-for x in range( 10 ):
-    b.add( "%i" % x, "%i" % (x+1) )
-print b.getNumNodes()
-print b.getComponents()
-    
-
+if __name__ == '__main__':
+    unittest.main()

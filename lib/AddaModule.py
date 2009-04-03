@@ -135,7 +135,7 @@ class AddaModule:
 
     #--------------------------------------------------------------------------
     def isSubset( self ):
-        return self.mNumChunks > 0
+        return self.mNumChunks > 1
 
     #--------------------------------------------------------------------------
     def merge(self):

@@ -429,12 +429,13 @@ void fillPartitionsWithChildren( const Trees & trees,
 template< class OutputIter >
 void fillNidsFromFile( ifstream & infile,
 		OutputIter  it)
-{
+{  
+#define MAX_SEQUENCE_LENGTH 100000
 	// check that the header is "nid"
 	std::string header("");
 	infile >> header;
 	assert( header == "nid" );
-	infile.ignore(10000, '\n');
+	infile.ignore(MAX_SEQUENCE_LENGTH, '\n');
 	
 	Nid nid;
 	
@@ -444,12 +445,12 @@ void fillNidsFromFile( ifstream & infile,
 	  char c = infile.peek();
 	  if (c == '#' ) 
 	    {
-	      infile.ignore(10000, '\n');
+	      infile.ignore(MAX_SEQUENCE_LENGTH, '\n');
 	      continue;
 	    }
 	  
 	  infile >> nid;
-	  infile.ignore(10000, '\n');
+	  infile.ignore(MAX_SEQUENCE_LENGTH, '\n');
 	  if (infile.eof()) break;
 	  *it = nid;
 	  ++it;

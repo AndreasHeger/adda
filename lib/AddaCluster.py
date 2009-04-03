@@ -19,6 +19,8 @@ class AddaCluster( AddaModule ):
                 
         self.mFilenameFamilies = self.mConfig.get( "files", "output_families", "adda.families" )
         self.mFilenameAlignments = self.mConfig.get("files","output_align", "adda.align" )
+        self.mFilenamesNids = self.mConfig.get( "files", "output_nids", "adda.nids" )
+
         self.mFilenames = (self.mFilenameFamilies, )
 
         self.mMinAlignedResidues = self.mConfig.get("cluster", "min_aligned_residues", 30 )
@@ -27,6 +29,9 @@ class AddaCluster( AddaModule ):
     def startUp(self):
         if self.isComplete(): return
         self.mOutfile = self.openOutputStream( self.mFilenameFamilies )
+
+        self.mMapId2Nid = AddaIO.readMapId2Nid( open(self.mFilenamesNids, "r") )
+        self.mMapNid2Id = dict( ( (x[1],x[0]) for x in self.mMapId2Nid.iteritems() ) )
 
     def applyMethod(self ):
         """index the graph.        
@@ -52,7 +57,7 @@ class AddaCluster( AddaModule ):
                 else:
                     nrejected_aligned += 1
             nrejected_score += 1
-        
+
         self.info( "computing components with %i accepted links (%i rejected score, %i rejected alignment length)" %\
                    (naccepted, nrejected_score, nrejected_aligned ) )
         
@@ -61,16 +66,36 @@ class AddaCluster( AddaModule ):
 
         noutput = 0
         family_id = 0 
+        nids = set()
+        
         for domains in components:
             family_id += 1
             for domain in domains:
                 nid, start, end = domain.split("_")
+                nids.add( nid )
+                id = self.mMapNid2Id[ nid ]
                 self.mOutfile.write( "%s\t%s\t%s\t%s\n" % \
-                                     ( nid, start, end, self.mPatternFamily % family_id ) )
+                                         ( id, start, end, self.mPatternFamily % family_id ) )
 
                 noutput += 1
 
+        self.info( "output from mst: nsequences=%i, nfamilies=%i, ndomains=%i" % (len(nids), family_id, noutput) )
+        
         self.mOutfile.close()
 
-        self.info( "output %i families for %i domains" % (family_id, noutput) )
-               
+
+        # add full length domains for sequences not output. These might result from
+        # domains that have no accepted links in the mst. In this case I discard them.
+#         new_nids = set(self.mFasta.keys()).difference( nids )
+#         for nid in new_nids:
+#             length = self.mFasta.getLength( nid )
+#             id = self.mMapNid2Id[ nid ]
+#             family_id += 1
+#             nids.add( id )
+#             self.mOutfile.write( "%s\t%s\t%s\t%s\n" % \
+#                                      ( id, 0, length, self.mPatternFamily % family_id ) )
+
+#             noutput += 1
+
+#         self.info( "output after adding singletons: nsequences=%i, nfamilies=%i, ndomains=%i" % (len(nids), family_id, noutput) )
+

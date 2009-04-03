@@ -148,7 +148,6 @@ class NeighboursIterator:
         except StopIteration:
             return None
 
-
 def readMapId2Nid( infile ):
     """read map from adda.nids file."""
     
@@ -158,3 +157,4 @@ def readMapId2Nid( infile ):
         data = line[:-1].split("\t")[:2]
         m[data[1]] = data[0]
     return m
+

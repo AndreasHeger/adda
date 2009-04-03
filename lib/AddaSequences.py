@@ -80,7 +80,7 @@ class AddaSequences( AddaModule ):
         fasta = IndexedFasta.IndexedFasta( self.mFilenameOutputFasta, "w" )
 
         outfile = self.openOutputStream(self.mFilenameNids)
-        outfile.write( "nid\thid\tpid\tlength\tsequence\n" )
+        outfile.write( "nid\tpid\thid\tlength\tsequence\n" )
 
         nid = 1
         hids = set()

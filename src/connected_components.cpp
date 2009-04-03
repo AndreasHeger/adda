@@ -8,27 +8,28 @@
 
 typedef const char * CHARTYPE;
 
-template<class T>
-Components<T>::Components() 
+template<class T, class S>
+Components<T,S>::Components() 
 {
 }
 
-template<class T>
-Components<T>::~Components() 
+template<class T, class S>
+Components<T,S>::~Components() 
 {
   reset();
 }
 
-template<class T>
-int Components<T>::lookup( const T & a )
+template<class T, class S>
+int Components<T,S>::lookup( const T & a )
 {
-  MapToken2VertexIterator it = mMapToken2Vertex.find(a);
+  S v(a);
+  MapToken2VertexIterator it = mMapToken2Vertex.find(v);
   Index index;
   if ( it == mMapToken2Vertex.end() )
     {
       index = mMapVertex2Token.size();
-      mMapToken2Vertex[a] = index;
-      mMapVertex2Token.push_back(a);
+      mMapToken2Vertex[v] = index;
+      mMapVertex2Token.push_back(v);
     }
   else
     {
@@ -37,8 +38,8 @@ int Components<T>::lookup( const T & a )
   return index;
 }
 
-template<class T>
-bool Components<T>::add( const T & a, const T & b )
+template<class T, class S>
+bool Components<T,S>::add( const T & a, const T & b )
 {
   Index index1 = lookup( a );
   Index index2 = lookup( b );
@@ -117,17 +118,17 @@ bool Components<T>::add( const T & a, const T & b )
 }
 
 //------------------------------------------------------------------------
-template<class T>
-int Components<T>::get( const T & v) 
+template<class T, class S>
+int Components<T,S>::get( const T & v) 
 {
   return getComponent( getIndex(v) );
 }
 
 //------------------------------------------------------------------------
-// Components<T>::Index does not work:
+// Components<T,S>::Index does not work:
 //  expected constructor, destructor, or type conversion before "Components"
-template<class T>
-int Components<T>::getIndex( const T & v) 
+template<class T, class S>
+int Components<T,S>::getIndex( const T & v) 
 {
   MapToken2VertexIterator it;
   
@@ -138,8 +139,8 @@ int Components<T>::getIndex( const T & v)
 }
 
 //------------------------------------------------------------------------
-template<class T>
-int Components<T>::getComponent( Components<T>::Index in) 
+template<class T, class S>
+int Components<T,S>::getComponent( Components<T,S>::Index in) 
 {
   assert( in < mDad.size() );
   assert( in >= 0 );
@@ -154,16 +155,16 @@ int Components<T>::getComponent( Components<T>::Index in)
 }
 
 //------------------------------------------------------------------------
-template<class T>
-int Components<T>::getNumNodes()
+template<class T, class S>
+int Components<T,S>::getNumNodes()
 {
   return mMapToken2Vertex.size();
 }
 
 
 //------------------------------------------------------------------------
-template<class T>
-const T & Components<T>::getToken(Index i)
+template<class T, class S>
+const T Components<T,S>::getToken(Index i)
 {
   assert( i > 0);
   assert( i <= mMapVertex2Token.size() );
@@ -171,8 +172,8 @@ const T & Components<T>::getToken(Index i)
 }
 
 //------------------------------------------------------------------------
-template<class T>
-void Components<T>::reset()
+template<class T, class S>
+void Components<T,S>::reset()
 {
   mDad.clear();
   mMapToken2Vertex.clear();
@@ -180,11 +181,23 @@ void Components<T>::reset()
 }
 
 //------------------------------------------------------------------------
+template<>
+const CHARTYPE Components<CHARTYPE,std::string>::getToken(Index i)
+{
+  assert( i > 0);
+  assert( i <= mMapVertex2Token.size() );
+  return mMapVertex2Token[i - 1].c_str();
+}
+
+//------------------------------------------------------------------------
 // specialization for char types. Need to keep a copy of the token.
+/*
 template<>
 int Components<CHARTYPE>::lookup( const CHARTYPE & a )
 {
   MapToken2VertexIterator it = mMapToken2Vertex.find(a);
+  std::cout << "lookup=" << a << std::endl;
+  
   Index index;
   if ( it == mMapToken2Vertex.end() )
     {
@@ -198,13 +211,14 @@ int Components<CHARTYPE>::lookup( const CHARTYPE & a )
     {
       index = (*it).second;
     }
+  std::cout << "found=" << index << std::endl;
   return index;
 }
 
 template<>
 void Components<CHARTYPE>::reset()
 {
-  for (int x = 0; x < mMapVertex2Token.size(); ++x)
+  for (unsigned int x = 0; x < mMapVertex2Token.size(); ++x)
     delete [] mMapVertex2Token[x];
   
   mDad.clear();
@@ -212,11 +226,12 @@ void Components<CHARTYPE>::reset()
   mMapVertex2Token.clear();
 
 }
+*/
 
 //------------------------------------------------------------------------
 // explicit instantiations
-template class Components<const char *>;
-template class Components<int>;
-template class Components<std::string>;
+template class Components<const char *, std::string>;
+template class Components<int,int>;
+template class Components<std::string, std::string>;
 
  
