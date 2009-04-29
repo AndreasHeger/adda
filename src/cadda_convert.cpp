@@ -466,6 +466,9 @@ int cadda_convert( const char * filename )
 	}
 
 	delete parser;
+
+	outstream << TOKEN;
+	
 	outstream.close();
 	return 1;
 }
