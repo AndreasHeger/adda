@@ -1,10 +1,10 @@
 import sys, os, re, time, math, copy
 import alignlib
 import ProfileLibrary
-from AddaModule import AddaModuleBlock
+from AddaModule import AddaModuleRecord
 import SegmentedFile
 
-class AddaAlign( AddaModuleBlock ):
+class AddaAlign( AddaModuleRecord ):
     """align domains."""
     
     mName = "Align"
