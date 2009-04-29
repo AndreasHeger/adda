@@ -2,15 +2,15 @@ import sys, os, re
 
 import cadda
 
-from AddaModule import AddaModule
+from AddaModule import AddaModuleBlock
 
-class AddaIndex( AddaModule ):
+class AddaIndex( AddaModuleBlock ):
     """index graph for adda processing."""
     
     mName = "Index"
     
     def __init__(self, *args, **kwargs ):
-        AddaModule.__init__( self, *args, **kwargs )
+        AddaModuleBlock.__init__( self, *args, **kwargs )
                 
         self.mFilenameGraph = self.mConfig.get( "files", "output_graph", "adda.graph")
         self.mFilenameIndex = self.mConfig.get( "files", "output_index", "adda.graph.index")

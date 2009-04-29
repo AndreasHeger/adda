@@ -3,9 +3,9 @@ import shutil
 
 import cadda
 
-from AddaModule import AddaModule
+from AddaModule import AddaModuleBlock
 
-class AddaMst( AddaModule ):
+class AddaMst( AddaModuleBlock ):
     """convert the sequence graph to a domain graph and construct a
         minimum spanning tree."""
     
@@ -13,7 +13,7 @@ class AddaMst( AddaModule ):
     
     def __init__(self, *args, **kwargs ):
 
-        AddaModule.__init__( self, *args, **kwargs )
+        AddaModuleBlock.__init__( self, *args, **kwargs )
                 
         self.mFilenameDomainGraph = self.mConfig.get( "files", "output_domain_graph", "adda.domain_graph" )
         self.mFilenameMst = self.mConfig.get( "files", "output_mst", "adda.mst" )

@@ -1,17 +1,17 @@
 import sys, os, re, time, math, copy
 import alignlib
 import ProfileLibrary
-from AddaModule import AddaModule
+from AddaModule import AddaModuleBlock
 import SegmentedFile
 
-class AddaAlign( AddaModule ):
+class AddaAlign( AddaModuleBlock ):
     """align domains."""
     
     mName = "Align"
     
     def __init__(self, *args, **kwargs ):
 
-        AddaModule.__init__( self, *args, **kwargs )
+        AddaModuleBlock.__init__( self, *args, **kwargs )
 
         self.mFilenameAlignments = self.mConfig.get("files","output_align", "adda.align" )
 
@@ -220,7 +220,7 @@ class AddaAlign( AddaModule ):
         self.info( "aligned: %i links input, %i links passed, %i links failed, %i links not found" %\
                        (self.mInput, self.mNPassed, self.mNFailed, self.mNNotFound ) )
         
-        AddaModule.finish( self )
+        AddaModuleBlock.finish( self )
         
     def checkLinkThreshold( self,
                    query_nid, query_from, query_to,

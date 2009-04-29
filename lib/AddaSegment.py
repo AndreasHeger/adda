@@ -1,19 +1,19 @@
 import sys, os, re, time, math, copy, glob, optparse, logging
 import Numeric
 
-from AddaModule import AddaModule
+from AddaModule import AddaModuleRecord
 import CorrespondenceAnalysis
 import MatlabTools
 import SegmentedFile
 import Experiment as E
 
-class AddaSegment( AddaModule ):
+class AddaSegment( AddaModuleRecord ):
 
     mName = "Segment"
 
     def __init__(self, *args, **kwargs ):
-
-        AddaModule.__init__( self, *args, **kwargs )
+        
+        AddaModuleRecord.__init__( self, *args, **kwargs )
 
         self.mFilenameSegments = self.mConfig.get("files","output_segments", "adda.segments" ) 
         self.mFilenames = (self.mFilenameSegments, )
@@ -34,7 +34,7 @@ class AddaSegment( AddaModule ):
     #--------------------------------------------------------------------------
     def finish(self):
         self.mOutfile.close()        
-        AddaModule.finish( self )
+        AddaModuleRecord.finish( self )
 
     #--------------------------------------------------------------------------
     def validate(self):
@@ -70,7 +70,8 @@ class AddaSegment( AddaModule ):
         
     #--------------------------------------------------------------------------
     def readPreviousData(self, filename ):
-        """process existing output in filename to guess correct point to continue computation."""
+        """process existing output in filename to guess correct point to continue computation.
+        """
         
         self.info( "reading previous data from %s" % filename )
         

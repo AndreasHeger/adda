@@ -3,32 +3,32 @@ import pylab
 
 import cadda
 
-from AddaModule import AddaModule
+from AddaModule import AddaModuleBlock
 import AddaIO
 import Components
 import SegmentedFile
 
-class AddaCluster( AddaModule ):
-    """Do quality control. Compare adda families to references."""
+class AddaCluster( AddaModuleBlock ):
+    """Assign domain families to domains."""
     
     mName = "Cluster"
     
     def __init__(self, *args, **kwargs ):
 
-        AddaModule.__init__( self, *args, **kwargs )
+        AddaModuleBlock.__init__( self, *args, **kwargs )
                 
-        self.mFilenameFamilies = self.mConfig.get( "files", "output_families", "adda.families" )
+        self.mFilenameClusters = self.mConfig.get( "files", "output_clusters", "adda.clusters" )
         self.mFilenameAlignments = self.mConfig.get("files","output_align", "adda.align" )
         self.mFilenamesNids = self.mConfig.get( "files", "output_nids", "adda.nids" )
 
-        self.mFilenames = (self.mFilenameFamilies, )
+        self.mFilenames = (self.mFilenameClusters, )
 
         self.mMinAlignedResidues = self.mConfig.get("cluster", "min_aligned_residues", 30 )
         self.mPatternFamily = self.mConfig.get("cluster", "pattern_family", "AD%06i" )
 
     def startUp(self):
         if self.isComplete(): return
-        self.mOutfile = self.openOutputStream( self.mFilenameFamilies )
+        self.mOutfile = self.openOutputStream( self.mFilenameClusters )
 
         self.mMapId2Nid = AddaIO.readMapId2Nid( open(self.mFilenamesNids, "r") )
         self.mMapNid2Id = dict( ( (x[1],x[0]) for x in self.mMapId2Nid.iteritems() ) )
@@ -66,23 +66,20 @@ class AddaCluster( AddaModule ):
 
         noutput = 0
         family_id = 0 
-        nids = set()
         
         for domains in components:
             family_id += 1
             for domain in domains:
                 nid, start, end = domain.split("_")
                 nids.add( nid )
-                id = self.mMapNid2Id[ nid ]
                 self.mOutfile.write( "%s\t%s\t%s\t%s\n" % \
-                                         ( id, start, end, self.mPatternFamily % family_id ) )
+                                         ( nid, start, end, self.mPatternFamily % family_id ) )
 
                 noutput += 1
 
-        self.info( "output from mst: nsequences=%i, nfamilies=%i, ndomains=%i" % (len(nids), family_id, noutput) )
+        self.info( "output from mst: nsequences=%i, nclusters=%i, ndomains=%i" % (len(nids), family_id, noutput) )
         
         self.mOutfile.close()
-
 
         # add full length domains for sequences not output. These might result from
         # domains that have no accepted links in the mst. In this case I discard them.
@@ -97,5 +94,5 @@ class AddaCluster( AddaModule ):
 
 #             noutput += 1
 
-#         self.info( "output after adding singletons: nsequences=%i, nfamilies=%i, ndomains=%i" % (len(nids), family_id, noutput) )
+#         self.info( "output after adding singletons: nsequences=%i, nclusters=%i, ndomains=%i" % (len(nids), family_id, noutput) )
 

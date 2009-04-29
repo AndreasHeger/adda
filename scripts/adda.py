@@ -32,7 +32,7 @@ def run( options, order, map_module, config, fasta = None ):
                 E.info( "%s complete" % step )
     if len(modules) == 0: return
 
-    E.info( "running apply on modules: %s" % (",".join(map(str, modules))) )
+    E.info( "working with modules: %s" % (",".join(map(str, modules))) )
 
     for module in modules:
         module.startUp()
@@ -102,8 +102,10 @@ class RunnerOnFile(Runner):
 
         Runner.__init__( self, options, order, map_module, config, chunk, nchunks )
 
+        if len(self.mModules) == 0: return        
+
         E.info( "opening file %s at chunk %i" % (filename, chunk) )
-        
+
         self.mIterator = FileSlice.Iterator( filename, 
                                              nchunks,
                                              chunk,
@@ -115,13 +117,13 @@ class RunnerOnFile(Runner):
 
         for module in self.mModules: module.startUp()
 
-        E.info( "running apply on modules: %s" % (",".join(map(str, self.mModules))) )
+        E.info( "working with modules: %s" % (",".join(map(str, self.mModules))) )
 
         for line in self.mIterator:
             if line.startswith("#"): continue
 
             for module in self.mModules:
-                module.apply( line )
+                module.run( line )
 
         for module in self.mModules:
             module.finish()
@@ -135,8 +137,6 @@ class RunnerOnGraph(Runner):
 
         if len(self.mModules) == 0: return
 
-        self.mOldAlignmentFormat = options.old_alignment_format
-
         E.info( "opening graph %s at chunk %i" % (filename, chunk) )
 
         self.mIterator = FileSlice.IteratorMultiline( filename, 
@@ -146,6 +146,15 @@ class RunnerOnGraph(Runner):
                                                       key = lambda x: x[:x.index("\t")] )
 
         self.mMapId2Nid = AddaIO.readMapId2Nid( open(config.get( "files", "output_nids", "adda.nids" ), "r" ) )
+
+        if options.alignment_format == "pairsdb":
+            self.mRecordType = AddaIO.NeighbourRecordPairsdb
+        elif options.alignment_format == "pairsdb-old":
+            self.mRecordType = AddaIO.NeighbourRecordPairsdbOld
+        elif options.alignment_format == "simap":
+            self.mRecordType = AddaIO.NeighbourRecordSimap
+        else:
+            raise ValueError ("unknown record type %s" % options.alignment_format)
 
     def run( self ):
 
@@ -158,7 +167,7 @@ class RunnerOnGraph(Runner):
         for record in self.mIterator:
             neighbours = []
             for line in record:
-                n = AddaIO.NeighbourRecord( line )
+                n = self.mRecordType( line )
                 if self.mMapId2Nid:
                     if (n.mQueryToken not in self.mMapId2Nid or \
                             n.mSbjctToken not in self.mMapId2Nid ):
@@ -166,17 +175,13 @@ class RunnerOnGraph(Runner):
                     q = n.mQueryToken = self.mMapId2Nid[n.mQueryToken]
                     n.mSbjctToken = self.mMapId2Nid[n.mSbjctToken]
   
-                if self.mOldAlignmentFormat:
-                    n.mQueryFrom -= 1
-                    m.mSbjctFrom -= 1
-  
                 neighbours.append( n )
                 
             E.debug( "working on: %s with %i neighbours" % (str(q), len(neighbours) ) )
 
             if neighbours:
                 for module in self.mModules:
-                    module.apply( AddaIO.NeighboursRecord( q, neighbours ) )
+                    module.run( AddaIO.NeighboursRecord( q, neighbours ) )
 
         E.info( "running finish on modules: %s" % (",".join(map(str, self.mModules))) )
         
@@ -216,8 +221,9 @@ def main():
     parser.add_option( "--test", dest="test", type="int",
                       help="run a test with first # sequences [default=%default]")
     
-    parser.add_option( "--old-alignment-format", dest="old_alignment_format", action="store_true",
-                       help = "input graph is in old 1-based coordinates." )
+    parser.add_option( "--alignment-format", dest="alignment_format", type="choice",
+                       choices=("pairsdb", "pairsdb-old", "simap", "pairsdb-realign"),
+                       help = "input format of graph. pairsdb-old: input graph is in old 1-based coordinates [default=%default]." )
 
     parser.add_option( "--steps", dest="steps", type="choice", action="append",
                        choices=("all", 
@@ -233,7 +239,9 @@ def main():
                                 "convert",
                                 "mst", 
                                 "align",
-                                "cluster", ),
+                                "cluster", 
+                                "realign",
+                                "families", ),
                        help="perform this step [default=%default]" )
 
     parser.add_option( "--start-at", dest="start_at", type="string",
@@ -248,7 +256,7 @@ def main():
                         steps = [],
                         start_at = None,
                         stop_at = None,
-                        old_alignment_format = False,
+                        alignment_format = "pairsdb",
                         force = False,
                         append = False,
                         test = None,
@@ -273,6 +281,7 @@ def main():
                    'blast' : AddaBlast.AddaBlast,
                    'graph' : AddaGraph.AddaGraph,
                    'profiles' : AddaProfiles.AddaProfiles, 
+                   'realign' : AddaRealignment.AddaRealignment,
                    'index' : AddaIndex.AddaIndexBuild,
                    'check-index' : AddaIndex.AddaIndexCheck,
                    'optimise' : AddaOptimise.AddaOptimise,  
@@ -281,6 +290,7 @@ def main():
                    'mst' : AddaMst.AddaMst, 
                    'align' : AddaAlign.AddaAlign, 
                    'cluster' : AddaCluster.AddaCluster,
+                   'families' : AddaFamilies.AddaFamilies,
                    }
 
     # modules and their hierarchy
@@ -288,6 +298,16 @@ def main():
          order = ( "sequences", ), 
          map_module = map_module,
          config = config )
+
+    if "realign" in options.steps:
+        runParallel( 
+            RunnerOnGraph,
+            filename = config.get( "files", "input_graph", "adda.graph" ),
+            options = options, 
+            order = ("realign", ),
+            map_module = map_module,
+            config = config )
+
     
     runParallel( 
         RunnerOnGraph,
@@ -344,6 +364,12 @@ def main():
 
     run( options, 
          order = ( "cluster", ),
+         map_module = map_module,
+         config = config,
+         fasta = fasta)
+
+    run( options, 
+         order = ( "families", ),
          map_module = map_module,
          config = config,
          fasta = fasta)

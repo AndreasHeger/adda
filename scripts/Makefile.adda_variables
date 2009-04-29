@@ -94,7 +94,7 @@ PARAM_SUFFIX?=
 
 PARAM_DATABASE_PAIRSDB?=pairsdb
 
-PARAM_DATABASE_ADDA?=adda_update
+PARAM_DATABASE_ADDA?=adda_run4
 
 ###########################################################################
 ## source

@@ -3,18 +3,18 @@ import pylab
 
 import cadda
 
-from AddaModule import AddaModule
+from AddaModule import AddaModuleBlock
 import AddaIO
 import SegmentedFile
 
-class AddaOptimise( AddaModule ):
+class AddaOptimise( AddaModuleBlock ):
     """index a graph."""
     
     mName = "Optimise"
     
     def __init__(self, *args, **kwargs ):
 
-        AddaModule.__init__( self, *args, **kwargs )
+        AddaModuleBlock.__init__( self, *args, **kwargs )
                 
         self.mFilenameGraph = self.mConfig.get( "files", "output_graph")
         self.mFilenameIndex = self.mConfig.get( "files", "output_index")

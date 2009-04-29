@@ -78,8 +78,9 @@ class DomainsAdda (Domains):
         families = {}
 
         for line in infile:
+            if line.startswith("#"): continue
+            if line.startswith("nid"): continue
             (domain_nid, domain_from, domain_to, family) = line[:-1].split("\t")
-            if domain_nid == "nid": continue
             domain_from, domain_to = map( int, (domain_from, domain_to) )
             if not families.has_key(family):
                 self.mTableFamilies.AddFamily(family)

@@ -3,7 +3,7 @@ import numpy
 import scipy, scipy.stats, scipy.optimize
 import matplotlib, pylab
 
-from AddaModule import AddaModule
+from AddaModule import AddaModuleRecord
 import AddaIO
 import SegmentedFile
 
@@ -27,13 +27,13 @@ def fit(function, parameters, y, x = None):
     p = [param() for param in parameters]
     return scipy.optimize.leastsq(f, p)
 
-class AddaFit( AddaModule ):
+class AddaFit( AddaModuleRecord ):
 
     mName = "Fit"
     
     def __init__(self, *args, **kwargs ):
 
-        AddaModule.__init__( self, *args, **kwargs )
+        AddaModuleRecord.__init__( self, *args, **kwargs )
 
         self.mFilenameFit = self.mConfig.get("files","output_fit", "adda.fit" )
         self.mFilenameOverhang = self.mConfig.get( "files", "output_fit_overhang" )
@@ -434,7 +434,7 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         ## close here, so that all is flushed before merge is called
         if self.mOutfileDetails: self.mOutfileDetails.close()
 
-        AddaModule.finish( self )
+        AddaModuleRecord.finish( self )
         
     #--------------------------------------------------------------------------
     def merge(self):

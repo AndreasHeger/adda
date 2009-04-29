@@ -3,7 +3,7 @@ import sys, os, re, time
 import alignlib
 import ProfileLibrary
 
-from AddaModule import AddaModule
+from AddaModule import AddaModuleBlock
 import AddaIO
 import IndexedFasta
 import SegmentedFile
@@ -50,14 +50,14 @@ class FastaIterator:
     def next(self):
         return self.mIterator.next()
 
-class AddaSequences( AddaModule ):
+class AddaSequences( AddaModuleBlock ):
     """output sequence information."""
     
     mName = "Sequences"
     
     def __init__(self, *args, **kwargs ):
 
-        AddaModule.__init__( self, *args, **kwargs )
+        AddaModuleBlock.__init__( self, *args, **kwargs )
                 
         self.mFilenameNids = self.mConfig.get( "files", "output_nids", "adda.nids" )  
         self.mFilenameInputFasta = self.mConfig.get( "files", "input_fasta" )
@@ -111,5 +111,5 @@ class AddaSequences( AddaModule ):
         self.info( "sequences: %i input, %i output, %i removed" %\
                    (self.mInput, self.mOutput, self.mRemoved ) )
         
-        AddaModule.finish( self )
+        AddaModuleBlock.finish( self )
         

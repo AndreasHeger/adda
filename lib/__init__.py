@@ -22,7 +22,9 @@ __all__ = [
            "FileSlice",
            "ProfileLibrary",
            "AddaSequences",
-           "AddaCluster" ]
+           "AddaCluster",
+           "AddaFamilies",
+           "AddaRealignment", ]
 
 
 

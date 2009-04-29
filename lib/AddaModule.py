@@ -102,39 +102,17 @@ class AddaModule:
                 return False
         return True
 
+    #--------------------------------------------------------------------------
     def getSlice( self ):
-        
+        """return a suffix indicating a slice of the data."""
         if self.mNumChunks > 1:
             return ".%010i.%010i" % (self.mNumChunks, self.mChunk )
         else:
             return ""
     
     #--------------------------------------------------------------------------
-    def apply(self, record ):
-        """perform action on neighbours."""
-
-        # self.debug( "started: token=%s" % (neighbours.mQueryToken ))
-
-        self.mInput += 1
-        t1 = time.time()
-        self.applyMethod( record )
-        t2 = time.time()
-        self.mTime += t2 - t1
-        self.mOutput += 1
-
-        self.debug( "finished: time=%i" % (t2-t1 ) )
-    
-    #--------------------------------------------------------------------------
-    def run(self):
-        self.mInput = 0
-        self.mOutput = 0
-        t1 = time.time()
-        self.applyMethod()
-        t2 = time.time()
-        self.mTime += t2 - t1
-
-    #--------------------------------------------------------------------------
     def isSubset( self ):
+        """return true if the module works on a subset of the data."""
         return self.mNumChunks > 1
 
     #--------------------------------------------------------------------------
@@ -167,7 +145,7 @@ class AddaModule:
                                                                  self.mOutput,
                                                                  self.mTime ) )
     
-        
+    #--------------------------------------------------------------------------
     def getHID ( self, sequence ):
         """returns a hash identifier for a sequence.
         """
@@ -229,6 +207,7 @@ class AddaModule:
         f.close()
         return None
 
+    #--------------------------------------------------------------------------
     def openOutputStream(self, filename, register = False ):
         """opens an output stream.
         
@@ -273,7 +252,7 @@ class AddaModule:
 #         return open( fn, "w" )
 
         
-        
+    #--------------------------------------------------------------------------        
     def log(self, msg, loglevel = 1 ):
         self.mLogger.log( loglevel, msg )
         
@@ -292,6 +271,8 @@ class AddaModule:
     def error( self, msg ):
         self.mLogger.error( msg )
         
+    #--------------------------------------------------------------------------
+    # todo: use shelve/pickling?
     def saveValue(self, key, value ):
         """save a key/value pair in the persistence file."""
         fd = os.open( self.mFilenamePersistence, "a" )
@@ -305,6 +286,7 @@ class AddaModule:
         fcntl.flock( fd, fcntl.LOCK_UN)
         os.close( fd )
         
+    #--------------------------------------------------------------------------
     def getValue(self, key):
         """get a value for a given key in the persistence file."""
         fd = os.open( self.mFilenamePersistence, "r" )
@@ -313,6 +295,62 @@ class AddaModule:
         k = v.get( "data", key, value )
         fcntl.flock( fd, fcntl.LOCK_UN)
         os.close( fd )
+
+#--------------------------------------------------------------------------
+class AddaModuleBlock( AddaModule ):
+    """Adda module working as a block.
+
+    Classes derived from this class implement sequential steps.
+    """
+    
+    def __init__(self, *args, **kwargs ):
+        AddaModule.__init__(self, *args, **kwargs )
         
-        
+    #--------------------------------------------------------------------------
+    def run(self ):
+        """perform action."""
+        t1 = time.time()
+        self.applyMethod()
+        t2 = time.time()
+        self.mTime += t2 - t1
+
+        self.debug( "finished: time=%i" % (t2-t1 ) )
+
+    #--------------------------------------------------------------------------
+    def finish(self):
+        """do aggregate computations (if needed)."""
+
+        self.info( "finished: time=%i" % (self.mTime ) )
+    
+#--------------------------------------------------------------------------
+class AddaModuleRecord( AddaModule ):
+    """Adda module working on records.
+
+    Classes derived from this class implement parallel steps.
+    """
+
+    def __init__(self, *args, **kwargs ):
+        AddaModule.__init__(self, *args, **kwargs )
+
+    def run(self, record ):
+        """perform action on record."""
+
+        self.mInput += 1
+        t1 = time.time()
+        self.applyMethod( record )
+        t2 = time.time()
+        self.mTime += t2 - t1
+        self.mOutput += 1
+
+        self.debug( "finished: time=%i" % (t2-t1 ) )
+    
+    #--------------------------------------------------------------------------
+    def finish(self):
+        """do aggregate computations (if needed)."""
+
+        self.info( "finished: ninput=%i, noutput=%i, time=%i" % (self.mInput, 
+                                                                 self.mOutput,
+                                                                 self.mTime ) )
+    
+
         

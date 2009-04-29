@@ -3,20 +3,21 @@ import sys, os, re, time, glob
 import alignlib
 import ProfileLibrary
 
-from AddaModule import AddaModule
+from AddaModule import AddaModuleRecord
 import AddaIO
 import SegmentedFile
 
 import Experiment as E
 
-class AddaProfiles( AddaModule ):
-    """write a links table for adda processing."""
+class AddaProfiles( AddaModuleRecord ):
+    """build a profile library from the pairsdb graph.
+    """
     
     mName = "Profiles"
     
     def __init__(self, *args, **kwargs ):
 
-        AddaModule.__init__( self, *args, **kwargs )
+        AddaModuleRecord.__init__( self, *args, **kwargs )
 
         self.mFilenameProfile = self.mConfig.get( "files", "output_profiles", "adda.profiles" )
         self.mScaleFactor  = self.mConfig.get( "profiles", "scale_factor", 0.3 )
@@ -61,16 +62,28 @@ class AddaProfiles( AddaModule ):
 
         mali.add( alignlib.makeAlignatum( sequence ) )
 
+        qseq = alignlib.makeSequence( sequence )
+        alignator = alignlib.makeAlignatorDPFull( alignlib.ALIGNMENT_LOCAL, 
+                                                  -10, -2)
+
         for n in neighbours.mMatches[:self.mMaxNumNeighbours]:
+
             if n.mSbjctToken == query_nid: continue
+            sequence = self.mFasta.getSequence( n.mSbjctToken )
 
             map_query2sbjct = n.getAlignment()
+
+            if map_query2sbjct == None:
+                sseq = alignlib.makeSequence( sequence )
+                qseq.useSegment( n.mQueryFrom, n.mQueryTo )
+                sseq.useSegment( n.mSbjctFrom, n.mSbjctTo )
+                map_query2sbjct = alignlib.makeAlignmentVector()
+                alignator.align( map_query2sbjct, qseq, sseq )
 
             if map_query2sbjct.getLength() == 0:
                 self.warn( "empty alignment: %s" % str( n ) )
                 continue
-            
-            sequence = self.mFasta.getSequence( n.mSbjctToken )
+
             mali.add( alignlib.makeAlignatum( sequence ),
                       map_query2sbjct,
                       mali_is_in_row = True, 
@@ -92,7 +105,8 @@ class AddaProfiles( AddaModule ):
             outfile.close()
     
         return mali
-        
+
+    #------------------------------------------------------------------
     def applyMethod(self, neighbours ):
         """output the graph.
 
@@ -121,7 +135,8 @@ class AddaProfiles( AddaModule ):
         if self.mPrepareProfile: profile.prepare()
 
         self.mProfileLibrary.add( query_nid, profile )
-            
+        
+    #------------------------------------------------------------------
     def finish( self ):
         """finish processing.
         
@@ -141,7 +156,7 @@ class AddaProfiles( AddaModule ):
 
         self.mProfileLibrary.close()
         
-        AddaModule.finish(self)        
+        AddaModuleRecord.finish(self)        
 
     #--------------------------------------------------------------------------
     def merge(self):
@@ -200,3 +215,4 @@ class AddaProfiles( AddaModule ):
             os.remove( fi )
         
         return len(missing) == 0 and nduplicate == 0 and nunknown == 0
+

@@ -1,16 +1,16 @@
 import sys, os, re, time, math, copy
 
-from AddaModule import AddaModule
+from AddaModule import AddaModuleRecord
 import SegmentedFile
 
-class AddaGraph( AddaModule ):
+class AddaGraph( AddaModuleRecord ):
     """write a links table for adda processing."""
     
     mName = "Graph"
     
     def __init__(self, *args, **kwargs ):
 
-        AddaModule.__init__( self, *args, **kwargs )
+        AddaModuleRecord.__init__( self, *args, **kwargs )
 
         self.mFilenameGraph = self.mConfig.get("files", "output_graph", "adda.graph" )
         self.mFilenames = (self.mFilenameGraph, )
@@ -143,7 +143,7 @@ class AddaGraph( AddaModule ):
         self.info( "graph: %i links input, %i links output, %i links merged" %\
                    (self.mNLinksInput, self.mNLinksOutput, self.mNJoined ) )
         
-        AddaModule.finish( self )
+        AddaModuleRecord.finish( self )
 
     #--------------------------------------------------------------------------
     def merge(self):

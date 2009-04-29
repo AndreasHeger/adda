@@ -2,17 +2,17 @@ import sys, os, re, time
 
 import alignlib
 
-from AddaModule import AddaModule
+from AddaModule import AddaModuleBlock
 import IndexedFasta
 
-class AddaBlast( AddaModule ):
+class AddaBlast( AddaModuleBlock ):
     """run blast."""
     
     mName = "Blast"
     
     def __init__(self, *args, **kwargs ):
 
-        AddaModule.__init__( self, *args, **kwargs )
+        AddaModuleBlock.__init__( self, *args, **kwargs )
                 
         self.mFilenameOutputFasta = self.mConfig.get( "files", "output_fasta", "adda" )
         self.mBlastResults = self.mConfig.get( "files", "output_blast", "adda.blast.gz" )

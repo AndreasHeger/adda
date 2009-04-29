@@ -1,8 +1,8 @@
 import sys, os, re, time, math, copy
 import cadda
-from AddaModule import AddaModule
+from AddaModule import AddaModuleBlock
 
-class AddaConvert( AddaModule ):
+class AddaConvert( AddaModuleBlock ):
     """convert the sequence graph to a domain graph and construct a
         minimum spanning tree."""
     
@@ -10,7 +10,7 @@ class AddaConvert( AddaModule ):
     
     def __init__(self, *args, **kwargs ):
 
-        AddaModule.__init__( self, *args, **kwargs )
+        AddaModuleBlock.__init__( self, *args, **kwargs )
                 
         self.mFilenameGraph = self.mConfig.get( "files", "output_graph", "adda.graph" )
         self.mFilenameDomains = self.mConfig.get( "files", "output_domains", "adda.domains" )
