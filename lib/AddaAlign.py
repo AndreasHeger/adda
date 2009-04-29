@@ -11,7 +11,7 @@ class AddaAlign( AddaModuleRecord ):
     
     def __init__(self, *args, **kwargs ):
 
-        AddaModuleBlock.__init__( self, *args, **kwargs )
+        AddaModuleRecord.__init__( self, *args, **kwargs )
 
         self.mFilenameAlignments = self.mConfig.get("files","output_align", "adda.align" )
 
@@ -220,7 +220,7 @@ class AddaAlign( AddaModuleRecord ):
         self.info( "aligned: %i links input, %i links passed, %i links failed, %i links not found" %\
                        (self.mInput, self.mNPassed, self.mNFailed, self.mNNotFound ) )
         
-        AddaModuleBlock.finish( self )
+        AddaModuleRecord.finish( self )
         
     def checkLinkThreshold( self,
                    query_nid, query_from, query_to,
