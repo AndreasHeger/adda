@@ -66,11 +66,13 @@ class AddaCluster( AddaModuleBlock ):
 
         noutput = 0
         family_id = 0 
-        
+
+        nids = set()
         for domains in components:
             family_id += 1
             for domain in domains:
                 nid, start, end = domain.split("_")
+                nids.add( nid )
                 self.mOutfile.write( "%s\t%s\t%s\t%s\n" % \
                                          ( nid, start, end, self.mPatternFamily % family_id ) )
 
