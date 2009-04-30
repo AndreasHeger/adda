@@ -71,7 +71,6 @@ class AddaCluster( AddaModuleBlock ):
             family_id += 1
             for domain in domains:
                 nid, start, end = domain.split("_")
-                nids.add( nid )
                 self.mOutfile.write( "%s\t%s\t%s\t%s\n" % \
                                          ( nid, start, end, self.mPatternFamily % family_id ) )
 
