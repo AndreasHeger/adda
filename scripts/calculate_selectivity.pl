@@ -22,7 +22,7 @@ print <<END_OF_TEXT;
 # TOTAL:	number of total annotated domains in cluster
 # SENSI:	sensitivity
 # REFF:		assigned reference family
-# FAMILY\tANNO\tTOTAL\tSENSI\tREFF
+family\tanno\ttotal\tsensi\treff
 END_OF_TEXT
 
 
@@ -38,13 +38,14 @@ while (<STDIN>) {
     }
 
     next if (/^\#/);
+    next if (/^family/);
     chop();
 
     my ($did, $nunits, $aunits, $nseqs, $aseqs, $length, 
 	$runits, $tunits, $rseqs, $tseqs, $alength, $aovl, $anno1, $anno2) = split(/\t/);
     
-    if ($did) {
-	
+    if ($did) 
+    {
 	my $family = $anno1."\t".$anno2;
 	next unless ($runits);
 	my $r = $runits / $aunits;

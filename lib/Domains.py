@@ -1,7 +1,7 @@
 ## $Id$
 ##
 ##
-import sys, re, string, os
+import sys, re, string, os, tempfile
 
 import Intervals
 from Pairsdb import *
@@ -147,12 +147,15 @@ class Domains (Experiment):
         if self.mFileNameFamilies:
             self.mTableFamilies.Drop()
             self.mTableFamilies.Create()
-            self.mTableFamilies.Load( self.mFileNameFamilies )
+            self.mTableFamilies.Load( self.mTempFileNameFamilies )
 
         if self.mFileNameDomains:
             self.mTableDomains.Drop()
             self.mTableDomains.Create()
-            self.mTableDomains.Load( self.mFileNameDomains )
+            self.mTableDomains.Load( self.mTempFileNameDomains )
+            
+        self.mTempFileNameFamilies = None
+        self.mTempFileNameDomains = None
 
     #----------------------------------------------------------------------------------------------------------
     def OpenOutfiles( self ):
@@ -160,10 +163,12 @@ class Domains (Experiment):
         """
 
         if self.mFileNameFamilies:
-            self.mFileFamilies = open(self.mFileNameFamilies, "w")
-            
+            (h, self.mTempFileNameFamilies) = tempfile.mkstemp( prefix=self.mFileNameFamilies, dir= PATH_LOAD )
+            self.mFileFamilies = os.fdopen( h, "w" )
+
         if self.mFileNameDomains:
-            self.mFileDomains    = open(self.mFileNameDomains, "w")
+            (h, self.mTempFileNameDomains) = tempfile.mkstemp( prefix=self.mFileNameDomains, dir= PATH_LOAD )
+            self.mFileDomains = os.fdopen( h, "w" )
 
     #----------------------------------------------------------------------------------------------------------
     def CloseOutfiles( self ):
@@ -175,6 +180,18 @@ class Domains (Experiment):
         if self.mFileNameDomains:
             self.mFileDomains.close()
         
+    #----------------------------------------------------------------------------------------------------------
+    def __del__( self ):
+        try:
+            os.remove( self.mTempFileNameFamilies )
+        except (AttributeError, OSError):
+            pass
+
+        try:
+            os.remove( self.mTempFileNameDomains )
+        except (AttributeError, OSError):
+            pass
+
     #----------------------------------------------------------------------------------------------------------
     def UpdateDomains( self ):
         """update domains table."""

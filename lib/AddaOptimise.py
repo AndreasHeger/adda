@@ -8,7 +8,44 @@ import AddaIO
 import SegmentedFile
 
 class AddaOptimise( AddaModuleBlock ):
-    """index a graph."""
+    """perform optimisation step. Select domains for each sequences that minimize ``overhang`` and ``transfer``.
+
+    The optimisation is greedy and progresses at most ``optimise:iterations``
+    iterations or stops if the objective function stops improving 
+    (absolute improvement: ``optimise:min_abs_improvement``, 
+    relative improvement: ``optimise:min_rel_improvement``).
+    
+    TODO: check if optimise:resolution still applies.
+
+    input
+       ``files:output_graph``: the pairwise alignment graph
+
+       ``files:output_nids``: table with sequences
+
+       ``files:output_index``: index for pairwise alignment graph
+
+       ``files:output_fit``: a config file with the estimated parameters
+
+       ``files:output_fit_transfer``: histogram of transfer values
+
+    output
+       ``files:output_domains``: tab-separated file with domain
+          decomposition.
+
+    This module creates additional files that are update each 
+    iteration that permit monitoring of the progress of the optimisation
+    and check for convergence.
+
+    The files all have the prefix ``files:output_domains`` and end in:
+
+    ``_progress_improvement.png``
+
+    ``_progress_domains.png``
+
+    ``_progress_domains_per_sequence.png``
+
+
+    """
     
     mName = "Optimise"
     
@@ -19,22 +56,20 @@ class AddaOptimise( AddaModuleBlock ):
         self.mFilenameGraph = self.mConfig.get( "files", "output_graph")
         self.mFilenameIndex = self.mConfig.get( "files", "output_index")
         self.mFilenameTransfers = self.mConfig.get( "files", "output_fit_transfer" )
-        self.mFilenameFit = self.mConfig.get( "files", "output_fit" )
+        self.mFilenameFit = self.mConfig.get( "files", "output_fit", "adda.fit" )
+        self.mFilenameNids = self.mConfig.get( "files", "output_nids" )    
         self.mFilenameDomains = self.mConfig.get( "files", "output_domains" )
         self.mMaxIterations = int( self.mConfig.get( "optimise", "iterations" ) )   
         self.mResolution = float( self.mConfig.get( "optimise", "resolution" ) )   
-        self.mFilenameNids = self.mConfig.get( "files", "output_nids" )    
         self.mMinAbsImprovement = float(self.mConfig.get( "optimise", "min_abs_improvement" ))
         self.mMinRelImprovement = float(self.mConfig.get( "optimise", "min_rel_improvement" ))
-        
         self.mOutputFilenameProgressImprovement = self.mFilenameDomains + "_progress_improvement.png"
         self.mOutputFilenameProgressDomains = self.mFilenameDomains + "_progress_domains.png"
         self.mOutputFilenameProgressDomainsPerSequence = self.mFilenameDomains + "_progress_domains_per_sequence.png"
                                                                     
         self.mNSequences = len(self.mFasta)
-                        
 
-        self.mFilenames= ( self.mFilenameDomains, )
+        self.mFilenames = ( self.mFilenameDomains, )
 
     def startUp( self ):
         if self.isComplete(): return
@@ -111,8 +146,10 @@ class AddaOptimise( AddaModuleBlock ):
             
             self.info( "iteration %i: finished in %i seconds: improvement=%f, relative improvement=%f, ndomains=%i" %\
                        (iteration, 
-                        t - time.time(),
-                        improvement, rel_improvement, ndomains) )            
+                        time.time() - t,
+                        improvement, 
+                        rel_improvement, 
+                        ndomains) )            
 
             if cadda.optimise_save_partitions( self.mFilenameDomains ):
                 self.info( "domains saved to %s" % self.mFilenameDomains)

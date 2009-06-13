@@ -67,20 +67,22 @@ SUFFIX_DATABASE = ".pdb"
 SUFFIX_INDEX=".pix"
 
 class ProfileLibrary:
+    """create or open a profile library.
+    
+       ``name``
+          the name of the library (excluding any suffixes).
+        
+       ``mode``
+          "r" open an existing library for reading.
+          "w" open a new library for writing. Set force==True to
+          overwrite an existing library.
+    """
     
     mSuffixDatabase = SUFFIX_DATABASE
     mSuffixIndex = SUFFIX_INDEX
 
     def __init__(self, name, mode = "r", force=False ):
-        """create or open a profile library.
-        
-        name: the name of the library (excluding any suffixes).
-        
-        mode: "r" open an existing library for reading.
-              "w" open a new library for writing. Set force==True to
-                  overwrite an existing library.
-        
-        """
+
         self.mName = name
 
         self.mFilenameProfiles = self.mName + self.mSuffixDatabase

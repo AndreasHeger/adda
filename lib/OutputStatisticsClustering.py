@@ -129,7 +129,7 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
 # ALENGTH:      length ratio avg_cluster/avg_source
 # AOVL:         average overlap
 # ANNO:         description of annotation
-# FAMILY   NUNITS  AUNITS  NSEQS   ASEQS   LENGTH  RUNITS  TUNITS  RSEQS   TSEQS   ALENGTH AOVL    ANNO""" %\
+family\tnunits\taunits\tnseqs\taseqs\tlength\trunits\ttunits\trseqs\ttseqs\talength\taovl\tanno""" %\
         (self.mTableNameReferenceFamilies,
          self.mTableNameReferenceDomains,
          self.mAnnotationMinEvidence,
@@ -275,7 +275,7 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
 # RUNITS:       number of units associated with reference annotation of class
 # RSEQS:        number of sequences in cluster associated with annotation of class
 # ANNO:         description of annotation
-# FAMILY\tNUNITS\tNSEQS\tNRES\tLENGTH\tRUNITS\tRSEQS\tANNO""" %\
+family\tnunits\tnseqs\tnres\tlength\trunits\trseqs\tanno""" %\
         (self.mTableNameReferenceFamilies,
          self.mTableNameReferenceDomains,
          self.mAnnotationMinEvidence,
@@ -396,10 +396,10 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
 # PUNITSx:      percentage masked units in cluster by method x
 # PSEQSx:       percentage masked sequences in cluster by method x
 # PRESx:        percentage masked residues in cluster by method x
-# FAMILY\tNUNITS\tNSEQS\tNRES\tLENGTH""",
+family\tnunits\tnseqs\tnres\tlength""",
 
         for x in self.mMaskMethods:
-            print "\tNUNITS%i\tNSEQS%i\tNSEGS%i\tNRES%i\tPUNITS%i\tPSEQS%i\tPRES%i" % (x,x,x,x,x,x,x),
+            print "\tnunits%i\tnseqs%i\tnsegs%i\tnres%i\tpunits%i\tpseqs%i\tpres%i" % (x,x,x,x,x,x,x),
         print
 
         ##################################################################
@@ -473,7 +473,7 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
 # X: TP
 # Y: TP/T
 # sorted by size
-# X     Y""" %\
+x\ty""" %\
         (self.mTableNameReferenceFamilies,
          self.mTableNameReferenceDomains,
          self.mAnnotationMinEvidence,
@@ -538,7 +538,7 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
 # NUNITS:       number of families with x units
 # NSEQ:         number of families with x sequences
 #"""
-        print "# NUM\tNUNITS\tNSEQ"
+        print "num\tnunits\tnseq"
         sys.stdout.flush()
 
         histograms = []
@@ -566,7 +566,7 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
 # NUNITS/SIN:   number of domains without singletons
 # NSIN:         number of singletons with that length
 #"""
-        print "LENGTH\tNUNITS\tNUNITS/SIN\tNSIN"
+        print "length\tnunits\tnunits/sin\tnsin"
         sys.stdout.flush()
 
         histograms = []
@@ -607,7 +607,7 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
 # NSIN:         number of singleton families
 # MAXU:         maximum units size of family
 # MAXS:         maximum sequences size of family"""
-        print "# NNIDS\tNDOM\tNFAM\tNSIN\tMAXU\tMAXS"
+        print "nnids\tndom\tnfam\tnsin\tmaxu\tmaxs"
         sys.stdout.flush()
         
         nnids = self.mDbhandle.Execute(
@@ -637,7 +637,7 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
 # NUNITS:       number of units
 # TLEN:         total length (residues)
 # ALEN:         average length"""
-        print "# FAMILY\tNSEQS\tNUNITS\tTLEN\tALEN"
+        print "family\tnseqs\tnunits\ttlen\talen"
         sys.stdout.flush()
         
         statement =  """
@@ -673,7 +673,7 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
 # OVL:          average percentage overlap
 # DCOV:         average coverage of domain by structure
 # SCOV:         average coverage of structure by domain
-# FAMILY\tNSEQS\tNUNITS\tNSTR\tDLEN\tDSTR\tOVL\tDCOV\tSCOV"""
+family\tnseqs\tnunits\tnstr\tdlen\tdstr\tovl\tdcov\tscov"""
         
         sys.stdout.flush()
 
@@ -748,7 +748,7 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
         print """# NSPEC:       number of sequences in species
 # SPEC:         species"""
         
-        print "# FAMILY\tNSEQS\tNUNITS\tNRES\tLENGTH\tNSPEC\t" +\
+        print "family\tnseqs\tnunits\tnres\tlength\tnspec\t" +\
               string.join( map(lambda x: string.upper(x[0])[:5], kingdoms), "\t\t"),
         
         if self.mTaxonomyLevel:
@@ -1095,7 +1095,7 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
 # NMOBILES:       number of mobile modules per sequence
 #"""
         
-        print "# LENGTH\tNDOMAINS\tNDOMAINS/SIN\tNMOBILES"
+        print "length\tndomains\tndomains/sin\tnmobiles"
         sys.stdout.flush()
 
         histograms = []

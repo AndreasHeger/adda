@@ -64,7 +64,6 @@ class SegmentedFiles(object):
                         return l
                     l = self._file.next()
                     
-
         return l
 
     def __getattr__(self, name):

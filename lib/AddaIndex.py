@@ -5,7 +5,15 @@ import cadda
 from AddaModule import AddaModuleBlock
 
 class AddaIndex( AddaModuleBlock ):
-    """index graph for adda processing."""
+    """index graph for adda optimisation step.
+
+    input
+       ``files:output_graph``: the pairwise alignment graph
+
+    output
+       ``files:output_index``: an index of the pairwise alignment graph. This
+          is a binary file.
+    """
     
     mName = "Index"
     

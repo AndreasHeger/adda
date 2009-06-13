@@ -86,6 +86,46 @@ class NeighbourRecordPairsdb:
         f.copy( r )
         return r   
 
+class NeighbourRecordPairsdbRealign:
+    """a pairwise alignment.
+
+    The input format is tab-separated columns:
+
+    ``query_token`` the query
+    ``sbjct_token`` the sbjct
+    ``evalue`` : the E-Value
+    ``query_from``: the first aligned residue in query
+    ``query_to``: the last aligned residue + 1 in query
+    ``query_ali``: the aligned query in compressed form
+    ``sbjct_from``: the first aligned residue in sbjct
+    ``sbjct_to``: the last aligned residue + 1 in sbjct
+    ``sbjct_ali``: the aligned sbjct in compressed form
+
+    Additional columns are ignored and the alignment itself
+    are ignored forcing ADDA to realign.
+    """
+
+    def __init__(self, line ): 
+        (self.mQueryToken, self.mSbjctToken, self.mEvalue,
+         self.mQueryFrom, self.mQueryTo, self.mQueryAli,
+         self.mSbjctFrom, self.mSbjctTo, self.mSbjctAli) = line[:-1].split("\t")[:9]
+
+        (self.mQueryFrom, self.mQueryTo, self.mSbjctFrom, self.mSbjctTo) = map(
+            int, (self.mQueryFrom, self.mQueryTo, self.mSbjctFrom, self.mSbjctTo))
+
+        self.mEvalue = float(self.mEvalue)
+
+    def __str__( self ):
+
+        return "\t".join( map(str, (
+            self.mQueryToken, self.mSbjctToken, self.mEvalue,
+            self.mQueryFrom, self.mQueryTo, self.mQueryAli,
+            self.mSbjctFrom, self.mSbjctTo, self.mSbjctAli)))
+    
+    def getAlignment(self ):
+        """parse alignment into a AlignmentVector object."""
+        return None
+
 class NeighbourRecordSimap:
     """a pairwise alignment.
 

@@ -9,7 +9,20 @@ import Components
 import SegmentedFile
 
 class AddaCluster( AddaModuleBlock ):
-    """Assign domain families to domains."""
+    """Assign domain families to domains and map internal sequence identifiers
+    to the original sequence names.
+
+    Domains of less than ``cluster:min_aligned_residues`` are discarded.
+
+    input
+       ``files:output_align``: alignment information for each pair in the minimum spanning tree.
+
+       ``files:adda.nids``: a table with sequence information.
+
+    output
+       ``files:adda.clusters``: domain and family assignments for each sequence
+
+    """
     
     mName = "Cluster"
     
@@ -51,7 +64,7 @@ class AddaCluster( AddaModuleBlock ):
                 line[:-1].split("\t")
             
             if code == "+":
-                if int(ngaps) >= self.mMinAlignedResidues:
+                if int(naligned) >= self.mMinAlignedResidues:
                     componentor.add( qdomain, sdomain )
                     naccepted += 1
                 else:

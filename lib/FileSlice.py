@@ -8,11 +8,16 @@ def getZipSize(gzipfile):
     f.seek(-4, 2)
     return struct.unpack("<i", f.read())[0]
 
-
 class Iterator:
+    """create iterator over a file *filename* that is split
+    in-situ in *nchunks* starting at *chunk* and using *iterator*
+    to iterate over records.
+
+    If *filename* ends in .gz, the file is opened as a gzip'ed file.
+    """
 
     def __init__(self, filename, nchunks, chunk, iterator, *args, **kwargs ):
-
+        
         if filename.endswith(".gz"):
             self.mFileSize = getZipSize( filename )
             self.mInfile = gzip.open( filename, "r" )
@@ -35,12 +40,19 @@ class Iterator:
         self.mInfile.close()
 
     def next( self ):
-
         if self.mInfile.tell() > self.mEndPos:
             raise StopIteration
         return self.mIterator.next()
 
 class IteratorMultiline:
+    """create iterator over a file *filename* that is split
+    in-situ in *nchunks* starting at *chunk* and using *iterator*
+    to iterate over records.
+
+    This iterator can work with multi-line records.
+
+    If *filename* ends in .gz, the file is opened as a gzip'ed file.
+    """
 
     def __init__(self, filename, nchunks, chunk, iterator, *args, **kwargs ):
 

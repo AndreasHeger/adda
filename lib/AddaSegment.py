@@ -8,6 +8,27 @@ import SegmentedFile
 import Experiment as E
 
 class AddaSegment( AddaModuleRecord ):
+    """decompose sequences hierarchically into putative domains.
+    
+    input
+       ``files:input_graph``: the pairwise alignment graph
+
+    output
+       ``files:output_segments``: tab separated file with tree decomposition. The columns are
+       
+       ``nid``
+           sequence identifier
+       ``node``
+           current node in tree
+       ``parent``
+           parent of current node
+       ``level``
+           distance to root of current node
+       ``start``
+           first position of sequence segment
+       ``end``
+           last position of sequence segment
+    """
 
     mName = "Segment"
 
@@ -762,28 +783,27 @@ class AddaSegment( AddaModuleRecord ):
                      min_distance_border = 0,
                      map_row_new2old = None ):
         """
-        1. calculate objective function for matrix in intervall.
-    
-    
-        \           <- xfrom
-         \
-          \
-        c1 \
-        ----\       <- x
-           | \
-        cc |c2\
-                    <- xto (one past last)
-    
-        l1 = x - xfrom
-        l2 = xto - x
-    
-        chi-squared: 
-    
-        I[x] = (i11*i22-i21*i12)**2 * total / row&col-sums
-    
-    
-        I[x] = mu[x]/F[x]
-    
+        calculate objective function for matrix in intervall
+
+        ::
+
+           \\
+            \\           <- xfrom
+             \\
+              \\
+            c1 \\
+            ----\\       <- x
+               | \\
+            cc |c2\\
+                        <- xto (one past last)
+
+            l1 = x - xfrom
+            l2 = xto - x
+
+            chi-squared: 
+
+            I[x] = (i11*i22-i21*i12)**2 * total / row&col-sums
+            I[x] = mu[x]/F[x]
         """
         xfrom, xto = intervall
         l = xto - xfrom 

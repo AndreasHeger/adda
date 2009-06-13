@@ -5,7 +5,27 @@ from AddaModule import AddaModuleRecord
 import SegmentedFile
 
 class AddaAlign( AddaModuleRecord ):
-    """align domains."""
+    """align domains and check if similarity is sufficient to
+    infer homology.
+
+    Homology between domains is evaluated using profile-profile
+    alignment. A link is accepted, if the alignment z-score is at 
+    least ``align:min_zscore``. The z-score is computed by shuffling
+    one sequence ``align:num_iterations_zscore`` times. 
+
+    Very high scoring alignments 
+    (score * ``align:safety_threshold`` > ``align:min_alignment_score``)
+    are accepted without shuffling.
+
+    input
+       ``files:output_profiles``: a profile library (:class:`ProfileLibrary.ProfileLibrary`)
+
+       ``files:output_mst``: minimum spanning tree between domains
+
+    output
+       ``files:output_align``: alignment information for each pair in the minimum spanning tree.
+
+    """
     
     mName = "Align"
     

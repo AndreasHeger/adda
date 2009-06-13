@@ -6,8 +6,15 @@ import cadda
 from AddaModule import AddaModuleBlock
 
 class AddaMst( AddaModuleBlock ):
-    """convert the sequence graph to a domain graph and construct a
-        minimum spanning tree."""
+    """construct a minimum spanning tree from the domain graph.
+
+    input
+       ``files:output_domain_graph``: a file with pairwise links between domains
+    
+    output
+       ``files:output_mst``: minimum spanning tree between domains. The columns are
+          ``domain1``, ``domain2``, ``score``
+    """
     
     mName = "Mst"
     

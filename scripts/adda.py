@@ -153,6 +153,8 @@ class RunnerOnGraph(Runner):
             self.mRecordType = AddaIO.NeighbourRecordPairsdbOld
         elif options.alignment_format == "simap":
             self.mRecordType = AddaIO.NeighbourRecordSimap
+        elif options.alignment_format == "pairsdb-realign":
+            self.mRecordType = AddaIO.NeighbourRecordPairsdbRealign
         else:
             raise ValueError ("unknown record type %s" % options.alignment_format)
 
@@ -241,7 +243,8 @@ def main():
                                 "align",
                                 "cluster", 
                                 "realign",
-                                "families", ),
+                                "families", 
+                                "summary"),
                        help="perform this step [default=%default]" )
 
     parser.add_option( "--start-at", dest="start_at", type="string",
@@ -291,6 +294,7 @@ def main():
                    'align' : AddaAlign.AddaAlign, 
                    'cluster' : AddaCluster.AddaCluster,
                    'families' : AddaFamilies.AddaFamilies,
+                   'summary' : AddaSummary.AddaSummary,
                    }
 
     # modules and their hierarchy
@@ -370,6 +374,12 @@ def main():
 
     run( options, 
          order = ( "families", ),
+         map_module = map_module,
+         config = config,
+         fasta = fasta)
+
+    run( options, 
+         order = ( "summary", ),
          map_module = map_module,
          config = config,
          fasta = fasta)

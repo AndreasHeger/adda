@@ -15,7 +15,7 @@ print <<END_OF_TEXT;
 # TOTAL:	number of domains in assigned reference family
 # SENSI:	sensitivity
 # REFF:		assigned reference family
-# FAMILY\tANNO\tTOTAL\tSENSI\tREFF
+family\tanno\ttotal\tsensi\treff
 END_OF_TEXT
 
 my $last_did;
@@ -31,6 +31,7 @@ while (<STDIN>) {
     }
 
     next if (/^\#/);
+    next if (/^family/);
     chop();
 
     my ($did, $nunits, $aunits, $nseqs, $aseqs, $length, 

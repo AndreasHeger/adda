@@ -28,14 +28,13 @@ class DomainsAdda (Domains):
 
 	Domains.__init__( self, dbhandle )
 
-        self.mFileNameFamilies = None
-        self.mFileNameDomains = os.tempnam( PATH_LOAD, "doma" )
-
         self.mTableFamilies = TableFamiliesAdda( dbhandle, "adda" )
         self.mTableDomains = TableDomainsAdda( dbhandle, "adda" )
         
         self.mTableFamilies.SetName( self.mTableNameFamilies )        
         self.mTableDomains.SetName( self.mTableNameDomains  )
+
+        self.mFileNameDomains = "adda"
 
     ##---------------------------------------------------------------------------------
     def ProcessOptions( self, optlist ):
@@ -87,6 +86,7 @@ class DomainsAdda (Domains):
                 families[family] = 1
 
             l = domain_to - domain_from + 1
+
             self.mFileDomains.write( string.join( map(str, (domain_nid, domain_from, domain_to, "+%i" % l,
                                                             domain_nid, domain_from, domain_to, "+%i" % l,
                                                             family
@@ -101,39 +101,6 @@ class DomainsAdda (Domains):
                                                                    self.mTableDomains.RowCount())
             sys.stdout.flush()
 
-
-    ##---------------------------------------------------------------------------------
-    def CreateMalis( self ):
-        """Build familes from a links file.
-        """
-
-        self.mTableFamilies = TableFamiliesAddaMalis( dbhandle, "adda" )
-        self.mTableDomains = TableDomainsAddaMalis( dbhandle, "adda" )
-        
-        self.mTableFamilies.SetName( self.mTableNameFamilies )        
-        self.mTableDomains.SetName( self.mTableNameDomains  )
-
-        self.mTableFamilies.Clear()
-        self.mTableDomains.Clear()
-
-        if self.mLogLevel >= 1:
-            print "--> loading data"            
-            print "--> at start: %i families with %i members" % (self.mTableFamilies.RowCount(),
-                                                                 self.mTableDomains.RowCount())
-            sys.stdout.flush()
-
-        ## simply create a copy
-        os.system("cp %s %s" % (self.mFileNameInput, self.mFileNameDomains ))
-
-        self.Load()
-        self.mTableFamilies.AddDomains( self.mTableDomains )
-        self.UpdateDomains()
-        
-        if self.mLogLevel >= 1:
-            
-            print "--> at the end: %i families with %i members" % (self.mTableFamilies.RowCount(),
-                                                                   self.mTableDomains.RowCount())
-            sys.stdout.flush()
 
 #--------------------------------------< end of class definition >-------------------------------
 

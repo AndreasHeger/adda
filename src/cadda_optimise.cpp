@@ -224,7 +224,7 @@ void printPartitions( std::ostream & output ,
 		Nid nid = map_index2nid[index];
 		PartitionList::const_iterator it(partitions[index].begin()), end(partitions[index].end());
 		for (;it!=end;++it)
-			output << nid << "\t" << it->from << "\t" << it->to << "\t" << endl;
+			output << nid << "\t" << it->from << "\t" << it->to << endl;
 	}
 }
 

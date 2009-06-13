@@ -11,6 +11,13 @@ import Experiment as E
 
 class AddaProfiles( AddaModuleRecord ):
     """build a profile library from the pairsdb graph.
+
+    input
+       ``files:input_graph``: the pairwise alignment graph
+
+    output
+       ``files:output_profiles``: a profile library (:class:`ProfileLibrary.ProfileLibrary`)
+
     """
     
     mName = "Profiles"

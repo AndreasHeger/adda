@@ -51,7 +51,33 @@ class FastaIterator:
         return self.mIterator.next()
 
 class AddaSequences( AddaModuleBlock ):
-    """output sequence information."""
+    """filter and relabel sequences.
+
+    This module removes duplicate sequences
+    and sequences longer than ``segments:max_sequence_length``
+    residues. Each sequence is assigned an
+    unique numerical identifier (``nid``).
+    
+    input
+       ``files:input_fasta``
+    
+    output
+       ``files:output_fasta``: the reformatted sequence database.
+
+       ``files:adda.nids``: a table with sequence information.
+
+          nid
+             new numerical sequence identifier
+          pid
+             original sequence identifier 
+          hid
+             hash checksum of sequence
+          length
+             sequence length
+          sequence
+             sequence
+       
+    """
     
     mName = "Sequences"
     

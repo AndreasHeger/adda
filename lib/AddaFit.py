@@ -28,6 +28,73 @@ def fit(function, parameters, y, x = None):
     return scipy.optimize.leastsq(f, p)
 
 class AddaFit( AddaModuleRecord ):
+    """fit domains of a reference set to alignments and compute 
+    parameters for ADDA's objective function.
+
+    Briefly, each alignment between a pair of sequences is evaluated
+    with respect of the domains in the sequences computing ``overhang``
+    and ``transfer``.
+
+    A domain might have ``overhang``, if it overlaps an alignment incompletely. 
+    ``overhang`` is measured as the number of residues that are left uncovered. 
+
+    ``transfer`` are the number of residues that the alignment links between any
+    pair of domains of the same family in the two sequences. 
+
+    input
+       ``files:input_graph``: the pairwise alignment graph
+
+       ``files:input_reference``: a reference domain definition
+
+    output
+       ``files:output_fit``: a config file with the estimated parameters
+
+       ``files:output_fit_transfer``: a tab-separated histogram of transfer
+          values.
+
+       ``files:output_fit_overhang``: a tab-separated histogram of overhang
+          values.
+
+       ``files:output_fit_details``: details of the fitting procedure. This tab-separated
+           table reports the transfer and overhang for combination of domains and alignment.
+
+           class 
+              domain family
+           nid1
+              sequence nid1
+           dfrom1  
+              domain start on nid1
+           dto1  
+              domain end on nid1
+           afrom
+              alignment start on nid1
+           ato1 
+              alignment end on nid1
+           nid2
+              sequence nid2
+           dfrom
+              domain start on nid2
+           dto2
+              domain end on nid2
+           afrom2  
+              alignment start on nid2
+           ato2
+              alignment end on nid2
+           lali
+              alignment length
+           lx 
+              length of domain on nid1
+           ly 
+              length of domain on nid2
+           trans
+              transfer value
+           ptran
+              percentage transfer (transfer/lali)
+           atran
+              average percentage transfer (transfer/ sqrt( lx * ly))
+           score 
+              alignment score (ln(evalue))
+    """
 
     mName = "Fit"
     
@@ -242,28 +309,30 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
     def applyMethod(self, neighbours ):
         """estimate ADDA penalties.
 
-            This method calculates the distribution of
+        This method calculates the distribution of::
 
-            lali / sqrt( d1 * d2 ) 
+           lali / sqrt( d1 * d2 ) 
 
-            The computation only concerns domains of the same class.
+        The computation only concerns domains of the same class.
             
-            for each class:
-                get all nids that have that class
-                for each pair of nids, check if there is a link
+        For each class:
+        get all nids that have that class
+        for each pair of nids, check if there is a link
 
-            repeats:
-                repeats cause some counts to be inflated (most pronounced with the immunoglobulins)
-                for example:
-                        nid1: 3 domains
-                        nid2: 2 domains
-                        alignments: depending on domain arrangement 1 to 3 * 2.
-                or:     nid1: 2 domains
-                        nid2: 1 domain
-                        alignments: 1 or 2
-                if you want to eliminate repeats: which one?
+        Repeats cause some counts to be inflated (most pronounced with the immunoglobulins)
+
+        For example:
+          * nid1: 3 domains
+          * nid2: 2 domains
+        
+        Alignments: depending on domain arrangement 1 to 3 * 2, or:
+          * nid1: 2 domains
+          * nid2: 1 domain
+          * alignments: 1 or 2
+
+        If you want to eliminate repeats: which one?
             
-            This method normalizes per family and per sequence pair.
+        This method normalizes per family and per sequence pair.
         """
 
         values = []

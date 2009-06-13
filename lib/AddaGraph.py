@@ -4,7 +4,37 @@ from AddaModule import AddaModuleRecord
 import SegmentedFile
 
 class AddaGraph( AddaModuleRecord ):
-    """write a links table for adda processing."""
+    """filter pairwise alignment graph and output
+    alignment coordinates. Alignments shorter than
+    ``adda:min_domain_size`` are removed. 
+
+    If ``graph:merge_repeats`` is set, consecutive matches between the same 
+    sequences are merged. Setting ``graph:merge_repeats`` might collapse repeat regions, but will
+    also combine fragmented alignments due to sequence masking in
+    the pairwise alignment method.
+
+    input
+       ``files:input_graph``: the pairwise alignment graph
+
+    output
+       ``files:output_graph``: a filtered pairwise alignment graph
+       with the following tab-separated columns:
+       
+       ``query_nid``
+          the query sequence
+       ``sbjct_nid``
+          the sbjct sequence
+       ``evalue``
+          the evalue of link
+       ``query_start``
+          first aligned residue on query
+       ``query_end``
+          last aligned residue on query
+       ``sbjct_start``
+          first aligned residue on sbjct
+       ``sbjct_end``
+          last aligned residue on sbjct
+    """
     
     mName = "Graph"
     

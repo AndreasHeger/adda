@@ -24,7 +24,9 @@ __all__ = [
            "AddaSequences",
            "AddaCluster",
            "AddaFamilies",
-           "AddaRealignment", ]
+           "AddaRealignment", 
+           "AddaSummary",
+           ]
 
 
 

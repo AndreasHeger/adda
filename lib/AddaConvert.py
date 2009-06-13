@@ -3,8 +3,18 @@ import cadda
 from AddaModule import AddaModuleBlock
 
 class AddaConvert( AddaModuleBlock ):
-    """convert the sequence graph to a domain graph and construct a
-        minimum spanning tree."""
+    """convert the sequence graph to a domain graph in order
+    to construct a minimum spanning tree.
+
+    input
+       ``files:output_domains``: tab-separated file with domain
+          decomposition.
+
+       ``files:output_graph``: the pairwise alignment graph
+
+    output
+       ``files:output_domain_graph``: a file with pairwise links between domains
+    """
     
     mName = "Convert"
     
@@ -43,4 +53,4 @@ class AddaConvert( AddaModuleBlock ):
             self.warn( "domain graph construction failed" )
         else:
             self.info( "domain graph construction success" )
-
+        
