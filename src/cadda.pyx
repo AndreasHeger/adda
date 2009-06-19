@@ -137,7 +137,7 @@ def setRelativeOverhang(v):
 
 def setOnlyQuery(v):  
     """if true, use only the score based on the query."""
-    cadda_setQueryOverhang( v )
+    cadda_setOnlyQuery( v )
 
 def setResolution(v):  
     """resolution to use."""
