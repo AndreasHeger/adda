@@ -1,4 +1,4 @@
-import math, gzip, struct, itertools
+import math, gzip, struct, itertools, sys
 import Experiment as E
 
 def getZipSize(gzipfile):
@@ -83,6 +83,8 @@ class IteratorMultiline:
             self.mInfile.seek( 0 )
             self.mEndPos = self.mFileSize 
             self.mIterator = iterator(self.mInfile, *args, **kwargs )
+            self.mLastPos = None
+            self.mStartPos = self.mInfile.tell()
 
         E.info( "nchunks=%i, chunk=%i, start=%i, filesize=%i, filename=%s" %\
                     (nchunks,  chunk, self.mInfile.tell(), self.mFileSize, filename ) )
@@ -96,7 +98,8 @@ class IteratorMultiline:
     def next( self ):
 
         pos, record = self.mIterator.next()
-        # print "next:", "start of record=", pos, record, "last=", self.mLastPos, "start=", self.mStartPos, "end=",self.mEndPos
+        # print "next:", "start of record=", pos, "record=", record, "last=", self.mLastPos, "start=", self.mStartPos, "end=",self.mEndPos, pos > self.mEndPos
+        sys.stdout.flush()
         if pos > self.mEndPos: raise StopIteration
         return record
 

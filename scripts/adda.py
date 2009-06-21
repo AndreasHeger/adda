@@ -174,17 +174,18 @@ class RunnerOnGraph(Runner):
                     if (n.mQueryToken not in self.mMapId2Nid or \
                             n.mSbjctToken not in self.mMapId2Nid ):
                         continue 
-                    q = n.mQueryToken = self.mMapId2Nid[n.mQueryToken]
+                    n.mQueryToken = self.mMapId2Nid[n.mQueryToken]
                     n.mSbjctToken = self.mMapId2Nid[n.mSbjctToken]
   
                 neighbours.append( n )
-                
+
+            if not neighbours: continue
+
+            q = neighbours[0].mQueryToken
             E.debug( "working on: %s with %i neighbours" % (str(q), len(neighbours) ) )
-
-            if neighbours:
-                for module in self.mModules:
-                    module.run( AddaIO.NeighboursRecord( q, neighbours ) )
-
+            for module in self.mModules:
+                module.run( AddaIO.NeighboursRecord( q, neighbours ) )
+                
         E.info( "running finish on modules: %s" % (",".join(map(str, self.mModules))) )
         
         for module in self.mModules:

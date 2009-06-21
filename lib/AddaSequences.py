@@ -100,6 +100,7 @@ class AddaSequences( AddaModuleBlock ):
         self.mInput = 0
         self.mOutput = 0
         self.mRemoved = 0
+        self.mDuplicates = 0
 
         # use existing fasta file
         iterator = FastaIterator( open( self.mFilenameInputFasta, "r" ) )
@@ -134,8 +135,8 @@ class AddaSequences( AddaModuleBlock ):
 
     def finish(self):
         
-        self.info( "sequences: %i input, %i output, %i removed" %\
-                   (self.mInput, self.mOutput, self.mRemoved ) )
+        self.info( "sequences: %i input, %i output, %i removed, %i duplicates" %\
+                   (self.mInput, self.mOutput, self.mRemoved, self.mDuplicates ) )
         
         AddaModuleBlock.finish( self )
         

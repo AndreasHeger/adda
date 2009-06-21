@@ -131,15 +131,19 @@ class AddaProfiles( AddaModuleRecord ):
                 self.mContinueAt = None
             return
 
-        mali = self.buildMali( neighbours )
-
         query_nid = neighbours.mQueryToken
 
-        self.debug( "working on profile %s" % query_nid )
-            
+        self.debug( "working on profile %s with %i neighbours" % (query_nid, len(neighbours.mMatches) ) )
+
+        mali = self.buildMali( neighbours )
+
+        self.debug( "built mali for %s with %i neighbours" % (query_nid, len(neighbours.mMatches) ) )
+        
         profile = alignlib.makeProfile( mali )
         profile.setStorageType( alignlib.Sparse )
         if self.mPrepareProfile: profile.prepare()
+
+        self.debug( "built profile for %s with %i neighbours" % (query_nid, len(neighbours.mMatches) ) )
 
         self.mProfileLibrary.add( query_nid, profile )
         
