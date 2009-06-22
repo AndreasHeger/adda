@@ -51,7 +51,13 @@ def main():
     ninput, noutput, ndomains, nskipped = 0,0,0,0
     for record in record_iterator( sys.stdin ):
         ninput += 1
-        id, acc, len = rx_head.match( record[0] ).groups()
+        try:
+            id, acc, len = rx_head.match( record[0] ).groups()
+        except AttributeError, msg:
+            E.warn( "parsing error in line `%s`" % record[0])
+            nskipped += 1
+            continue
+
         if options.no_swissprot_version: acc = acc.split(".")[0]
         for line in record[1:]:
             # no Pfam-B
