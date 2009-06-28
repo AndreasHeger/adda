@@ -456,6 +456,10 @@ class IndexedFasta:
         if not self.mIsLoaded: self.__loadIndex()
         return len(self.mIndex)
 
+    def __contains__(self, key):
+        if not self.mIsLoaded: self.__loadIndex()
+        return key in self.mIndex
+
     def keys(self):
         if not self.mIsLoaded: self.__loadIndex()
         return self.mIndex.keys()

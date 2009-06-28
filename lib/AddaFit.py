@@ -124,11 +124,21 @@ class AddaFit( AddaModuleRecord ):
         self.info( "reading domains from %s" % self.mConfig.get( "files", "input_reference") )
         infile = AddaIO.openStream( self.mConfig.get( "files", "input_reference") )
 
+        ninput, nskipped_nid, nskipped_family, ndomains = 0, 0, 0, 0
+
         for line in infile:
             if line[0] == "#": continue
+            ninput += 1
             token, start, end, family = line[:-1].split( "\t" )[:4]
 
-            if not rx_include.search( family): continue
+            if self.mFasta and token not in self.mFasta: 
+                nskipped_nid += 1
+                continue
+
+            if not rx_include.search( family): 
+                nskipped_family += 1
+                continue
+
             start, end = int(start), int(end)
             if token not in self.mDomainBoundaries:
                 a = { family : [ (start, end) ] }
@@ -139,8 +149,10 @@ class AddaFit( AddaModuleRecord ):
                     a[family] = [ (start, end) ]
                 else:
                     a[family].append( (start,end) )
+            ndomains += 1
 
-        self.info( "read domain information for %i sequences" % (len(self.mDomainBoundaries)))
+        self.info( "read domain information: nsequences=%i, ndomains=%i, ninput=%i, nskipped_nid=%i, nskipped_family=%i" %\
+                       (len(self.mDomainBoundaries), ndomains, ninput, nskipped_nid, nskipped_family))
 
         # result containers
         self.mTransferValues = []
