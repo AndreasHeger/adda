@@ -91,14 +91,18 @@ class AddaProfiles( AddaModuleRecord ):
                 self.warn( "empty alignment: %s" % str( n ) )
                 continue
 
-            mali.add( alignlib.makeAlignatum( sequence ),
-                      map_query2sbjct,
-                      mali_is_in_row = True, 
-                      insert_gaps_mali = False,
-                      insert_gaps_alignatum = True,
-                      use_end_mali = True,
-                      use_end_alignatum = False )
-            
+            try:
+                mali.add( alignlib.makeAlignatum( sequence ),
+                          map_query2sbjct,
+                          mali_is_in_row = True, 
+                          insert_gaps_mali = False,
+                          insert_gaps_alignatum = True,
+                          use_end_mali = True,
+                          use_end_alignatum = False )
+            except RuntimeError, msg:
+                self.warn( "problem when building alignment for %s: msg=%s" % (str(n), msg))
+                continue
+
         if E.getLogLevel() >= 6:
             x = 1
             outfile = open( "mali_%s" % query_nid, "w" )
