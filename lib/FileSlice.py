@@ -21,7 +21,7 @@ def getZipSize( filename, factor = None ):
     if f.read(2) != "\x1f\x8b":
         raise IOError("not a gzip file")
     f.seek(-4, 2)
-    zipsize = struct.unpack("<i", f.read())[0]
+    zipsize = struct.unpack("<I", f.read())[0]
 
     if zipsize < filesize and factor == None:
         raise IOError( "can not determine unzipped file size as packed > unpacked" )
