@@ -103,7 +103,7 @@ class AddaSequences( AddaModuleBlock ):
         self.mDuplicates = 0
 
         # use existing fasta file
-        iterator = FastaIterator( AddaIO.openStream( self.mFilenameInputFasta, "r" ) )
+        iterator = FastaIterator( AddaIO.openStream( self.mFilenameInputFasta) )
         fasta = IndexedFasta.IndexedFasta( self.mFilenameOutputFasta, "w" )
 
         outfile = self.openOutputStream(self.mFilenameNids)

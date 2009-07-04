@@ -6,6 +6,7 @@ import matplotlib, pylab
 from AddaModule import AddaModuleRecord
 import AddaIO
 import SegmentedFile
+import multiprocessing
 
 class Parameter:
     def __init__(self, value):
@@ -441,6 +442,19 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
                       filename = None,
                       f = None):
             
+        # do not plot if called in subprocess. The first time this
+        # function is called in a subprocess, it is fine, but called
+        # by another, the error
+        #
+        # adda.py: Fatal IO error 0 (Success) on X server :0.0.
+        #
+        # appears.
+        #
+        # The test is not pretty and maintainable, but I could not
+        # find how best to test if within MainProcess or not.
+        if not re.search( "MainProcess", str(multiprocessing.current_process())):
+            return
+
         pylab.plot( bins, vals )
         if f: 
             xstart, xend = pylab.gca().get_xlim()
@@ -487,6 +501,7 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
                            f = f,
                            filename = self.mFilenameTransfer + ".png",
                            title = "transfer" )
+
 
         # fit an exponential function to overhangs
         x,y = self.getCumulativeHistogram(self.mOverhangValues, reverse = True)

@@ -6,6 +6,7 @@ class TestFileSlice(unittest.TestCase):
 
     mNumLines = 2
     mNumRecords = 20
+    mGzipFactor = None
 
     def setUp(self):
         fd, self.mFilename = tempfile.mkstemp()
@@ -29,7 +30,8 @@ class TestFileSlice(unittest.TestCase):
             iterator = FileSlice.Iterator( self.mFilename, 
                                            nchunks,
                                            chunk, 
-                                           FileSlice.iterator )
+                                           FileSlice.iterator,
+                                           gzip_factor = self.mGzipFactor )
             
             data = []
             for d in iterator:
@@ -72,6 +74,30 @@ class TestFileSliceGzipped(TestFileSlice):
         outfile = gzip.open(self.mFilename, "w")
         l = 0
         for x in range(0,self.mNumRecords): 
+            for y in range(0,self.mNumLines): 
+                outfile.write( "%i\t%i\t%i\t%i\n" % (x,y,l,y) )
+                l += 1
+        outfile.close()
+
+class TestFileSliceGzippedCat(TestFileSlice):
+    """test if compression works for concatenated files.
+    """
+    # expected compression
+    mGzipFactor = 0.30
+
+    def setUp(self):
+        fd, self.mFilename = tempfile.mkstemp()
+        os.close(fd)
+        self.mFilename += ".gz"
+        outfile = gzip.open(self.mFilename, "w")
+        l = 0
+        for x in range(0,self.mNumRecords // 2): 
+            for y in range(0,self.mNumLines): 
+                outfile.write( "%i\t%i\t%i\t%i\n" % (x,y,l,y) )
+                l += 1
+        outfile.close()
+        outfile = gzip.open(self.mFilename, "a")
+        for x in range(self.mNumRecords // 2,self.mNumRecords): 
             for y in range(0,self.mNumLines): 
                 outfile.write( "%i\t%i\t%i\t%i\n" % (x,y,l,y) )
                 l += 1

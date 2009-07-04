@@ -6,7 +6,7 @@ interface to compute adda
 """
 
 import sys, os, re, time, math, copy, glob, optparse, logging
-from multiprocessing import Process
+from multiprocessing import Process, cpu_count, Pool
 import fileinput
 # segfault on my machine without the print statement - strange
 print 
@@ -139,11 +139,26 @@ class RunnerOnGraph(Runner):
 
         E.info( "opening graph %s at chunk %i" % (filename, chunk) )
 
+        gzip_factor = None
+        if filename.endswith(".gz"):
+            uncompressed_size = config.get( "files", "input_graph_uncompressed_size", 0 )
+            if uncompressed_size > 0:
+                compressed_size = FileSlice.getFileSize( filename )
+                assert compressed_size < uncompressed_size, "file size of gzipped graph is larger than given uncompressed size" 
+                gzip_factor = float(compressed_size) / uncompressed_size
+                E.info( "setting grap compression to %5.2f (compressed = %i / uncompressed = %i)" % (gzip_factor, compressed_size, uncompressed_size) )
+
+                assert 0.1 < gzip_factor < 0.8, "gzip factor unrealistic - values between 0.1 and 0.8 are usual, but is %f" % gzip_factor
+
+
+
         self.mIterator = FileSlice.IteratorMultiline( filename, 
                                                       nchunks,
                                                       chunk,
                                                       FileSlice.groupby,
-                                                      key = lambda x: x[:x.index("\t")] )
+                                                      key = lambda x: x[:x.index("\t")],
+                                                      gzip_factor = gzip_factor )
+
 
         self.mMapId2Nid = AddaIO.readMapId2Nid( open(config.get( "files", "output_nids", "adda.nids" ), "r" ) )
 
@@ -191,20 +206,199 @@ class RunnerOnGraph(Runner):
         for module in self.mModules:
             module.finish()
 
+def run_on_graph( argv ):
+    """process graph."""
+
+    (filename, options, order, map_module, config, chunk, nchunks ) = argv
+    E.info( "starting chunk %i on %s" % (chunk, filename) )
+
+    fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
+
+    if "all" in options.steps: steps = order
+    else: steps = options.steps
+
+    modules = []
+    for step in order:
+        if step in steps:
+            if map_module[step]( options, 
+                                 config = config, 
+                                 fasta = fasta ).isComplete():
+                E.info( "%s complete" % step )
+                continue
+
+            module = map_module[step]( options, 
+                                       config = config, 
+                                       fasta = fasta,
+                                       num_chunks = nchunks,
+                                       chunk = chunk )
+
+            if not module.isComplete():
+                modules.append( module )
+            else:
+                E.info( "%s complete" % step )
+
+    if len(modules) == 0: 
+        E.info( "nothing to be done" )
+        return
+
+    E.info( "opening graph %s at chunk %i" % (filename, chunk) )
+
+    gzip_factor = None
+    if filename.endswith(".gz"):
+        uncompressed_size = config.get( "files", "input_graph_uncompressed_size", 0 )
+        if uncompressed_size > 0:
+            compressed_size = FileSlice.getFileSize( filename )
+            assert compressed_size < uncompressed_size, "file size of gzipped graph is larger than given uncompressed size" 
+            gzip_factor = float(compressed_size) / uncompressed_size
+            E.info( "setting grap compression to %5.2f (compressed = %i / uncompressed = %i)" % (gzip_factor, compressed_size, uncompressed_size) )
+
+            assert 0.1 < gzip_factor < 0.8, "gzip factor unrealistic - values between 0.1 and 0.8 are usual, but is %f" % gzip_factor
+
+    iterator = FileSlice.IteratorMultiline( filename, 
+                                            nchunks,
+                                            chunk,
+                                            FileSlice.groupby,
+                                            key = lambda x: x[:x.index("\t")],
+                                            gzip_factor = gzip_factor )
+
+
+    map_id2nid = AddaIO.readMapId2Nid( open(config.get( "files", "output_nids", "adda.nids" ), "r" ) )
+
+    if options.alignment_format == "pairsdb":
+        record_type = AddaIO.NeighbourRecordPairsdb
+    elif options.alignment_format == "pairsdb-old":
+        record_type = AddaIO.NeighbourRecordPairsdbOld
+    elif options.alignment_format == "simap":
+        record_type = AddaIO.NeighbourRecordSimap
+    elif options.alignment_format == "pairsdb-realign":
+        record_type = AddaIO.NeighbourRecordPairsdbRealign
+    else:
+        raise ValueError ("unknown record type %s" % options.alignment_format)
+
+    for module in modules: module.startUp()
+
+    E.info( "starting work on modules: %s" % (",".join(map(str, modules))) )
+
+    for record in iterator:
+        neighbours = []
+        for line in record:
+            n = record_type( line )
+            if map_id2nid:
+                if (n.mQueryToken not in map_id2nid or \
+                        n.mSbjctToken not in map_id2nid ):
+                    continue 
+                q = n.mQueryToken = map_id2nid[n.mQueryToken]
+                n.mSbjctToken = map_id2nid[n.mSbjctToken]
+
+            neighbours.append( n )
+
+        E.debug( "working on: %s with %i neighbours" % (str(q), len(neighbours) ) )
+
+        if neighbours:
+            for module in modules:
+                module.run( AddaIO.NeighboursRecord( q, neighbours ) )
+
+    E.info( "running finish on modules: %s" % (",".join(map(str, modules))) )
+
+    for module in modules:
+        module.finish()
+
+    E.info( "finished chunk %i on %s" % (chunk, filename) )
+
+def run_on_file( argv ):
+
+    (filename, options, order, map_module, config, chunk, nchunks ) = argv
+
+    E.info( "starting chunk %i on %s" % (chunk, filename) )
+
+    fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
+
+    if "all" in options.steps: steps = order
+    else: steps = options.steps
+
+    modules = []
+    for step in order:
+        if step in steps:
+            if map_module[step]( options, 
+                                 config = config, 
+                                 fasta = fasta ).isComplete():
+                E.info( "%s complete" % step )
+                continue
+
+            module = map_module[step]( options, 
+                                       config = config, 
+                                       fasta = fasta,
+                                       num_chunks = nchunks,
+                                       chunk = chunk )
+
+            if not module.isComplete():
+                modules.append( module )
+            else:
+                E.info( "%s complete" % step )
+
+    if len(modules) == 0: 
+        E.info( "nothing to be done" )
+        return
+
+    E.info( "opening file %s at chunk %i" % (filename, chunk) )
+
+    iterator = FileSlice.Iterator( filename, 
+                                   nchunks,
+                                   chunk,
+                                   FileSlice.iterator )
+
+    for module in modules: module.startUp()
+
+    E.info( "working with modules: %s" % (",".join(map(str, modules))) )
+
+    for line in iterator:
+        if line.startswith("#"): continue
+
+        for module in modules:
+            module.run( line )
+
+    for module in modules:
+        module.finish()
+
+    E.info( "running finish on modules: %s" % (",".join(map(str, modules))) )
+
+    for module in modules:
+        module.finish()
+
+    E.info( "finished chunk %i on %s" % (chunk, filename) )
+
 def runParallel( runner, filename, options, order, map_module, config ):
+    """process filename in paralell."""
 
-    nchunks = config.get( "adda", "num_jobs", 4 )
+    nchunks = config.get( "adda", "num_slices", 10 )
+    if options.num_jobs:
+        njobs = options.num_jobs 
+    else:
+        njobs = cpu_count()
+    
+    E.info( "running %i jobs on %i slices" % (njobs, nchunks ))
 
-    E.info( "running %i jobs" % nchunks )
+    pool = Pool( njobs )
 
-    processes = []
-    for chunk in range(nchunks):
-        E.info( "starting job %i" % chunk )
-        process = runner( filename, options, order, map_module, config, chunk, nchunks )
-        process.start()
-        processes.append( process )
+    args = [ (filename, options, order, map_module, config, chunk, nchunks ) for chunk in range(nchunks) ]
 
-    for p in processes: p.join()        
+    pool.map( runner, args )
+    pool.close()
+    pool.join()
+
+    E.info( "all jobs finished" )
+
+def runSequentially( runner, filename, options, order, map_module, config ):
+    """process filename sequentially."""
+
+    nchunks = config.get( "adda", "num_slices", 4 )
+
+    args = [ (filename, options, order, map_module, config, chunk, nchunks ) for chunk in range(nchunks) ]
+
+    for (chunck, argv) in enumerate(args):
+        E.info( "job %i started" )
+        runner( argv )
+        E.info( "job %i finished" )
 
     E.info( "all jobs finished" )
     
@@ -223,6 +417,9 @@ def main():
 
     parser.add_option( "--test", dest="test", type="int",
                       help="run a test with first # sequences [default=%default]")
+
+    parser.add_option( "--num-jobs", dest="num_jobs", type="int",
+                      help="use # processes. If not set, the number of CPUs/cores is taken [default=%default]")
     
     parser.add_option( "--alignment-format", dest="alignment_format", type="choice",
                        choices=("pairsdb", "pairsdb-old", "simap", "pairsdb-realign"),
@@ -254,7 +451,6 @@ def main():
     parser.add_option( "--stop-at", dest="stop_at", type="string",
                       help="stop at sequenec [default=%default]")
 
-
     parser.set_defaults( 
                         filename_config = "adda.ini",
                         steps = [],
@@ -264,6 +460,7 @@ def main():
                         force = False,
                         append = False,
                         test = None,
+                        num_jobs = None,
                         temporary_directory = ".",
                         )
     
@@ -304,9 +501,14 @@ def main():
          map_module = map_module,
          config = config )
 
+    if options.num_jobs == 1: 
+        run_parallel = runSequentially
+    else:
+        run_parallel = runParallel
+
     if "realign" in options.steps:
-        runParallel( 
-            RunnerOnGraph,
+        run_parallel( 
+            run_on_graph,
             filename = config.get( "files", "input_graph", "adda.graph" ),
             options = options, 
             order = ("realign", ),
@@ -314,8 +516,8 @@ def main():
             config = config )
 
     
-    runParallel( 
-        RunnerOnGraph,
+    run_parallel( 
+        run_on_graph,
         filename = config.get( "files", "input_graph", "adda.graph" ),
         options = options, 
         order = ("fit", "segment", "graph", "profiles" ),
@@ -353,8 +555,8 @@ def main():
 
     E.info( "alignment of domains" )
 
-    runParallel( 
-        RunnerOnFile,
+    run_parallel( 
+        run_on_file,
         config.get( "files", "output_mst", "adda.mst" ),
         options = options, 
         order = ( "align", ),

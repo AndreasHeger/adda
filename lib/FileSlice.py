@@ -1,12 +1,66 @@
-import math, gzip, struct, itertools, sys
+import math, gzip, struct, itertools, sys, os
 import Experiment as E
 
-def getZipSize(gzipfile):
-    f = open(gzipfile, "rb")
+def getFileSize( filename ):
+    return os.path.getsize(filename)
+
+def getZipSize( filename, factor = None ):
+    """Note that this will not work for large files
+    or those that have been concatenated.
+
+    For those cases, the file size is estimated if 
+    the compression factor is given. ``factor=0.2`` means
+    80% compression such that the gzipped file has only 20%
+    of the size of the unpacked datae.
+    There is of course no guarantee for this to be correct and
+    it is better to underestimate the compression factor.
+    """
+    filesize = getFileSize( filename )
+
+    f = open( filename, "rb")
     if f.read(2) != "\x1f\x8b":
         raise IOError("not a gzip file")
     f.seek(-4, 2)
-    return struct.unpack("<i", f.read())[0]
+    zipsize = struct.unpack("<i", f.read())[0]
+
+    if zipsize < filesize and factor == None:
+        raise IOError( "can not determine unzipped file size as packed > unpacked" )
+    if factor != None:
+        return int(filesize / factor)
+    return zipsize
+
+class MyGzipFile( gzip.GzipFile ):
+    """derived gzip file. 
+
+    This class overrides the seek() and tell() functions
+    to return the values on the compressed stream.
+
+    Not working yet.
+    """
+    def __init__(self, *args, **kwargs):
+        gzip.GzipFile.__init__( self, *args, **kwargs)
+    
+    def tell(self):
+        self.flush()
+        return self.fileobj.tell()
+
+    def seek(self, offset, whence=0):
+        if whence:
+            if whence != 0:
+                raise ValueError('Only seek from start supported')
+        if self.mode == gzip.WRITE:
+            raise ValueError('Seek in write mode supported')
+        elif self.mode == gzip.READ:
+            self.rewind()
+            if offset == 0: return
+            readsize = max(1, min( 1024, offset // 2))
+            print "readzise", readsize, "start=", self.fileobj.tell()
+            while self.fileobj.tell() <= offset:
+                try:
+                    self._read( readsize )
+                except EOFError:
+                    break
+        print "asked=",offset, "got=",self.fileobj.tell()
 
 class Iterator:
     """create iterator over a file *filename* that is split
@@ -16,11 +70,15 @@ class Iterator:
     If *filename* ends in .gz, the file is opened as a gzip'ed file.
     """
 
-    def __init__(self, filename, nchunks, chunk, iterator, *args, **kwargs ):
+    def __init__(self, filename, nchunks, 
+                 chunk, iterator,
+                 gzip_factor = None,
+                 *args, 
+                 **kwargs ):
         
         if filename.endswith(".gz"):
-            self.mFileSize = getZipSize( filename )
-            self.mInfile = gzip.open( filename, "r" )
+            self.mFileSize = getZipSize( filename, factor = gzip_factor )
+            self.mInfile = gzip.GzipFile( filename, "r" )
         else:
             self.mInfile = open( filename, "r" )
             self.mInfile.seek(0, 2)
@@ -54,11 +112,13 @@ class IteratorMultiline:
     If *filename* ends in .gz, the file is opened as a gzip'ed file.
     """
 
-    def __init__(self, filename, nchunks, chunk, iterator, *args, **kwargs ):
+    def __init__(self, filename, nchunks, chunk, iterator, 
+                 gzip_factor = None,
+                 *args, **kwargs ):
 
         if filename.endswith(".gz"):
-            self.mFileSize = getZipSize( filename )
-            self.mInfile = gzip.open( filename, "r" )
+            self.mFileSize = getZipSize( filename, factor = gzip_factor )
+            self.mInfile = gzip.GzipFile( filename, "r" )
         else:
             self.mInfile = open( filename, "r" )
             self.mInfile.seek(0, 2)

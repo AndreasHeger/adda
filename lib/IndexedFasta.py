@@ -448,9 +448,11 @@ class IndexedFasta:
     def close( self ):
         if self.mOutfileFasta: 
             self.mOutfileFasta.close()
+            self.mOutfileFasta = None
         if self.mOutfileIndex: 
             self.mOutfileIndex.write( "#//\n" )
             self.mOutfileIndex.close()
+            self.mOutfileIndex = None
 
     def __len__(self):
         if not self.mIsLoaded: self.__loadIndex()
