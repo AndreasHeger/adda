@@ -108,7 +108,7 @@ class AddaFit( AddaModuleRecord ):
         self.mFilenameDetails = self.mConfig.get( "files", "output_fit_details" )
         self.mMinTransfer = float(self.mConfig.get( "fit", "min_transfer" ))
         self.mMinOverhang = float(self.mConfig.get( "fit", "min_overhang" ))
-
+        self.mFilenameNids = self.mConfig.get( "files", "output_nids", "adda.nids" )
         self.mFilenames = (self.mFilenameFit, self.mFilenameTransfer, self.mFilenameDetails, self.mFilenameOverhang )
 
         self.mOutfileDetails = None
@@ -117,9 +117,11 @@ class AddaFit( AddaModuleRecord ):
 
         if self.isComplete(): return
 
+        self.mMapId2Nid = AddaIO.readMapId2Nid( open( self.mFilenameNids, "r") )
+
         self.mDomainBoundaries = {}
 
-        rx_include = re.compile( self.mConfig.get( "fit", "family_include") )
+        rx_include = re.compile( self.mConfig.get( "fit", "family_include", "") )
 
         self.info( "reading domains from %s" % self.mConfig.get( "files", "input_reference") )
         infile = AddaIO.openStream( self.mConfig.get( "files", "input_reference") )
@@ -131,7 +133,9 @@ class AddaFit( AddaModuleRecord ):
             ninput += 1
             token, start, end, family = line[:-1].split( "\t" )[:4]
 
-            if self.mFasta and token not in self.mFasta: 
+            try:
+                token = self.mMapId2Nid[token]
+            except KeyError:
                 nskipped_nid += 1
                 continue
 
