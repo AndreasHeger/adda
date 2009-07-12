@@ -118,14 +118,14 @@ class AddaFit( AddaModuleRecord ):
 
         if self.isComplete(): return
 
-        self.mMapId2Nid = AddaIO.readMapId2Nid( open( self.mFilenameNids, "r") )
+        #self.mMapId2Nid = AddaIO.readMapId2Nid( open( self.mFilenameNids, "r") )
 
-        self.info( "reading domains from %s" % self.mConfig.get( "files", "input_reference") )
+        #self.info( "reading domains from %s" % self.mConfig.get( "files", "input_reference") )
 
-        infile = AddaIO.openStream( self.mConfig.get( "files", "input_reference") )
-        rx_include = self.mConfig.get( "fit", "family_include", "") 
-        self.mDomainBoundaries = AddaIO.readMapNid2Domains( infile, self.mMapId2Nid, rx_include )
-        infile.close()
+        #infile = AddaIO.openStream( self.mConfig.get( "files", "input_reference") )
+        #rx_include = self.mConfig.get( "fit", "family_include", "") 
+        #self.mDomainBoundaries = AddaIO.readMapNid2Domains( infile, self.mMapId2Nid, rx_include )
+        #infile.close()
 
         # result containers
         self.mTransferValues = []
@@ -327,17 +327,20 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         values = []
 
         for n in neighbours.mMatches:
-            if n.mQueryToken not in self.mDomainBoundaries or \
-                n.mSbjctToken not in self.mDomainBoundaries: continue
- 
+
+            # ignore links to self and those between nids without domains
+            if n.mQueryToken == n.mSbjctToken or \
+                    n.mQueryToken not in self.mMapNid2Domains or \
+                    n.mSbjctToken not in self.mMapNid2Domains: continue
+
             if self.mContinueAt:
                 if (n.mQueryToken,n.mSbjctToken) == self.mContinueAt:
                     self.info("continuing processing at pair %s" % str(self.mContinueAt ) )
                     self.mContinueAt = None
                 continue
 
-            qdomains = self.mDomainBoundaries[n.mQueryToken]
-            sdomains = self.mDomainBoundaries[n.mSbjctToken]
+            qdomains = self.mMapNid2Domains[n.mQueryToken]
+            sdomains = self.mMapNid2Domains[n.mSbjctToken]
             
             for family in set(qdomains.keys()).intersection( set(sdomains.keys())):
                 xdomains = qdomains[family]

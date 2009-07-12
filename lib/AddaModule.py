@@ -34,7 +34,8 @@ class AddaModule:
                  chunk = None,
                  fasta = None,
                  slice = None,
-                 merge = False ): 
+                 merge = False,
+                 **kwargs ): 
 
         """options: handle to command line options.
         config: handle to configuration object
@@ -94,6 +95,9 @@ class AddaModule:
         self.mLogLevel = options.loglevel
 
         self.mTemporaryDirectory = options.temporary_directory
+
+        self.mMapId2Nid = kwargs.get( "map_id2nid", None )
+        self.mMapNid2Domains = kwargs.get( "map_nid2domains", None )
 
     #--------------------------------------------------------------------------
     def isComplete( self ):

@@ -100,10 +100,10 @@ class AddaGraph( AddaModuleRecord ):
                     self.mNJoined += 1
                     last.mEvalue = min( match.mEvalue, last.mEvalue )
                     self.debug( "joining: %s:%s-%s %s:%s-%s with %s:%s-%s %s:%s-%s" %\
-                                (last.mQueryToken, last.mQueryFrom, last.mQueryTo,
-                                 last.mSbjctToken, last.mSbjctFrom, last.mSbjctTo,
-                                 match.mQueryToken, match.mQueryFrom, match.mQueryTo,
-                                 match.mSbjctToken, match.mSbjctFrom, match.mSbjctTo))
+                                    (last.mQueryToken, last.mQueryFrom, last.mQueryTo,
+                                     last.mSbjctToken, last.mSbjctFrom, last.mSbjctTo,
+                                     match.mQueryToken, match.mQueryFrom, match.mQueryTo,
+                                     match.mSbjctToken, match.mSbjctFrom, match.mSbjctTo))
                     
                 else:   
                     matches.append(last)
