@@ -120,44 +120,12 @@ class AddaFit( AddaModuleRecord ):
 
         self.mMapId2Nid = AddaIO.readMapId2Nid( open( self.mFilenameNids, "r") )
 
-        self.mDomainBoundaries = {}
-
-        rx_include = re.compile( self.mConfig.get( "fit", "family_include", "") )
-
         self.info( "reading domains from %s" % self.mConfig.get( "files", "input_reference") )
+
         infile = AddaIO.openStream( self.mConfig.get( "files", "input_reference") )
-
-        ninput, nskipped_nid, nskipped_family, ndomains = 0, 0, 0, 0
-
-        for line in infile:
-            if line[0] == "#": continue
-            ninput += 1
-            token, start, end, family = line[:-1].split( "\t" )[:4]
-
-            try:
-                token = self.mMapId2Nid[token]
-            except KeyError:
-                nskipped_nid += 1
-                continue
-
-            if not rx_include.search( family): 
-                nskipped_family += 1
-                continue
-
-            start, end = int(start), int(end)
-            if token not in self.mDomainBoundaries:
-                a = { family : [ (start, end) ] }
-                self.mDomainBoundaries[token] = a
-            else:
-                a = self.mDomainBoundaries[token]
-                if family not in a:
-                    a[family] = [ (start, end) ]
-                else:
-                    a[family].append( (start,end) )
-            ndomains += 1
-
-        self.info( "read domain information: nsequences=%i, ndomains=%i, ninput=%i, nskipped_nid=%i, nskipped_family=%i" %\
-                       (len(self.mDomainBoundaries), ndomains, ninput, nskipped_nid, nskipped_family))
+        rx_include = self.mConfig.get( "fit", "family_include", "") 
+        self.mDomainBoundaries = AddaIO.readMapNid2Domains( infile, self.mMapId2Nid, rx_include )
+        infile.close()
 
         # result containers
         self.mTransferValues = []
@@ -276,6 +244,10 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
 
         self.info( "reading previous data from %s" % filename )
         
+        if not os.path.exists( filename ):
+            self.warn( "file %s does not exist" % filename )
+            return
+
         infile = open( filename, "r" )
 
         self.mTransferValues = []

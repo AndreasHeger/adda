@@ -250,7 +250,7 @@ def run_on_graph( argv ):
             compressed_size = FileSlice.getFileSize( filename )
             assert compressed_size < uncompressed_size, "file size of gzipped graph is larger than given uncompressed size" 
             gzip_factor = float(compressed_size) / uncompressed_size
-            E.info( "setting grap compression to %5.2f (compressed = %i / uncompressed = %i)" % (gzip_factor, compressed_size, uncompressed_size) )
+            E.info( "setting graph compression to %5.2f (compressed = %i / uncompressed = %i)" % (gzip_factor, compressed_size, uncompressed_size) )
 
             assert 0.1 < gzip_factor < 0.8, "gzip factor unrealistic - values between 0.1 and 0.8 are usual, but is %f" % gzip_factor
 
@@ -396,9 +396,9 @@ def runSequentially( runner, filename, options, order, map_module, config ):
     args = [ (filename, options, order, map_module, config, chunk, nchunks ) for chunk in range(nchunks) ]
 
     for (chunck, argv) in enumerate(args):
-        E.info( "job %i started" )
+        E.info( "job %i started" % chunk )
         runner( argv )
-        E.info( "job %i finished" )
+        E.info( "job %i finished" % chunk )
 
     E.info( "all jobs finished" )
     

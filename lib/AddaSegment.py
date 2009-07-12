@@ -96,6 +96,10 @@ class AddaSegment( AddaModuleRecord ):
         
         self.info( "reading previous data from %s" % filename )
         
+        if not os.path.exists( filename ):
+            self.warn( "file %s does not exist" % filename )
+            return
+
         infile = open( filename, "r" )
         
         def iterate_per_query(infile):

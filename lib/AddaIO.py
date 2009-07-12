@@ -1,6 +1,7 @@
 import sys, os, re, time, types, gzip
 import alignlib
 from ConfigParser import ConfigParser as PyConfigParser
+import Experiment as E
 
 class ConfigParser( PyConfigParser ):
     """config parser with defaults."""
@@ -315,3 +316,46 @@ def readMapId2Nid( infile ):
         m[data[1]] = data[0]
     return m
 
+def readMapNid2Domains( infile, map_id2nid, rx_include ):
+    """read reference domain file.
+    
+    Only include families matching the regulare expression rx_include.
+    """
+
+    domain_boundaries = {}
+
+    rx_include = re.compile( rx_include )
+
+    ninput, nskipped_nid, nskipped_family, ndomains = 0, 0, 0, 0
+
+    for line in infile:
+        if line[0] == "#": continue
+        ninput += 1
+        token, start, end, family = line[:-1].split( "\t" )[:4]
+
+        try:
+            token = map_id2nid[token]
+        except KeyError:
+            nskipped_nid += 1
+            continue
+
+        if not rx_include.search( family): 
+            nskipped_family += 1
+            continue
+
+        start, end = int(start), int(end)
+        if token not in domain_boundaries:
+            a = { family : [ (start, end) ] }
+            domain_boundaries[token] = a
+        else:
+            a = domain_boundaries[token]
+            if family not in a:
+                a[family] = [ (start, end) ]
+            else:
+                a[family].append( (start,end) )
+        ndomains += 1
+
+    E.info( "read domain information: nsequences=%i, ndomains=%i, ninput=%i, nskipped_nid=%i, nskipped_family=%i" %\
+                (len(domain_boundaries), ndomains, ninput, nskipped_nid, nskipped_family))
+
+    return domain_boundaries
