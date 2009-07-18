@@ -173,11 +173,13 @@ class RunOnGraph(Run):
 
                 neighbours.append( n )
 
-            E.debug( "working on: %s with %i neighbours" % (str(q), len(neighbours) ) )
+            E.info( "started: nid=%s, neighbours=%i" % (str(q), len(neighbours) ) )
 
             if neighbours:
                 for module in modules:
                     module.run( AddaIO.NeighboursRecord( q, neighbours ) )
+
+            E.info( "finished: nid=%s, neighbours=%i" % (str(q), len(neighbours) ) )
 
         E.info( "running finish on modules: %s" % (",".join(map(str, modules))) )
 
@@ -447,8 +449,15 @@ def main():
     
     (options, args) = E.Start( parser )
 
+    if options.loglevel == 0:
+        lvl = logging.ERROR
+    elif options.loglevel == 1:
+        lvl = logging.INFO
+    else:
+        lvl = logging.DEBUG
+
     logging.basicConfig(
-        lvl = logging.DEBUG,
+        lvl = lvl,
         format='%(asctime)s %(name)s %(levelname)s %(message)s',
         filename = "adda.log" )
 
