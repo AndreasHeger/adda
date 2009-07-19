@@ -1,4 +1,4 @@
-####
+###
 ####
 ##
 ## Project PythonTools
@@ -29,6 +29,7 @@ global_options = None
 global_args    = None
 global_id      = uuid.uuid4()
 global_benchmark = collections.defaultdict( int )
+global_logger = None
 
 def GetHeader():
     """return a header string with command line options and
@@ -88,7 +89,7 @@ def Start( parser = None,
     if not parser:
         parser = optparse.OptionParser( version = "%prog version: $Id$" )
 
-    global global_options, global_args, global_starting_time
+    global global_options, global_args, global_starting_time, global_logger
 
     global_starting_time = time.time()
 
@@ -239,8 +240,13 @@ def Start( parser = None,
              format='%(asctime)s %(name)s %(levelname)s %(message)s',
              stream = global_options.stdlog )
         
+    global_logger = logging.getLogger("")
+
     return global_options, global_args
     
+def setLogger( logger ):
+    global_logger = logger
+
 def Stop():
     """stop the experiment."""
 
@@ -467,25 +473,25 @@ class Memoize(object):
 
 def log( loglevel, message ):
     """log message at loglevel."""
-    logging.log( loglevel, message )
+    global_logger.log( loglevel, message )
 
 def info( message ):
-    logging.info( message )
+    global_logger.info( message )
 
 def warning( message ):
-    logging.warning( message )
+    global_logger.warning( message )
 
 def warn( message ):
-    logging.warning( message )
+    global_logger.warning( message )
 
 def debug( message ):
-    logging.debug( message )
+    global_logger.debug( message )
 
 def error( message ):
-    logging.error( message )
+    global_logger.error( message )
         
 def critical( message):
-    logging.critical( message )
+    global_logger.critical( message )
 
 def getLogLevel():
     return global_options.loglevel

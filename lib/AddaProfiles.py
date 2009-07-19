@@ -78,6 +78,8 @@ class AddaProfiles( AddaModuleRecord ):
             if n.mSbjctToken == query_nid: continue
             sequence = self.mFasta.getSequence( n.mSbjctToken )
 
+            E.debug( "adding %s" % str(n) )
+
             map_query2sbjct = n.getAlignment()
 
             if map_query2sbjct == None:

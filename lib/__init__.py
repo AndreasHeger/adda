@@ -2,6 +2,7 @@ import glob
 
 __all__ = [ 
            "Experiment",
+           "Logger",
            "AddaAlign",
            "AddaBlast",
            "AddaConvert",

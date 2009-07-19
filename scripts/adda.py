@@ -15,6 +15,8 @@ print
 import Adda.Experiment as E
 from Adda import *
 
+from logging import warn, info, debug
+
 def run( options, order, map_module, config, fasta = None ):
 
     if "all" in options.steps:
@@ -86,6 +88,8 @@ class RunOnGraph(Run):
             rx_include = config.get( "fit", "family_include", "") 
             self.mMapNid2Domains = dict_mapper(AddaIO.readMapNid2Domains( infile, self.mMapId2Nid, rx_include ))
             infile.close()
+        else:
+            self.mMapNid2Domains = None
 
     def __call__(self, argv ):
         (filename, options, order, map_module, config, chunk, nchunks ) = argv
@@ -363,6 +367,8 @@ def runParallel( runner, filename, options, order, map_module, config ):
 
     pool = Pool( njobs )
 
+    logging.info('starting parallel jobs')
+
     args = [ (filename, options, order, map_module, config, chunk, nchunks ) for chunk in range(nchunks) ]
 
     pool.map( runner, args )
@@ -449,6 +455,7 @@ def main():
     
     (options, args) = E.Start( parser )
 
+    # setup logging
     if options.loglevel == 0:
         lvl = logging.ERROR
     elif options.loglevel == 1:
@@ -456,10 +463,17 @@ def main():
     else:
         lvl = logging.DEBUG
 
-    logging.basicConfig(
-        lvl = lvl,
-        format='%(asctime)s %(name)s %(levelname)s %(message)s',
-        filename = "adda.log" )
+    logQueue = multiprocessing.Queue(100)
+    handler= Logger.MultiProcessingLogHandler(logging.FileHandler( "adda.log", "w"), logQueue)
+    logging.getLogger('adda').addHandler(handler)
+    logging.getLogger('adda').setLevel( lvl )
+
+    E.setLogger( logging.getLogger( "adda" ) )
+
+    #logging.basicConfig(
+    #    lvl = lvl,
+    #    format='%(asctime)s %(name)s %(levelname)s %(message)s',
+    #    filename = "adda.log" )
 
     config = AddaIO.ConfigParser()
     config.read( os.path.expanduser( options.filename_config ) )

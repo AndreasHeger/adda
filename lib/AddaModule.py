@@ -79,13 +79,13 @@ class AddaModule:
         else:
             lvl = logging.DEBUG
 
-        self.mLogger = logging.getLogger( name )
-        h = logging.FileHandler( filename='adda.log', mode='a')
-        h.setFormatter(  
-            logging.Formatter( '%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
-                                   datefmt='%m-%d %H:%M' ) )
-        self.mLogger.addHandler( h )
-        self.mLogger.setLevel( lvl )
+        self.mLogger = logging.getLogger( "adda" )
+        #h = logging.FileHandler( filename='adda.log', mode='a')
+        #h.setFormatter(  
+        #    logging.Formatter( '%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
+        #                           datefmt='%m-%d %H:%M' ) )
+        #self.mLogger.addHandler( h )
+        #self.mLogger.setLevel( lvl )
 
         self.mReportStep = self.mConfig.get( "adda", "report_step", 1000 )
         self.mFilenamePersistence = self.mConfig.get("adda", "filename_persistence", "adda.private" )
