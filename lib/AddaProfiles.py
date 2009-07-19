@@ -65,13 +65,15 @@ class AddaProfiles( AddaModuleRecord ):
         
         query_nid = neighbours.mQueryToken
         
-        sequence = self.mFasta.getSequence( query_nid )
+        query_sequence = self.mFasta.getSequence( query_nid )
 
-        mali.add( alignlib.makeAlignatum( sequence ) )
+        mali.add( alignlib.makeAlignatum( query_sequence ) )
 
-        qseq = alignlib.makeSequence( sequence )
+        qseq = alignlib.makeSequence( query_sequence )
         alignator = alignlib.makeAlignatorDPFull( alignlib.ALIGNMENT_LOCAL, 
                                                   -10, -2)
+
+        nskipped = 0
 
         for n in neighbours.mMatches[:self.mMaxNumNeighbours]:
 
@@ -91,6 +93,19 @@ class AddaProfiles( AddaModuleRecord ):
 
             if map_query2sbjct.getLength() == 0:
                 self.warn( "empty alignment: %s" % str( n ) )
+                nskipped += 1
+                continue
+
+            if map_query2sbjct.getRowTo() > len(query_sequence):
+                self.warn( "alignment out of bounds for query: %i>%i, line=%s" %\
+                               (map_query2sbjct.getRowTo(), len(query_sequence), str(n)))
+                nskipped += 1
+                continue
+
+            elif map_query2sbjct.getColTo() > len(sequence):
+                self.warn( "alignment out of bounds for sbjct: %i>%i, line=%s" %\
+                               (map_query2sbjct.getColTo(), len(sequence), str(n)))
+                nskipped += 1
                 continue
 
             try:
@@ -103,6 +118,7 @@ class AddaProfiles( AddaModuleRecord ):
                           use_end_alignatum = False )
             except RuntimeError, msg:
                 self.warn( "problem when building alignment for %s: msg=%s" % (str(n), msg))
+                nskipped += 1
                 continue
 
         if E.getLogLevel() >= 6:
@@ -116,7 +132,12 @@ class AddaProfiles( AddaModuleRecord ):
                 outfile.write( ">%06i\n%s\n" % (x,b) )
                 x += 1
             outfile.close()
-    
+
+        if nskipped > 0:
+            self.warn( "nid %s: %i/%i alignments skipped" % (str(query_nid),
+                                                             nskipped,
+                                                             min( len(neighbours.mMatches), self.mMaxNumNeighbours ) ) )
+            
         return mali
 
     #------------------------------------------------------------------
