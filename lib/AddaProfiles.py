@@ -146,13 +146,18 @@ class AddaProfiles( AddaModuleRecord ):
         self.debug( "built mali for %s with %i neighbours" % (query_nid, len(neighbours.mMatches) ) )
         
         profile = alignlib.makeProfile( mali )
-        profile.setStorageType( alignlib.Sparse )
-        if self.mPrepareProfile: profile.prepare()
 
         self.debug( "built profile for %s with %i neighbours" % (query_nid, len(neighbours.mMatches) ) )
 
+        profile.setStorageType( alignlib.Sparse )
+        if self.mPrepareProfile: 
+            profile.prepare()
+            self.debug( "prepared profile for %s with %i neighbours" % (query_nid, len(neighbours.mMatches) ) )
+
         self.mProfileLibrary.add( query_nid, profile )
         
+        self.debug( "saved profile for %s with %i neighbours" % (query_nid, len(neighbours.mMatches) ) )
+
     #------------------------------------------------------------------
     def finish( self ):
         """finish processing.
