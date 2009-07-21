@@ -92,6 +92,20 @@ class RunOnGraph(Run):
             self.mMapNid2Domains = None
 
     def __call__(self, argv ):
+        """run job, catching all exceptions and returning a tuple."""
+        
+        try:
+            self.apply( argv )
+            return None
+        except:
+            exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
+            exception_stack  = traceback.format_exc(exceptionTraceback)
+            exception_name   = exceptionType.__module__ + '.' + exceptionType.__name__
+            exception_value  = str(exceptionValue)
+            return (exception_name, exception_value, exception_stack)
+        
+    def apply( self, argv ):
+
         (filename, options, order, map_module, config, chunk, nchunks ) = argv
         E.info( "starting chunk %i on %s" % (chunk, filename) )
 
@@ -191,6 +205,7 @@ class RunOnGraph(Run):
             module.finish()
 
         E.info( "finished chunk %i on %s" % (chunk, filename) )
+
         
 
 def old_run_on_graph( argv ):
@@ -371,9 +386,19 @@ def runParallel( runner, filename, options, order, map_module, config ):
 
     args = [ (filename, options, order, map_module, config, chunk, nchunks ) for chunk in range(nchunks) ]
 
-    pool.map( runner, args )
+    errors = pool.map( runner, args )
     pool.close()
     pool.join()
+
+    errors = [ e for e in errors if e ]
+
+    if errors:
+        print "adda caught %i exceptions" % (len(errors))
+        print "## start of exceptions"
+        for exception_name, exception_value, exception_stack in errors:
+            print exception_stack,
+        print "## end of exceptions"
+        sys.exit(1)
 
     E.info( "all jobs finished" )
 
