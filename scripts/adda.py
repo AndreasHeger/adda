@@ -5,7 +5,7 @@ USAGE="""adda.py [OPTIONS] cmds
 interface to compute adda
 """
 
-import sys, os, re, time, math, copy, glob, optparse, logging
+import sys, os, re, time, math, copy, glob, optparse, logging, traceback
 from multiprocessing import Process, cpu_count, Pool
 import multiprocessing
 
