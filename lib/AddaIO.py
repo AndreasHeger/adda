@@ -274,6 +274,9 @@ class NeighboursIteratorSimap(  NeighboursIterator ):
         
         alignator = alignlib.makeAlignatorDPFull( alignment.ALIGNMENT_LOCAL, 
                                                   -10, -2)
+
+        q,s = None, None
+
         while 1:
 
             r = iterator.next()
@@ -284,6 +287,7 @@ class NeighboursIteratorSimap(  NeighboursIterator ):
                     continue 
                 r.mQueryToken = self.mMapId2Nid[r.mQueryToken]
                 r.mSbjctToken = self.mMapId2Nid[r.mSbjctToken]
+
             if r.mQueryToken != last_token:
                 if last_token:
                     yield NeighboursRecord( last_token, matches )
