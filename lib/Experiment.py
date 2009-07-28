@@ -229,16 +229,20 @@ def Start( parser = None,
     else:
         lvl = logging.DEBUG
 
+    # logging.basicConfig will create extra logger
+    # not necessary here
     if global_options.stdout == global_options.stdlog:
-        logging.basicConfig(
-            level=lvl,
-            format='# %(asctime)s %(name)s %(levelname)s %(message)s',
-            stream = global_options.stdlog )
+        pass
+        # logging.basicConfig(
+        #    level=lvl,
+        #    format='# %(asctime)s %(name)s %(levelname)s %(message)s',
+        #    stream = global_options.stdlog )
     else:
-        logging.basicConfig(
-             level=lvl,
-             format='%(asctime)s %(name)s %(levelname)s %(message)s',
-             stream = global_options.stdlog )
+        pass
+        #logging.basicConfig(
+        #     level=lvl,
+        #     format='%(asctime)s %(name)s %(levelname)s %(message)s',
+        #    stream = global_options.stdlog )
         
     global_logger = logging.getLogger("")
 
@@ -293,46 +297,6 @@ def Stop():
         outfile.write( result )
         outfile.close()
 
-
-class Experiment2( optparse.Values ):
-    """add an interface to the logging module.
-
-    (work in progress).
-    """
-
-    def __init__(self, options ):
-
-        for a, b in options.__dict__.items():
-            setattr( self, a, b)
-        
-        logging.basicConfig(
-            level=self.loglevel,
-            format='%(asctime)s %(levelname)s %(message)s',
-            stream = self.stdlog )
-
-        #def __del__(self):
-        #Stop()
-
-    def log( self, message ):
-        logging.log( message )
-
-    def info( self, message ):
-        logging.info( message )
-
-    def warning( self, message ):
-        logging.warning( message )
-
-    def warn( self, message ):
-        logging.warning( message )
-
-    def debug( self, message ):
-        logging.debug( message )
-
-    def error( self, message ):
-        logging.error( message )
-        
-    def critical( self, message):
-        logging.critical( message )
 
 class Experiment:
 

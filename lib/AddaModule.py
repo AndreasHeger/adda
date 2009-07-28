@@ -79,8 +79,9 @@ class AddaModule:
         else:
             lvl = logging.DEBUG
 
-        self.mLogger = logging.getLogger( "adda" )
-        #h = logging.FileHandler( filename='adda.log', mode='a')
+        self.mLogger = logging.getLogger( 'adda.%s' % self.mName )
+
+        #h = logging.FileHandler( filename='adda.log', mode='a')        
         #h.setFormatter(  
         #    logging.Formatter( '%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
         #                           datefmt='%m-%d %H:%M' ) )

@@ -11,11 +11,13 @@ import multiprocessing
 
 import fileinput
 # segfault on my machine without the print statement - strange
-print 
+
 import Adda.Experiment as E
 from Adda import *
 
 from logging import warn, info, debug
+
+L = {}
 
 def run( options, order, map_module, config, fasta = None ):
 
@@ -33,11 +35,11 @@ def run( options, order, map_module, config, fasta = None ):
             if not module.isComplete():
                 modules.append( module )
             else:
-                E.info( "%s complete" % step )
+                L.info( "%s complete" % step )
 
     if len(modules) == 0: return
 
-    E.info( "working with modules: %s" % (",".join(map(str, modules))) )
+    L.info( "working with modules: %s" % (",".join(map(str, modules))) )
 
     for module in modules:
         module.startUp()
@@ -60,7 +62,7 @@ def merge( options,
                                               config, 
                                               fasta = fasta ) )
 
-    E.info( "performing merge on modules: %s" % str(modules) )
+    L.info( "performing merge on modules: %s" % str(modules) )
 
     for module in modules:
         module.merge()
@@ -76,14 +78,14 @@ class RunOnGraph(Run):
 
         dict_mapper = manager.dict
 
-        E.info( "loading fasta sequences from %s" % config.get( "files", "output_fasta", "adda" ) ) 
+        L.info( "loading fasta sequences from %s" % config.get( "files", "output_fasta", "adda" ) ) 
         self.mFasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
 
-        E.info( "loading map_id2nid from %s" % config.get( "files", "output_nids", "adda.nids" ))
+        L.info( "loading map_id2nid from %s" % config.get( "files", "output_nids", "adda.nids" ))
         self.mMapId2Nid = dict_mapper(AddaIO.readMapId2Nid( open(config.get( "files", "output_nids", "adda.nids" ), "r" ) ))
 
         if "all" in steps or "fit" in steps:
-            E.info( "loading domain boundaries from %s" % config.get( "files", "input_reference") )
+            L.info( "loading domain boundaries from %s" % config.get( "files", "input_reference") )
             infile = AddaIO.openStream( config.get( "files", "input_reference") )
             rx_include = config.get( "fit", "family_include", "") 
             self.mMapNid2Domains = dict_mapper(AddaIO.readMapNid2Domains( infile, self.mMapId2Nid, rx_include ))
@@ -107,7 +109,7 @@ class RunOnGraph(Run):
     def apply( self, argv ):
 
         (filename, options, order, map_module, config, chunk, nchunks ) = argv
-        E.info( "starting chunk %i on %s" % (chunk, filename) )
+        L.info( "starting chunk %i on %s" % (chunk, filename) )
 
         if "all" in options.steps: steps = order
         else: steps = options.steps
@@ -118,7 +120,7 @@ class RunOnGraph(Run):
                 if map_module[step]( options, 
                                      config = config, 
                                      fasta = self.mFasta ).isComplete():
-                    E.info( "%s complete" % step )
+                    L.info( "%s complete" % step )
                     continue
 
                 module = map_module[step]( options, 
@@ -132,13 +134,13 @@ class RunOnGraph(Run):
                 if not module.isComplete():
                     modules.append( module )
                 else:
-                    E.info( "%s complete" % step )
+                    L.info( "%s complete" % step )
 
         if len(modules) == 0: 
-            E.info( "nothing to be done" )
+            L.info( "nothing to be done" )
             return
 
-        E.info( "opening graph %s at chunk %i" % (filename, chunk) )
+        L.info( "opening graph %s at chunk %i" % (filename, chunk) )
 
         gzip_factor = None
         if filename.endswith(".gz"):
@@ -147,7 +149,7 @@ class RunOnGraph(Run):
                 compressed_size = FileSlice.getFileSize( filename )
                 assert compressed_size < uncompressed_size, "file size of gzipped graph is larger than given uncompressed size" 
                 gzip_factor = float(compressed_size) / uncompressed_size
-                E.info( "setting graph compression to %5.2f (compressed = %i / uncompressed = %i)" % (gzip_factor, compressed_size, uncompressed_size) )
+                L.info( "setting graph compression to %5.2f (compressed = %i / uncompressed = %i)" % (gzip_factor, compressed_size, uncompressed_size) )
 
                 assert 0.1 < gzip_factor < 0.8, "gzip factor unrealistic - values between 0.1 and 0.8 are usual, but is %f" % gzip_factor
 
@@ -174,7 +176,7 @@ class RunOnGraph(Run):
 
         for module in modules: module.startUp()
 
-        E.info( "starting work on modules: %s" % (",".join(map(str, modules))) )
+        L.info( "starting work on modules: %s" % (",".join(map(str, modules))) )
 
         map_id2nid = self.mMapId2Nid
 
@@ -191,20 +193,20 @@ class RunOnGraph(Run):
 
                 neighbours.append( n )
 
-            E.info( "started: nid=%s, neighbours=%i" % (str(q), len(neighbours) ) )
+            L.info( "started: nid=%s, neighbours=%i" % (str(q), len(neighbours) ) )
 
             if neighbours:
                 for module in modules:
                     module.run( AddaIO.NeighboursRecord( q, neighbours ) )
 
-            E.info( "finished: nid=%s, neighbours=%i" % (str(q), len(neighbours) ) )
+            L.info( "finished: nid=%s, neighbours=%i" % (str(q), len(neighbours) ) )
 
-        E.info( "running finish on modules: %s" % (",".join(map(str, modules))) )
+        L.info( "running finish on modules: %s" % (",".join(map(str, modules))) )
 
         for module in modules:
             module.finish()
 
-        E.info( "finished chunk %i on %s" % (chunk, filename) )
+        L.info( "finished chunk %i on %s" % (chunk, filename) )
 
         
 
@@ -212,7 +214,7 @@ def old_run_on_graph( argv ):
     """process graph."""
 
     (filename, options, order, map_module, config, chunk, nchunks ) = argv
-    E.info( "starting chunk %i on %s" % (chunk, filename) )
+    L.info( "starting chunk %i on %s" % (chunk, filename) )
 
     fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
 
@@ -225,7 +227,7 @@ def old_run_on_graph( argv ):
             if map_module[step]( options, 
                                  config = config, 
                                  fasta = fasta ).isComplete():
-                E.info( "%s complete" % step )
+                L.info( "%s complete" % step )
                 continue
 
             module = map_module[step]( options, 
@@ -237,13 +239,13 @@ def old_run_on_graph( argv ):
             if not module.isComplete():
                 modules.append( module )
             else:
-                E.info( "%s complete" % step )
+                L.info( "%s complete" % step )
 
     if len(modules) == 0: 
-        E.info( "nothing to be done" )
+        L.info( "nothing to be done" )
         return
 
-    E.info( "opening graph %s at chunk %i" % (filename, chunk) )
+    L.info( "opening graph %s at chunk %i" % (filename, chunk) )
 
     gzip_factor = None
     if filename.endswith(".gz"):
@@ -252,7 +254,7 @@ def old_run_on_graph( argv ):
             compressed_size = FileSlice.getFileSize( filename )
             assert compressed_size < uncompressed_size, "file size of gzipped graph is larger than given uncompressed size" 
             gzip_factor = float(compressed_size) / uncompressed_size
-            E.info( "setting graph compression to %5.2f (compressed = %i / uncompressed = %i)" % (gzip_factor, compressed_size, uncompressed_size) )
+            L.info( "setting graph compression to %5.2f (compressed = %i / uncompressed = %i)" % (gzip_factor, compressed_size, uncompressed_size) )
 
             assert 0.1 < gzip_factor < 0.8, "gzip factor unrealistic - values between 0.1 and 0.8 are usual, but is %f" % gzip_factor
 
@@ -279,7 +281,7 @@ def old_run_on_graph( argv ):
 
     for module in modules: module.startUp()
 
-    E.info( "starting work on modules: %s" % (",".join(map(str, modules))) )
+    L.info( "starting work on modules: %s" % (",".join(map(str, modules))) )
 
     for record in iterator:
         neighbours = []
@@ -294,24 +296,24 @@ def old_run_on_graph( argv ):
 
             neighbours.append( n )
 
-        E.debug( "working on: %s with %i neighbours" % (str(q), len(neighbours) ) )
+        L.debug( "working on: %s with %i neighbours" % (str(q), len(neighbours) ) )
 
         if neighbours:
             for module in modules:
                 module.run( AddaIO.NeighboursRecord( q, neighbours ) )
 
-    E.info( "running finish on modules: %s" % (",".join(map(str, modules))) )
+    L.info( "running finish on modules: %s" % (",".join(map(str, modules))) )
 
     for module in modules:
         module.finish()
 
-    E.info( "finished chunk %i on %s" % (chunk, filename) )
+    L.info( "finished chunk %i on %s" % (chunk, filename) )
 
 def run_on_file( argv ):
 
     (filename, options, order, map_module, config, chunk, nchunks ) = argv
 
-    E.info( "starting chunk %i on %s" % (chunk, filename) )
+    L.info( "starting chunk %i on %s" % (chunk, filename) )
 
     fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
 
@@ -324,7 +326,7 @@ def run_on_file( argv ):
             if map_module[step]( options, 
                                  config = config, 
                                  fasta = fasta ).isComplete():
-                E.info( "%s complete" % step )
+                L.info( "%s complete" % step )
                 continue
 
             module = map_module[step]( options, 
@@ -336,13 +338,13 @@ def run_on_file( argv ):
             if not module.isComplete():
                 modules.append( module )
             else:
-                E.info( "%s complete" % step )
+                L.info( "%s complete" % step )
 
     if len(modules) == 0: 
-        E.info( "nothing to be done" )
+        L.info( "nothing to be done" )
         return
 
-    E.info( "opening file %s at chunk %i" % (filename, chunk) )
+    L.info( "opening file %s at chunk %i" % (filename, chunk) )
 
     iterator = FileSlice.Iterator( filename, 
                                    nchunks,
@@ -351,7 +353,7 @@ def run_on_file( argv ):
 
     for module in modules: module.startUp()
 
-    E.info( "working with modules: %s" % (",".join(map(str, modules))) )
+    L.info( "working with modules: %s" % (",".join(map(str, modules))) )
 
     for line in iterator:
         if line.startswith("#"): continue
@@ -362,12 +364,12 @@ def run_on_file( argv ):
     for module in modules:
         module.finish()
 
-    E.info( "running finish on modules: %s" % (",".join(map(str, modules))) )
+    L.info( "running finish on modules: %s" % (",".join(map(str, modules))) )
 
     for module in modules:
         module.finish()
 
-    E.info( "finished chunk %i on %s" % (chunk, filename) )
+    L.info( "finished chunk %i on %s" % (chunk, filename) )
 
 def runParallel( runner, filename, options, order, map_module, config ):
     """process filename in paralell."""
@@ -378,7 +380,7 @@ def runParallel( runner, filename, options, order, map_module, config ):
     else:
         njobs = cpu_count()
     
-    E.info( "running %i jobs on %i slices" % (njobs, nchunks ))
+    L.info( "running %i jobs on %i slices" % (njobs, nchunks ))
 
     pool = Pool( njobs )
 
@@ -400,7 +402,7 @@ def runParallel( runner, filename, options, order, map_module, config ):
         print "## end of exceptions"
         sys.exit(1)
 
-    E.info( "all jobs finished" )
+    L.info( "all jobs finished" )
 
 def runSequentially( runner, filename, options, order, map_module, config ):
     """process filename sequentially."""
@@ -410,13 +412,14 @@ def runSequentially( runner, filename, options, order, map_module, config ):
     args = [ (filename, options, order, map_module, config, chunk, nchunks ) for chunk in range(nchunks) ]
 
     for (chunck, argv) in enumerate(args):
-        E.info( "job %i started" % chunk )
+        L.info( "job %i started" % chunk )
         runner( argv )
-        E.info( "job %i finished" % chunk )
+        L.info( "job %i finished" % chunk )
 
-    E.info( "all jobs finished" )
+    L.info( "all jobs finished" )
     
 def main():
+    global L
     
     parser = optparse.OptionParser( version = "%prog version: $Id$", usage = USAGE )
 
@@ -489,16 +492,15 @@ def main():
         lvl = logging.DEBUG
 
     logQueue = multiprocessing.Queue(100)
-    handler= Logger.MultiProcessingLogHandler(logging.FileHandler( "adda.log", "w"), logQueue)
+    handler = Logger.MultiProcessingLogHandler(logging.FileHandler( "adda.log", "w"), logQueue)
+    handler.setFormatter( 
+        logging.Formatter( '%(asctime)s pid=%(process)-8d %(name)-12s %(levelname)-8s %(message)s',
+                           datefmt='%m-%d %H:%M' ) )
     logging.getLogger('adda').addHandler(handler)
     logging.getLogger('adda').setLevel( lvl )
 
     E.setLogger( logging.getLogger( "adda" ) )
-
-    #logging.basicConfig(
-    #    lvl = lvl,
-    #    format='%(asctime)s %(name)s %(levelname)s %(message)s',
-    #    filename = "adda.log" )
+    L = logging.getLogger( "adda" ) 
 
     config = AddaIO.ConfigParser()
     config.read( os.path.expanduser( options.filename_config ) )
@@ -570,7 +572,7 @@ def main():
          config = config,
          fasta = fasta)
 
-    E.info( "building domain graph" )
+    L.info( "building domain graph" )
 
     run( options, 
          order = ( "convert", ),
@@ -578,14 +580,14 @@ def main():
          config = config,
          fasta = fasta)
 
-    E.info( "computing minimum spanning tree" )
+    L.info( "computing minimum spanning tree" )
     run( options, 
          order = ( "mst", ),
          map_module = map_module,
          config = config,
          fasta = fasta)
 
-    E.info( "alignment of domains" )
+    L.info( "alignment of domains" )
 
     run_parallel( 
         run_on_file,
