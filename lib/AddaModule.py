@@ -139,14 +139,19 @@ class AddaModule:
         """
         for f in self.mFilenames: 
             self.info( "merging file %s from %i chunks" % (f, self.mNumChunks) )
+
             # check if all parts have finished and are present
             if self.mNumChunks > 1:
                 for chunk in range( self.mNumChunks ):
                     if not SegmentedFile.isComplete( f + self.getSlice( chunk ) ):
                         return False
 
+            self.info( "all files complete" )
+
             SegmentedFile.merge( f )
-        
+
+        return True
+
     #--------------------------------------------------------------------------
     def execute( self, cmd ):
         """execute a shell command."""
