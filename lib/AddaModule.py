@@ -47,6 +47,23 @@ class AddaModule:
         self.mConfig = config
         self.mFasta = fasta
 
+        if options.loglevel == 0:
+            lvl = logging.ERROR
+        elif options.loglevel == 1:
+            lvl = logging.INFO
+        else:
+            lvl = logging.DEBUG
+
+        self.mLogger = logging.getLogger( 'adda.%s' % self.mName )
+
+        #h = logging.FileHandler( filename='adda.log', mode='a')        
+        #h.setFormatter(  
+        #    logging.Formatter( '%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
+        #                           datefmt='%m-%d %H:%M' ) )
+        #self.mLogger.addHandler( h )
+        #self.mLogger.setLevel( lvl )
+
+
         ## if slice is given, use it to mangle the filename.
         self.mNumChunks = num_chunks
         if self.mNumChunks > 1:
@@ -71,22 +88,6 @@ class AddaModule:
             name = "adda.%s:%i" % (self.mName, self.mChunk)
         else:
             name = "adda.%s" % (self.mName)
-
-        if options.loglevel == 0:
-            lvl = logging.ERROR
-        elif options.loglevel == 1:
-            lvl = logging.INFO
-        else:
-            lvl = logging.DEBUG
-
-        self.mLogger = logging.getLogger( 'adda.%s' % self.mName )
-
-        #h = logging.FileHandler( filename='adda.log', mode='a')        
-        #h.setFormatter(  
-        #    logging.Formatter( '%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
-        #                           datefmt='%m-%d %H:%M' ) )
-        #self.mLogger.addHandler( h )
-        #self.mLogger.setLevel( lvl )
 
         self.mReportStep = self.mConfig.get( "adda", "report_step", 1000 )
         self.mFilenamePersistence = self.mConfig.get("adda", "filename_persistence", "adda.private" )
@@ -116,10 +117,12 @@ class AddaModule:
         return True
 
     #--------------------------------------------------------------------------
-    def getSlice( self ):
+    def getSlice( self, chunk = None ):
         """return a suffix indicating a slice of the data."""
+
+        if chunk == None: chunk = self.mChunk
         if self.mNumChunks > 1:
-            return ".%010i.%010i" % (self.mNumChunks, self.mChunk )
+            return ".%010i.%010i" % (self.mNumChunks, chunk )
         else:
             return ""
     
@@ -131,9 +134,17 @@ class AddaModule:
     #--------------------------------------------------------------------------
     def merge(self):
         """merge runs from parallel computations.
+
+        return false if segmented file is not complete.
         """
         for f in self.mFilenames: 
-            self.info( "merging file %s" % f )
+            self.info( "merging file %s from %i chunks" % (f, self.mNumChunks) )
+            # check if all parts have finished and are present
+            if self.mNumChunks > 1:
+                for chunk in range( self.mNumChunks ):
+                    if not SegmentedFile.isComplete( f + self.getSlice( chunk ) ):
+                        return False
+
             SegmentedFile.merge( f )
         
     #--------------------------------------------------------------------------

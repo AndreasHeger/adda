@@ -5,7 +5,7 @@ USAGE="""adda.py [OPTIONS] cmds
 interface to compute adda
 """
 
-import sys, os, re, time, math, copy, glob, optparse, logging, traceback
+import sys, os, re, time, math, copy, glob, optparse, logging, traceback, shelve
 from multiprocessing import Process, cpu_count, Pool
 import multiprocessing
 
@@ -51,21 +51,29 @@ def merge( options,
            map_module, 
            config, 
            fasta ):
+    """return True if all merging operations succeeded."""
 
     if "all" in options.steps: steps = order
     else: steps = options.steps
+
+    nchunks = config.get( "adda", "num_slices", 10 )
 
     modules = []
     for step in order:
         if step in steps:
             modules.append( map_module[step]( options, 
                                               config, 
-                                              fasta = fasta ) )
+                                              fasta = fasta,
+                                              chunk = 0,
+                                              num_chunks = nchunks ) )
 
     L.info( "performing merge on modules: %s" % str(modules) )
 
     for module in modules:
-        module.merge()
+        if not module.merge():
+            return False
+    return True
+
 
 class Run(object):
     pass
@@ -74,24 +82,38 @@ class RunOnGraph(Run):
     
     def __init__(self, config, steps ):
 
-        manager = multiprocessing.Manager()
-
-        dict_mapper = manager.dict
+        #from guppy import hpy
+        #h = hpy()
+        # ignore memory usage of previous object
+        #h.setrelheap()
 
         L.info( "loading fasta sequences from %s" % config.get( "files", "output_fasta", "adda" ) ) 
+
         self.mFasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
 
+        #print h.heap()
+
         L.info( "loading map_id2nid from %s" % config.get( "files", "output_nids", "adda.nids" ))
-        self.mMapId2Nid = dict_mapper(AddaIO.readMapId2Nid( open(config.get( "files", "output_nids", "adda.nids" ), "r" ) ))
+        infile = open( config.get( "files", "output_nids", "adda.nids" ) )
+        self.mMapId2Nid = AddaIO.readMapId2Nid( infile, 
+                                                storage = config.get( "files", "storage_nids", "memory" ) )
+        infile.close()
+
+        #print h.heap()
 
         if "all" in steps or "fit" in steps:
             L.info( "loading domain boundaries from %s" % config.get( "files", "input_reference") )
             infile = AddaIO.openStream( config.get( "files", "input_reference") )
             rx_include = config.get( "fit", "family_include", "") 
-            self.mMapNid2Domains = dict_mapper(AddaIO.readMapNid2Domains( infile, self.mMapId2Nid, rx_include ))
+            self.mMapNid2Domains = AddaIO.readMapNid2Domains( infile, 
+                                                              self.mMapId2Nid, 
+                                                              rx_include,
+                                                              storage = config.get( "files", "storage_domains", "memory" ) )
             infile.close()
         else:
             self.mMapNid2Domains = None
+
+        #print h.heap()
 
     def __call__(self, argv ):
         """run job, catching all exceptions and returning a tuple."""
@@ -105,7 +127,7 @@ class RunOnGraph(Run):
             exception_name   = exceptionType.__module__ + '.' + exceptionType.__name__
             exception_value  = str(exceptionValue)
             return (exception_name, exception_value, exception_stack)
-        
+
     def apply( self, argv ):
 
         (filename, options, order, map_module, config, chunk, nchunks ) = argv
@@ -114,6 +136,14 @@ class RunOnGraph(Run):
         if "all" in options.steps: steps = order
         else: steps = options.steps
 
+        # load all maps that were not inherited from the parent process
+        if "all" in steps or "fit" in steps and self.mMapNid2Domains == None:
+            self.mMapNid2Domains = shelve.open( config.get( "files", "storage_domains", "memory" ), "r")
+
+        if self.mMapId2Nid == None:
+            self.mMapId2Nid = shelve.open( config.get( "files", "storage_nids", "memory" ), "r")
+
+        # build the modules
         modules = []
         for step in order:
             if step in steps:
@@ -381,12 +411,27 @@ def runParallel( runner, filename, options, order, map_module, config ):
         njobs = cpu_count()
     
     L.info( "running %i jobs on %i slices" % (njobs, nchunks ))
+    
+    # set up the arguments for chunks to run
+    if options.chunks == "all":
+        chunks = range(nchunks) 
+    else:
+        ranges = options.chunks.split(",")
+        chunks = []
+        for r in ranges:
+            s = r.split("-")
+            if len(s) == 1: chunks.append( int(s[0]) )
+            elif len(s) == 2: chunks.extend( list( range(int(s[0]), int(s[1]) ) ) )
+            else: raise ValueError("can not parse range `%s`" % r )
 
-    pool = Pool( njobs )
+        chunks = sorted(list(set(chunks)))
+        if chunks[-1] >= nchunks: raise ValueError( "chunk `%i` out of range, maximum is " % (chunks[-1], nchunks-1 ) )
+
+    args = [ (filename, options, order, map_module, config, chunk, nchunks ) for chunk in chunks ]
 
     logging.info('starting parallel jobs')
 
-    args = [ (filename, options, order, map_module, config, chunk, nchunks ) for chunk in range(nchunks) ]
+    pool = Pool( njobs )
 
     errors = pool.map( runner, args )
     pool.close()
@@ -442,6 +487,9 @@ def main():
                        choices=("pairsdb", "pairsdb-old", "simap", "pairsdb-realign"),
                        help = "input format of graph. pairsdb-old: input graph is in old 1-based coordinates [default=%default]." )
 
+    parser.add_option( "--chunks", dest="chunks", type="string",
+                       help = "work on one or more chunks only. Provide a comma-separated list. [default=%default]" )
+
     parser.add_option( "--steps", dest="steps", type="choice", action="append",
                        choices=("all", 
                                 "sequences",
@@ -479,6 +527,7 @@ def main():
                         test = None,
                         num_jobs = None,
                         temporary_directory = ".",
+                        chunks = "all",
                         )
     
     (options, args) = E.Start( parser )
@@ -560,12 +609,15 @@ def main():
 
     fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
 
-    merge( options,
-           order = ("fit", "segment", "graph", "profiles" ),
-           map_module = map_module,
-           config = config,
-           fasta = fasta )
-    
+    if not merge( options,
+                  order = ("fit", "segment", "graph", "profiles" ),
+                  map_module = map_module,
+                  config = config,
+                  fasta = fasta ):
+        L.info( "graph pre-processing incomplete - will not continue." )
+        E.Stop()
+        return
+        
     run( options, 
          order = ("index", "check-index", "optimise" ),
          map_module = map_module,

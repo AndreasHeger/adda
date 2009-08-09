@@ -1,4 +1,4 @@
-import sys, os, re, time, types, gzip
+import sys, os, re, time, types, gzip, shelve
 import alignlib
 from ConfigParser import ConfigParser as PyConfigParser
 import Experiment as E
@@ -309,21 +309,63 @@ class NeighboursIteratorSimap(  NeighboursIterator ):
             yield NeighboursRecord( last_token, matches )
         raise StopIteration
 
+def createDict( storage = "memory" ):
+    """open a memory or disc based dictionary.
 
-def readMapId2Nid( infile ):
-    """read map from adda.nids file."""
-    
-    m = {}
-    for line in infile:
-        if line.startswith("#"): continue
-        data = line[:-1].split("\t")[:2]
-        m[data[1]] = data[0]
+    If storage is not ``memory``, file based storage is assumed
+    with the argument giving the filename. If the file does not
+    exist, it is created and the dictionary filled.
+
+    returns an empty dictionary or None, if disc based dictionary
+    already exists.
+    """
+
+    if storage == "memory":
+        m = {}
+    else:
+        if not os.path.exists( storage ):
+            m = shelve.open( storage, "n" )
+        else:
+            return None
+
     return m
 
-def readMapNid2Domains( infile, map_id2nid, rx_include ):
+def readMapId2Nid( infile, storage = "memory" ):
+    """read map from adda.nids file.
+
+    If storage is not ``memory``, file based storage is assumed
+    with the argument giving the filename. If the file does not
+    exist, it is created and the dictionary filled and None is 
+    returned.
+    """
+
+    m = createDict( storage )
+
+    if m != None:
+        for line in infile:
+            if line.startswith("#"): continue
+            if line.startswith("nid"): continue
+            data = line[:-1].split("\t")[:2]
+            # convert types to bytes/int to save memory
+            m[bytes(data[1])] = bytes( data[0] )
+
+        if storage != "memory":
+            m.close()
+    
+    if storage != "memory":
+        return None
+
+    return m
+    
+def readMapNid2Domains( infile, map_id2nid, rx_include, storage = "memory" ):
     """read reference domain file.
     
     Only include families matching the regulare expression rx_include.
+
+    If storage is not ``memory``, file based storage is assumed
+    with the argument giving the filename. If the file does not
+    exist, it is created and the dictionary filled and None is 
+    returned.
     """
 
     domain_boundaries = {}
@@ -332,34 +374,46 @@ def readMapNid2Domains( infile, map_id2nid, rx_include ):
 
     ninput, nskipped_nid, nskipped_family, ndomains = 0, 0, 0, 0
 
-    for line in infile:
-        if line[0] == "#": continue
-        ninput += 1
-        token, start, end, family = line[:-1].split( "\t" )[:4]
+    # build dict in memory and then save to disc
+    if storage == "memory" or not os.path.exists( storage ):
 
-        try:
-            token = map_id2nid[token]
-        except KeyError:
-            nskipped_nid += 1
-            continue
+        for line in infile:
+            if line[0] == "#": continue
+            ninput += 1
+            token, start, end, family = line[:-1].split( "\t" )[:4]
 
-        if not rx_include.search( family): 
-            nskipped_family += 1
-            continue
+            try:
+                token = map_id2nid[token]
+            except KeyError:
+                nskipped_nid += 1
+                continue
 
-        start, end = int(start), int(end)
-        if token not in domain_boundaries:
-            a = { family : [ (start, end) ] }
-            domain_boundaries[token] = a
-        else:
-            a = domain_boundaries[token]
-            if family not in a:
-                a[family] = [ (start, end) ]
+            if not rx_include.search( family): 
+                nskipped_family += 1
+                continue
+
+            family, start, end = bytes(family), int(start), int(end)
+            if token not in domain_boundaries:
+                a = { family : [ (start, end) ] }
+                domain_boundaries[token] = a
             else:
-                a[family].append( (start,end) )
-        ndomains += 1
-
-    E.info( "read domain information: nsequences=%i, ndomains=%i, ninput=%i, nskipped_nid=%i, nskipped_family=%i" %\
-                (len(domain_boundaries), ndomains, ninput, nskipped_nid, nskipped_family))
-
-    return domain_boundaries
+                a = domain_boundaries[token]
+                if family not in a:
+                    a[family] = [ (start, end) ]
+                else:
+                    a[family].append( (start,end) )
+            ndomains += 1
+            
+        E.info( "read domain information: nsequences=%i, ndomains=%i, ninput=%i, nskipped_nid=%i, nskipped_family=%i" %\
+                    (len(domain_boundaries), ndomains, ninput, nskipped_nid, nskipped_family))
+        
+        if storage != "memory":
+            d = shelve.open( storage, "n" )
+            for k,n in domain_boundaries.iteritems():
+                d[k] = n
+            d.close()
+    
+    if storage != "memory":
+        return None
+    else:
+        return domain_boundaries
