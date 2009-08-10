@@ -401,17 +401,10 @@ def run_on_file( argv ):
 
     L.info( "finished chunk %i on %s" % (chunk, filename) )
 
-def runParallel( runner, filename, options, order, map_module, config ):
-    """process filename in paralell."""
-
+def getChunks( options, config ):
+    """find out which chunks to compute from command line options."""
     nchunks = config.get( "adda", "num_slices", 10 )
-    if options.num_jobs:
-        njobs = options.num_jobs 
-    else:
-        njobs = cpu_count()
-    
-    L.info( "running %i jobs on %i slices" % (njobs, nchunks ))
-    
+
     # set up the arguments for chunks to run
     if options.chunks == "all":
         chunks = range(nchunks) 
@@ -427,6 +420,20 @@ def runParallel( runner, filename, options, order, map_module, config ):
         chunks = sorted(list(set(chunks)))
         if chunks[-1] >= nchunks: raise ValueError( "chunk `%i` out of range, maximum is " % (chunks[-1], nchunks-1 ) )
 
+    return nchunks, chunks
+        
+def runParallel( runner, filename, options, order, map_module, config ):
+    """process filename in paralell."""
+
+    if options.num_jobs:
+        njobs = options.num_jobs 
+    else:
+        njobs = cpu_count()
+    
+    nchunks, chunks = getChunks( options, config )
+
+    L.info( "running %i chunks in %i parallel jobs" % (len(chunks), njobs ))
+    
     args = [ (filename, options, order, map_module, config, chunk, nchunks ) for chunk in chunks ]
 
     logging.info('starting parallel jobs')
@@ -452,9 +459,11 @@ def runParallel( runner, filename, options, order, map_module, config ):
 def runSequentially( runner, filename, options, order, map_module, config ):
     """process filename sequentially."""
 
-    nchunks = config.get( "adda", "num_slices", 4 )
+    nchunks, chunks = getChunks( options, config )
 
-    args = [ (filename, options, order, map_module, config, chunk, nchunks ) for chunk in range(nchunks) ]
+    L.info( "running %i chunks sequentially" % (len(chunks) ))
+    
+    args = [ (filename, options, order, map_module, config, chunk, nchunks ) for chunk in chunks ]
 
     for (chunck, argv) in enumerate(args):
         L.info( "job %i started" % chunk )
