@@ -138,9 +138,11 @@ class RunOnGraph(Run):
 
         # load all maps that were not inherited from the parent process
         if "all" in steps or "fit" in steps and self.mMapNid2Domains == None:
+            L.info( "opening map_nid2domains from cache" )
             self.mMapNid2Domains = shelve.open( config.get( "files", "storage_domains", "memory" ), "r")
 
         if self.mMapId2Nid == None:
+            L.info( "opening map_id2nid from cache" )
             self.mMapId2Nid = shelve.open( config.get( "files", "storage_nids", "memory" ), "r")
 
         # build the modules
@@ -150,7 +152,7 @@ class RunOnGraph(Run):
                 if map_module[step]( options, 
                                      config = config, 
                                      fasta = self.mFasta ).isComplete():
-                    L.info( "%s complete" % step )
+                    L.info( "%s:full is complete" % step )
                     continue
 
                 module = map_module[step]( options, 
@@ -164,7 +166,7 @@ class RunOnGraph(Run):
                 if not module.isComplete():
                     modules.append( module )
                 else:
-                    L.info( "%s complete" % step )
+                    L.info( "%s:%i is complete" % (step, chunk) )
 
         if len(modules) == 0: 
             L.info( "nothing to be done" )
@@ -180,7 +182,6 @@ class RunOnGraph(Run):
                 assert compressed_size < uncompressed_size, "file size of gzipped graph is larger than given uncompressed size" 
                 gzip_factor = float(compressed_size) / uncompressed_size
                 L.info( "setting graph compression to %5.2f (compressed = %i / uncompressed = %i)" % (gzip_factor, compressed_size, uncompressed_size) )
-
                 assert 0.1 < gzip_factor < 0.8, "gzip factor unrealistic - values between 0.1 and 0.8 are usual, but is %f" % gzip_factor
 
         iterator = FileSlice.IteratorMultiline( filename, 
@@ -189,9 +190,6 @@ class RunOnGraph(Run):
                                                 FileSlice.groupby,
                                                 key = lambda x: x[:x.index("\t")],
                                                 gzip_factor = gzip_factor )
-
-
-
 
         if options.alignment_format == "pairsdb":
             record_type = AddaIO.NeighbourRecordPairsdb
@@ -212,6 +210,7 @@ class RunOnGraph(Run):
 
         for record in iterator:
             neighbours = []
+            q = None
             for line in record:
                 n = record_type( line )
                 if map_id2nid:
@@ -237,107 +236,6 @@ class RunOnGraph(Run):
             module.finish()
 
         L.info( "finished chunk %i on %s" % (chunk, filename) )
-
-        
-
-def old_run_on_graph( argv ):
-    """process graph."""
-
-    (filename, options, order, map_module, config, chunk, nchunks ) = argv
-    L.info( "starting chunk %i on %s" % (chunk, filename) )
-
-    fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
-
-    if "all" in options.steps: steps = order
-    else: steps = options.steps
-
-    modules = []
-    for step in order:
-        if step in steps:
-            if map_module[step]( options, 
-                                 config = config, 
-                                 fasta = fasta ).isComplete():
-                L.info( "%s complete" % step )
-                continue
-
-            module = map_module[step]( options, 
-                                       config = config, 
-                                       fasta = fasta,
-                                       num_chunks = nchunks,
-                                       chunk = chunk )
-
-            if not module.isComplete():
-                modules.append( module )
-            else:
-                L.info( "%s complete" % step )
-
-    if len(modules) == 0: 
-        L.info( "nothing to be done" )
-        return
-
-    L.info( "opening graph %s at chunk %i" % (filename, chunk) )
-
-    gzip_factor = None
-    if filename.endswith(".gz"):
-        uncompressed_size = config.get( "files", "input_graph_uncompressed_size", 0 )
-        if uncompressed_size > 0:
-            compressed_size = FileSlice.getFileSize( filename )
-            assert compressed_size < uncompressed_size, "file size of gzipped graph is larger than given uncompressed size" 
-            gzip_factor = float(compressed_size) / uncompressed_size
-            L.info( "setting graph compression to %5.2f (compressed = %i / uncompressed = %i)" % (gzip_factor, compressed_size, uncompressed_size) )
-
-            assert 0.1 < gzip_factor < 0.8, "gzip factor unrealistic - values between 0.1 and 0.8 are usual, but is %f" % gzip_factor
-
-    iterator = FileSlice.IteratorMultiline( filename, 
-                                            nchunks,
-                                            chunk,
-                                            FileSlice.groupby,
-                                            key = lambda x: x[:x.index("\t")],
-                                            gzip_factor = gzip_factor )
-
-
-    map_id2nid = AddaIO.readMapId2Nid( open(config.get( "files", "output_nids", "adda.nids" ), "r" ) )
-
-    if options.alignment_format == "pairsdb":
-        record_type = AddaIO.NeighbourRecordPairsdb
-    elif options.alignment_format == "pairsdb-old":
-        record_type = AddaIO.NeighbourRecordPairsdbOld
-    elif options.alignment_format == "simap":
-        record_type = AddaIO.NeighbourRecordSimap
-    elif options.alignment_format == "pairsdb-realign":
-        record_type = AddaIO.NeighbourRecordPairsdbRealign
-    else:
-        raise ValueError ("unknown record type %s" % options.alignment_format)
-
-    for module in modules: module.startUp()
-
-    L.info( "starting work on modules: %s" % (",".join(map(str, modules))) )
-
-    for record in iterator:
-        neighbours = []
-        for line in record:
-            n = record_type( line )
-            if map_id2nid:
-                if (n.mQueryToken not in map_id2nid or \
-                        n.mSbjctToken not in map_id2nid ):
-                    continue 
-                q = n.mQueryToken = map_id2nid[n.mQueryToken]
-                n.mSbjctToken = map_id2nid[n.mSbjctToken]
-
-            neighbours.append( n )
-
-        L.debug( "working on: %s with %i neighbours" % (str(q), len(neighbours) ) )
-
-        if neighbours:
-            for module in modules:
-                module.run( AddaIO.NeighboursRecord( q, neighbours ) )
-
-    L.info( "running finish on modules: %s" % (",".join(map(str, modules))) )
-
-    for module in modules:
-        module.finish()
-
-    L.info( "finished chunk %i on %s" % (chunk, filename) )
 
 def run_on_file( argv ):
 
@@ -460,15 +358,24 @@ def runSequentially( runner, filename, options, order, map_module, config ):
     """process filename sequentially."""
 
     nchunks, chunks = getChunks( options, config )
-
-    L.info( "running %i chunks sequentially" % (len(chunks) ))
     
+    L.info( "running %i chunks sequentially" % (len(chunks) ))
+
     args = [ (filename, options, order, map_module, config, chunk, nchunks ) for chunk in chunks ]
 
-    for (chunck, argv) in enumerate(args):
+    for (chunk, argv) in enumerate(args):
         L.info( "job %i started" % chunk )
-        runner( argv )
+        error = runner( argv )
+
+        if error:
+            print "adda caught an exceptions"
+            exception_name, exception_value, exception_stack = error
+            print exception_stack,
+            print "## end of exceptions"
+            sys.exit(1)
+
         L.info( "job %i finished" % chunk )
+
 
     L.info( "all jobs finished" )
     

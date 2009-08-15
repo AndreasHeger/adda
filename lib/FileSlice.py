@@ -29,7 +29,7 @@ def getZipSize( filename, factor = None ):
         return int(filesize / factor)
     return zipsize
 
-class MyGzipFile( gzip.GzipFile ):
+class OldMyGzipFile( gzip.GzipFile ):
     """derived gzip file. 
 
     This class overrides the seek() and tell() functions
@@ -62,6 +62,39 @@ class MyGzipFile( gzip.GzipFile ):
                     break
         print "asked=",offset, "got=",self.fileobj.tell()
 
+class MyGzipFile( gzip.GzipFile ):
+    """a modified GzipFile
+
+    This class overrides the seek() function. The original
+    uses calls to range, which can be expensive in memory.
+    This class uses the same code, but uses xrange.
+    
+    """
+    def __init__(self, *args, **kwargs):
+        gzip.GzipFile.__init__( self, *args, **kwargs)
+
+    def seek(self, offset, whence=0):
+        if whence:
+            if whence == 1:
+                offset = self.offset + offset
+            else:
+                raise ValueError('Seek from end not supported')
+        if self.mode == gzip.WRITE:
+            if offset < self.offset:
+                raise IOError('Negative seek in write mode')
+            count = offset - self.offset
+            for i in xrange(count // 1024): ## changed from base
+                self.write(1024 * '\0')
+            self.write((count % 1024) * '\0')
+        elif self.mode == gzip.READ:
+            if offset < self.offset:
+                # for negative seek, rewind and do positive seek
+                self.rewind()
+            count = offset - self.offset
+            for i in xrange(count // 1024): ## changed from base
+                self.read(1024)
+            self.read(count % 1024)
+    
 class Iterator:
     """create iterator over a file *filename* that is split
     in-situ in *nchunks* starting at *chunk* and using *iterator*
@@ -78,7 +111,7 @@ class Iterator:
         
         if filename.endswith(".gz"):
             self.mFileSize = getZipSize( filename, factor = gzip_factor )
-            self.mInfile = gzip.GzipFile( filename, "r" )
+            self.mInfile = MyGzipFile( filename, "r" )
         else:
             self.mInfile = open( filename, "r" )
             self.mInfile.seek(0, 2)
@@ -118,7 +151,7 @@ class IteratorMultiline:
 
         if filename.endswith(".gz"):
             self.mFileSize = getZipSize( filename, factor = gzip_factor )
-            self.mInfile = gzip.GzipFile( filename, "r" )
+            self.mInfile = MyGzipFile( filename, "r" )
         else:
             self.mInfile = open( filename, "r" )
             self.mInfile.seek(0, 2)

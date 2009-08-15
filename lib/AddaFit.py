@@ -399,7 +399,8 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
 
     #--------------------------------------------------------------------------    
     def getCumulativeHistogram(self, values, reverse = False):
-
+        
+        if len(values) == 0: return [],[]
         x = numpy.arange( int(min(values)), int(max(values)) )
         h = scipy.stats.histogram2( values, x)
         if reverse:
@@ -452,12 +453,17 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
     #--------------------------------------------------------------------------    
     def finish(self):
 
+        self.info( "number of values: transfer=%i, overhang=%i" % (len(self.mTransferValues),
+                                                                   len(self.mOverhangValues)) )
+
+        if len(self.mTransferValues) == 0 or len(self.mOverhangValues) == 0:
+            self.warn( "no transfer or overhang values - no parameters computed" )
+            return
+
         self.mOutfile = self.openOutputStream( self.mFilenameFit, register = False )
         self.mOutfileTransfer = self.openOutputStream( self.mFilenameTransfer, register = False )
         self.mOutfileOverhang = self.openOutputStream( self.mFilenameOverhang, register = False )        
         
-        self.info( "number of values: transfer=%i, overhang=%i" % (len(self.mTransferValues),
-                                                                   len(self.mOverhangValues)) )
         
         x,y = self.getCumulativeHistogram(self.mTransferValues, reverse = True )
         self.writeHistogram( self.mOutfileTransfer, x, y )

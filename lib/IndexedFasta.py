@@ -409,16 +409,16 @@ class IndexedFasta:
             data = line[:-1].split("\t")
 
             if len(data) == 2:
-                self.mSynonyms[data[0]] = data[1]
+                self.mSynonyms[bytes(data[0])] = bytes(data[1])
             else:
 
                 ## index with random access points
                 if len(data) > 4:
-                    (identifier, pos_id, block_size, lsequence) = data[0], int(data[1]), int(data[2]), int(data[-1])
+                    (identifier, pos_id, block_size, lsequence) = bytes(data[0]), int(data[1]), int(data[2]), int(data[-1])
                     points = map(int, data[3:-1])
                     self.mIndex[identifier] = (pos_id, block_size, lsequence, points)
                 else:
-                    (identifier, pos_id, pos_seq, lsequence) = data[0], int(data[1]), int(data[2]), int(data[-1])
+                    (identifier, pos_id, pos_seq, lsequence) = bytes(data[0]), int(data[1]), int(data[2]), int(data[-1])
                     self.mIndex[identifier] = (pos_id, pos_seq, lsequence)                    
                     
             ## patch for special case: chr1 = 1
