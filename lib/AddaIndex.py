@@ -58,9 +58,7 @@ class AddaIndexBuild( AddaIndex ):
         AddaIndex.__init__( self, *args, **kwargs )
         
     def isComplete( self ):
-        if not os.path.exists( self.mFilenameOutputIndex ) or not os.path.exists( self.mFilenameOutputGraph): 
-            return False
-        return True
+        return os.path.exists( self.mFilenameOutputIndex ) and os.path.exists( self.mFilenameOutputGraph)
 
     def applyMethod(self ):
         """index the graph.        
@@ -75,7 +73,7 @@ class AddaIndexBuild( AddaIndex ):
     
         infile = AddaIO.openStream( self.mFilenameInputGraph )
         iterator = self.mIterator( infile, map_id2nid )
-        cadda.indexGraph( iterator, len(map_id2nid), self.mFilenameOutputGraph, self.mFilenameOutputIndex )
+        cadda.indexGraph( iterator, len(map_id2nid), self.mFilenameOutputGraph, self.mFilenameOutputIndex, self.mLogger )
 
         del map_id2nid
 
@@ -93,9 +91,6 @@ class AddaIndexCheck( AddaIndex ):
 
         if os.path.exists( filename_graph ): pass
 
-        i = cadda.IndexedNeighbours( filename_graph, filename_index )
-        n = i.getNeighbours(1)
-        for nn in n: print str(nn)
 
         self.info( "checking index %s agains %s: started" % (self.mFilenameIndex, self.mFilenameGraph ) )
         retval = cadda.check_index()

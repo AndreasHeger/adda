@@ -225,7 +225,8 @@ def setEvalueThresholdTrustedLinks( v ):
     
 import alignlib
 
-DEF MAX_BUFFER_SIZE = 10000000
+# 100Mb
+DEF MAX_BUFFER_SIZE = 100000000
 
 cdef extern from "adda.h":
 
@@ -435,7 +436,7 @@ DEF Z_VERSION_ERROR = (-6)
 #     free( compressed )
 #     return Z_OK
     
-def indexGraph( graph_iterator, num_nids, output_filename_graph, output_filename_index ):
+def indexGraph( graph_iterator, num_nids, output_filename_graph, output_filename_index, logger ):
     """translate the pairsdb input graph into an ADDA formatted graph.
     
     This method reformats and indexes a neighbourhood graph.
@@ -510,9 +511,16 @@ def indexGraph( graph_iterator, num_nids, output_filename_graph, output_filename
     fwrite( &query_nid, sizeof( Nid ), 1, output_f )
     fwrite( &nneighbours, sizeof( size_t ), 1, output_f )
 
+    iteration = 0
+    report_step = nnids / 1000
+
     for neighbours in graph_iterator:
         
         if neighbours == None: break
+        
+        iteration += 1
+        if iteration % report_step == 0:
+            logger.info( "indexing progress: %i/%i = %5.1f" % (iteration, nnids, 100.0 * iteration/nnids) )
 
         query_nid = neighbours.mQueryToken
 
@@ -531,10 +539,13 @@ def indexGraph( graph_iterator, num_nids, output_filename_graph, output_filename
         for n in neighbours.mMatches:
             fromNeighbour( &neighbour, n )
             p1 = toBuffer( &neighbour, p1 )
-            
-        used = p1 - buffer
+            used = p1 - buffer
+            if used > MAX_BUFFER_SIZE:
+                raise MemoryError( "memory overflow in indexing: nid=%i, neighbours=%i, used=%i, allocated=%i" % (query_nid, nneighbours, used, MAX_BUFFER_SIZE) )
+
         err = toCompressedFile( buffer, used, output_f )
-        if err: raise ValueError( "error %i while writing compressed buffer to file" % err )
+        if err: raise ValueError( "error %i while writing compressed buffer to file for nid %i (%i neighbours)" % (err, query_nid, nneighbours) )
+
 
     fclose( output_f )
 
@@ -545,7 +556,6 @@ def indexGraph( graph_iterator, num_nids, output_filename_graph, output_filename
     fwrite( &nnids, sizeof( Nid ), 1, output_f )
     fwrite( index, sizeof( FileIndex ), nnids, output_f )
     fclose(output_f)
-
 
 cdef class IndexedNeighbours:
     """access to indexed ADDA graph."""
