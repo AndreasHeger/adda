@@ -5,6 +5,9 @@
  * 
  * */
 
+#include <stdio.h>
+#include <stdlib.h>
+
 // parameter setters for optimization
 void cadda_setFilenameSegments( const char * f);
 void cadda_setFilenameGraph( const char * f);
@@ -55,8 +58,14 @@ int cadda_convert( const char * f);
 
 // construct mst
 int cadda_build_mst( const char * out,
-					 const char * in);
+		     const char * in);
 
 
 // dump parameters
 void cadda_dump_parameters();
+
+// write buffer to file with compression
+int toCompressedFile( unsigned char *, size_t, FILE *);
+
+// read buffer to file with compression
+int fromCompressedFile( unsigned char *, size_t, FILE *);

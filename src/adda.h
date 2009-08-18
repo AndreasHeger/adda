@@ -38,6 +38,11 @@ typedef int Index;
 typedef int Residue;
 typedef double Score;
 
+// types for storing alignments in Adda graph
+// length of an alignment string
+typedef short unsigned int Length;
+typedef short unsigned int uResidue;
+
 typedef std::map< Nid, Index > MapNid2Index;
 
 #define MAX_LINE_LENGTH 10000000

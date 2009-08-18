@@ -222,20 +222,21 @@ class NeighboursIterator:
     def _iterate( self, infile ):
     
         last_nid = None
-    
         iterator = NeighbourIterator( infile, self.mRecord )
         last_token = None
-        
-        while 1:
 
+        while 1:
+            
             r = iterator.next()
             if not r: break
             if self.mMapId2Nid:
                 if (r.mQueryToken not in self.mMapId2Nid or \
                         r.mSbjctToken not in self.mMapId2Nid ):
                     continue 
+
                 r.mQueryToken = self.mMapId2Nid[r.mQueryToken]
                 r.mSbjctToken = self.mMapId2Nid[r.mSbjctToken]
+                
             if r.mQueryToken != last_token:
                 if last_token:
                     yield NeighboursRecord( last_token, matches )
@@ -246,6 +247,7 @@ class NeighboursIterator:
             
         if last_token:
             yield NeighboursRecord( last_token, matches )
+
         raise StopIteration
 
     def __iter__(self):
@@ -347,7 +349,7 @@ def readMapId2Nid( infile, storage = "memory" ):
             if line.startswith("nid"): continue
             data = line[:-1].split("\t")[:2]
             # convert types to bytes/int to save memory
-            m[bytes(data[1])] = bytes( data[0] )
+            m[bytes(data[1])] = int( data[0] )
 
         if storage != "memory":
             m.close()

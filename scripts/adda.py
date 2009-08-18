@@ -10,7 +10,7 @@ from multiprocessing import Process, cpu_count, Pool
 import multiprocessing
 
 import fileinput
-# segfault on my machine without the print statement - strange
+import cadda
 
 import Adda.Experiment as E
 from Adda import *
@@ -93,27 +93,30 @@ class RunOnGraph(Run):
 
         #print h.heap()
 
-        L.info( "loading map_id2nid from %s" % config.get( "files", "output_nids", "adda.nids" ))
-        infile = open( config.get( "files", "output_nids", "adda.nids" ) )
-        self.mMapId2Nid = AddaIO.readMapId2Nid( infile, 
-                                                storage = config.get( "files", "storage_nids", "memory" ) )
-        infile.close()
-
-        #print h.heap()
-
         if "all" in steps or "fit" in steps:
             L.info( "loading domain boundaries from %s" % config.get( "files", "input_reference") )
             infile = AddaIO.openStream( config.get( "files", "input_reference") )
             rx_include = config.get( "fit", "family_include", "") 
+
+            L.info( "loading map_id2nid from %s" % config.get( "files", "output_nids", "adda.nids" ))
+            infile = open( config.get( "files", "output_nids", "adda.nids" ) )
+            self.mMapId2Nid = AddaIO.readMapId2Nid( infile, 
+                                                storage = config.get( "files", "storage_nids", "memory" ) )
+            infile.close()
+
             self.mMapNid2Domains = AddaIO.readMapNid2Domains( infile, 
                                                               self.mMapId2Nid, 
                                                               rx_include,
                                                               storage = config.get( "files", "storage_domains", "memory" ) )
             infile.close()
+            self.mMapId2Nid = None
         else:
             self.mMapNid2Domains = None
-
+            self.mMapId2Nid = None
         #print h.heap()
+
+        self.mFilenameGraph = config.get( "files", "output_graph", "adda.graph")
+        self.mFilenameIndex = config.get( "files", "output_index", "adda.graph.index")
 
     def __call__(self, argv ):
         """run job, catching all exceptions and returning a tuple."""
@@ -130,8 +133,9 @@ class RunOnGraph(Run):
 
     def apply( self, argv ):
 
-        (filename, options, order, map_module, config, chunk, nchunks ) = argv
-        L.info( "starting chunk %i on %s" % (chunk, filename) )
+        (chunk, nchunks, options, order, map_module, config ) = argv
+
+        L.info( "chunk %i: setting up" % (chunk ))
 
         if "all" in options.steps: steps = order
         else: steps = options.steps
@@ -141,10 +145,6 @@ class RunOnGraph(Run):
             L.info( "opening map_nid2domains from cache" )
             self.mMapNid2Domains = shelve.open( config.get( "files", "storage_domains", "memory" ), "r")
 
-        if self.mMapId2Nid == None:
-            L.info( "opening map_id2nid from cache" )
-            self.mMapId2Nid = shelve.open( config.get( "files", "storage_nids", "memory" ), "r")
-
         # build the modules
         modules = []
         for step in order:
@@ -152,7 +152,7 @@ class RunOnGraph(Run):
                 if map_module[step]( options, 
                                      config = config, 
                                      fasta = self.mFasta ).isComplete():
-                    L.info( "%s:full is complete" % step )
+                    L.info( "chunk %i: step %s is complete" % (chunk, step ))
                     continue
 
                 module = map_module[step]( options, 
@@ -166,76 +166,46 @@ class RunOnGraph(Run):
                 if not module.isComplete():
                     modules.append( module )
                 else:
-                    L.info( "%s:%i is complete" % (step, chunk) )
+                    L.info( "chunk %i: step %s is complete" % (chunk,step) )
 
         if len(modules) == 0: 
-            L.info( "nothing to be done" )
+            L.info( "chunk %i: nothing to be done" % chunk )
             return
-
-        L.info( "opening graph %s at chunk %i" % (filename, chunk) )
-
-        gzip_factor = None
-        if filename.endswith(".gz"):
-            uncompressed_size = config.get( "files", "input_graph_uncompressed_size", 0 )
-            if uncompressed_size > 0:
-                compressed_size = FileSlice.getFileSize( filename )
-                assert compressed_size < uncompressed_size, "file size of gzipped graph is larger than given uncompressed size" 
-                gzip_factor = float(compressed_size) / uncompressed_size
-                L.info( "setting graph compression to %5.2f (compressed = %i / uncompressed = %i)" % (gzip_factor, compressed_size, uncompressed_size) )
-                assert 0.1 < gzip_factor < 0.8, "gzip factor unrealistic - values between 0.1 and 0.8 are usual, but is %f" % gzip_factor
-
-        iterator = FileSlice.IteratorMultiline( filename, 
-                                                nchunks,
-                                                chunk,
-                                                FileSlice.groupby,
-                                                key = lambda x: x[:x.index("\t")],
-                                                gzip_factor = gzip_factor )
-
-        if options.alignment_format == "pairsdb":
-            record_type = AddaIO.NeighbourRecordPairsdb
-        elif options.alignment_format == "pairsdb-old":
-            record_type = AddaIO.NeighbourRecordPairsdbOld
-        elif options.alignment_format == "simap":
-            record_type = AddaIO.NeighbourRecordSimap
-        elif options.alignment_format == "pairsdb-realign":
-            record_type = AddaIO.NeighbourRecordPairsdbRealign
-        else:
-            raise ValueError ("unknown record type %s" % options.alignment_format)
 
         for module in modules: module.startUp()
 
-        L.info( "starting work on modules: %s" % (",".join(map(str, modules))) )
+        L.info( "chunk %i: starting work on modules: %s" % (chunk, ",".join(map(str, modules))) )
 
-        map_id2nid = self.mMapId2Nid
+        # find out nids to work with
+        nids = map(int, self.mFasta.keys())
+        nids.sort()
+        increment = int( math.ceil( len(nids) / float(nchunks) ) )
+        start = chunk * increment
+        nids = nids[start:start+increment]
+        
+        L.info( "chunk %i: starting work on %i nids from %s to %s" % (chunk, len(nids), str(nids[0]), str(nids[-1]) ) )
 
-        for record in iterator:
-            neighbours = []
-            q = None
-            for line in record:
-                n = record_type( line )
-                if map_id2nid:
-                    if (n.mQueryToken not in map_id2nid or \
-                            n.mSbjctToken not in map_id2nid ):
-                        continue 
-                    q = n.mQueryToken = map_id2nid[n.mQueryToken]
-                    n.mSbjctToken = map_id2nid[n.mSbjctToken]
+        index = cadda.IndexedNeighbours( self.mFilenameGraph, self.mFilenameIndex )
 
-                neighbours.append( n )
+        iteration = 0
+        for nid in nids:
+            iteration += 1
+            neighbours = index.getNeighbours( nid )
 
-            L.info( "started: nid=%s, neighbours=%i" % (str(q), len(neighbours) ) )
+            L.info( "chunk %i: started nid=%s, neighbours=%i, progress=%i/%i" % (chunk, str(nid), len(neighbours), iteration, len(nids) ) )
 
             if neighbours:
                 for module in modules:
-                    module.run( AddaIO.NeighboursRecord( q, neighbours ) )
+                    module.run( AddaIO.NeighboursRecord( nid, neighbours ) )
 
-            L.info( "finished: nid=%s, neighbours=%i" % (str(q), len(neighbours) ) )
+            L.info( "chunk %i: finished nid=%s, neighbours=%i, progress=%i/%i" % (chunk, str(nid), len(neighbours), iteration, len(nids) ) )
 
-        L.info( "running finish on modules: %s" % (",".join(map(str, modules))) )
+        L.info( "chunk %i: running finish on modules: %s" % (chunk, ",".join(map(str, modules))) )
 
         for module in modules:
             module.finish()
 
-        L.info( "finished chunk %i on %s" % (chunk, filename) )
+        L.info( "chunk %i: finished  %i nids" % (chunk, len(nids)) )
 
 def run_on_file( argv ):
 
@@ -320,7 +290,7 @@ def getChunks( options, config ):
 
     return nchunks, chunks
         
-def runParallel( runner, filename, options, order, map_module, config ):
+def runParallel( runner, nids, options, order, map_module, config ):
     """process filename in paralell."""
 
     if options.num_jobs:
@@ -332,7 +302,9 @@ def runParallel( runner, filename, options, order, map_module, config ):
 
     L.info( "running %i chunks in %i parallel jobs" % (len(chunks), njobs ))
     
-    args = [ (filename, options, order, map_module, config, chunk, nchunks ) for chunk in chunks ]
+    nids.sort()
+
+    args = [ (chunk, nchunks, options, order, map_module, config ) for chunk in chunks ]
 
     logging.info('starting parallel jobs')
 
@@ -354,7 +326,32 @@ def runParallel( runner, filename, options, order, map_module, config ):
 
     L.info( "all jobs finished" )
 
-def runSequentially( runner, filename, options, order, map_module, config ):
+def runSequentially( runner, options, order, map_module, config ):
+    """process filename sequentially."""
+
+    nchunks, chunks = getChunks( options, config )
+    
+    L.info( "running %i chunks sequentially" % (len(chunks) ))
+
+    args = [ (chunk, nchunks, options, order, map_module, config ) for chunk in chunks ]
+
+    for (job, argv) in enumerate(args):
+        L.info( "job %i started" % job )
+        error = runner( argv )
+
+        if error:
+            print "adda caught an exceptions"
+            exception_name, exception_value, exception_stack = error
+            print exception_stack,
+            print "## end of exceptions"
+            sys.exit(1)
+
+        L.info( "job %i finished" % job )
+
+
+    L.info( "all jobs finished" )
+
+def oldrunSequentially( runner, filename, options, order, map_module, config ):
     """process filename sequentially."""
 
     nchunks, chunks = getChunks( options, config )
@@ -499,6 +496,22 @@ def main():
          map_module = map_module,
          config = config )
 
+    mFilenameGraph = config.get( "files", "output_graph", "adda.graph")
+    mFilenameIndex = config.get( "files", "output_index", "adda.graph.index")
+
+    #i = cadda.IndexedNeighbours( mFilenameGraph, mFilenameIndex )
+    #n = i.getNeighbours(1)
+    #for nn in n: print str(nn)
+    #sys.exit(1)
+
+
+
+    # build the adda graph
+    run( options,
+         order = ( "index", ),
+         map_module = map_module,
+         config = config )
+
     if options.num_jobs == 1: 
         run_parallel = runSequentially
     else:
@@ -514,19 +527,18 @@ def main():
             order = ("realign", ),
             map_module = map_module,
             config = config )
-    
+
     run_parallel( 
         run_on_graph,
-        filename = config.get( "files", "input_graph", "adda.graph" ),
         options = options, 
-        order = ("fit", "segment", "graph", "profiles" ),
+        order = ("fit", "segment" ),
         map_module = map_module,
         config = config )
 
     fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
 
     if not merge( options,
-                  order = ("fit", "segment", "graph", "profiles" ),
+                  order = ("fit", "segment" ),
                   map_module = map_module,
                   config = config,
                   fasta = fasta ):
@@ -535,7 +547,7 @@ def main():
         return
         
     run( options, 
-         order = ("index", "check-index", "optimise" ),
+         order = ( "optimise", ),
          map_module = map_module,
          config = config,
          fasta = fasta)
@@ -559,7 +571,6 @@ def main():
 
     run_parallel( 
         run_on_file,
-        config.get( "files", "output_mst", "adda.mst" ),
         options = options, 
         order = ( "align", ),
         map_module = map_module,

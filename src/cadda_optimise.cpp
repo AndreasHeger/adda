@@ -144,7 +144,7 @@ struct Link {
 typedef std::list< Link > LinkList;
 typedef std::vector< LinkList > Links;
 
-typedef std::map<Nid,FileIndex> FileIndexMap;
+typedef std::vector<FileIndex> FileIndexMap;
 typedef std::map<Nid,Index> IndexMap;
 typedef std::vector<Nid> NidMap;
 
@@ -162,7 +162,6 @@ struct TreeNode
 
 typedef std::vector< TreeNode > Tree;
 typedef std::vector<Tree> Trees;
-
 
 std::ostream & operator<<( std::ostream & output, const Partition & src)
 {
@@ -185,7 +184,6 @@ std::ostream & operator<<( std::ostream & output, const Link & src) {
 	<< " sbjct_from=" << src.sbjct_from << " sbjct_to=" << src.sbjct_to;
 	return output;
 }
-
 
 std::ostream & operator<<( std::ostream & output, const LinkList & src) {
 	std::copy( src.begin(), src.end(), std::ostream_iterator< Link >( std::cout, "\n"));
@@ -281,13 +279,13 @@ void fillLinks( FILE * infile,
 		Residue query_from, query_to, sbjct_from, sbjct_to;
 
 		{
-			int r = fscanf( infile,
-				"%ld\t%ld\t%f\t%i\t%i\t%i\t%i",
-				&query_nid,
-				&sbjct_nid,
-				&score,
-				&query_from, &query_to,
-				&sbjct_from, &sbjct_to);
+		  int r = fscanf( infile,
+				  "%ld\t%ld\t%f\t%i\t%i\t%i\t%i",
+				  &query_nid,
+				  &sbjct_nid,
+				  &score,
+				  &query_from, &query_to,
+				  &sbjct_from, &sbjct_to);
 			assert( r == 7);
 		}
 
@@ -635,37 +633,46 @@ double calculatePartitionScore( LinkList & links,
 //--------------------------------------------------------------------------------
 void fillFileIndexMap( FileIndexMap & map_nid2fileindex, std::string & file_name_index)
 {
+  FILE * file = fopen(file_name_index.c_str(), "r");
 
-	FILE * file = fopen(file_name_index.c_str(), "r");
+  if (file == NULL)
+    {
+      std::cerr << "could not open filename with indices: " << file_name_index << std::endl;
+      exit(EXIT_FAILURE);
+    }
 
-	if (file == NULL)
-	{
-		std::cerr << "could not open filename with indices: " << file_name_index << std::endl;
-		exit(EXIT_FAILURE);
-	}
+  Nid nnids = 0;
+  
+  if (fread( &nnids, sizeof(Nid), 1, file ) != 1 or ferror( file) )
+    {
+      std::cerr << "could not read index from " << file_name_index << std::endl;
+      exit(EXIT_FAILURE);
+    }
 
-	while(!feof(file))
-	{
+  FileIndex * index = (FileIndex *)new FileIndex[nnids];
+  
+  if (index == NULL)
+    {
+      std::cerr << "out of memory when allocating index for %i nids" << nnids << std::endl;
+      exit(EXIT_FAILURE);
+      
+    }
+  
+  if (fread( index, sizeof(FileIndex), nnids, file ) != (size_t)nnids or ferror(file))
+    {
+      free( index );
+      std::cerr << "failure while reading index for %i nids" << nnids << std::endl;
+      exit(EXIT_FAILURE);
+    }
+  
+  fclose( file );
 
-		Nid nid = 0;
-		FileIndex index;
-
-		{
-		  int r = fread(&nid,sizeof(Nid), 1, file);
-		  assert( r == 1 );
-		}
-		if (feof(file)) break;
-		{
-		  int r = fread(&index, sizeof(FileIndex), 1, file);
-		  assert( r == 1 );
-		}
-		map_nid2fileindex[nid] = index;
-	}
-
-	fclose(file);
-
+  for (Nid x = 1; x < nnids; ++x)
+    {
+      map_nid2fileindex[x] = index[x];
+    }
+  delete [] index;
 }
-
 
 // global variables
 IndexMap global_map_nid2index;
@@ -758,7 +765,7 @@ double cadda_optimise_iteration()
 			LinkList links;
 
 			fillLinks( global_file_links,
-				   global_map_nid2fileindex.find(nid)->second,
+				   global_map_nid2fileindex[nid],
 				   nid,
 				   global_map_nid2index,
 				   back_insert_iterator< LinkList >(links));

@@ -408,25 +408,15 @@ class IndexedFasta:
             if line.startswith("#"): continue
             data = line[:-1].split("\t")
 
-            if len(data) == 2:
-                self.mSynonyms[bytes(data[0])] = bytes(data[1])
+            # index with random access points
+            if len(data) > 4:
+                (identifier, pos_id, block_size, lsequence) = bytes(data[0]), int(data[1]), int(data[2]), int(data[-1])
+                points = map(int, data[3:-1])
+                self.mIndex[int(identifier)] = (pos_id, block_size, lsequence, points)
             else:
-
-                ## index with random access points
-                if len(data) > 4:
-                    (identifier, pos_id, block_size, lsequence) = bytes(data[0]), int(data[1]), int(data[2]), int(data[-1])
-                    points = map(int, data[3:-1])
-                    self.mIndex[identifier] = (pos_id, block_size, lsequence, points)
-                else:
-                    (identifier, pos_id, pos_seq, lsequence) = bytes(data[0]), int(data[1]), int(data[2]), int(data[-1])
-                    self.mIndex[identifier] = (pos_id, pos_seq, lsequence)                    
+                (identifier, pos_id, pos_seq, lsequence) = bytes(data[0]), int(data[1]), int(data[2]), int(data[-1])
+                self.mIndex[int(identifier)] = (pos_id, pos_seq, lsequence)                    
                     
-            ## patch for special case: chr1 = 1
-            if identifier[0:3] == "chr":
-                self.mSynonyms[identifier[3:]] = identifier
-            #else:
-            #    self.mSynonyms[identifier] = "chr%s" % identifier
-
         self.mIsLoaded = True
 
     def addSequence( self, identifier, sequence ):

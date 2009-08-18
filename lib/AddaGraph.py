@@ -71,7 +71,6 @@ class AddaGraph( AddaModuleRecord ):
         
         This ensures that 1:many repeats are not merged, but will
         cover alignments split by transmembrane regions.
-        
         """
 
         nid = neighbours.mQueryToken
