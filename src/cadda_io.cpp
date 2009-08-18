@@ -74,6 +74,8 @@ int toCompressedFile( unsigned char * buffer, size_t uncompressed_size, FILE * o
       free( compressed );
       return -10;
     }
+
+  free( compressed );
   return zok;
 }
 
