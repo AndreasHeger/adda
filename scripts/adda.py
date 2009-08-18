@@ -94,15 +94,16 @@ class RunOnGraph(Run):
         #print h.heap()
 
         if "all" in steps or "fit" in steps:
-            L.info( "loading domain boundaries from %s" % config.get( "files", "input_reference") )
-            infile = AddaIO.openStream( config.get( "files", "input_reference") )
-            rx_include = config.get( "fit", "family_include", "") 
 
             L.info( "loading map_id2nid from %s" % config.get( "files", "output_nids", "adda.nids" ))
             infile = open( config.get( "files", "output_nids", "adda.nids" ) )
             self.mMapId2Nid = AddaIO.readMapId2Nid( infile, 
-                                                storage = config.get( "files", "storage_nids", "memory" ) )
+                                                    storage = config.get( "files", "storage_nids", "memory" ) )
             infile.close()
+
+            L.info( "loading domain boundaries from %s" % config.get( "files", "input_reference") )
+            infile = AddaIO.openStream( config.get( "files", "input_reference") )
+            rx_include = config.get( "fit", "family_include", "") 
 
             self.mMapNid2Domains = AddaIO.readMapNid2Domains( infile, 
                                                               self.mMapId2Nid, 
@@ -290,7 +291,7 @@ def getChunks( options, config ):
 
     return nchunks, chunks
         
-def runParallel( runner, nids, options, order, map_module, config ):
+def runParallel( runner, options, order, map_module, config ):
     """process filename in paralell."""
 
     if options.num_jobs:
@@ -302,8 +303,6 @@ def runParallel( runner, nids, options, order, map_module, config ):
 
     L.info( "running %i chunks in %i parallel jobs" % (len(chunks), njobs ))
     
-    nids.sort()
-
     args = [ (chunk, nchunks, options, order, map_module, config ) for chunk in chunks ]
 
     logging.info('starting parallel jobs')

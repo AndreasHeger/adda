@@ -534,7 +534,7 @@ def indexGraph( graph_iterator, num_nids, output_filename_graph, output_filename
             
         used = p1 - buffer
         err = toCompressedFile( buffer, used, output_f )
-        if err: raise ValueError( "error %i while writing compressed buffer to file" )
+        if err: raise ValueError( "error %i while writing compressed buffer to file" % err )
 
     fclose( output_f )
 
@@ -570,7 +570,8 @@ cdef class IndexedNeighbours:
 
         if fread( self.mIndex, sizeof(FileIndex), nnids, index_f ) != nnids or ferror(index_f):
             raise OSError( "could not read index from %s" % filename_index )
-        
+        fclose( index_f)
+
         self.mFile = fopen( filename_graph, "rb" )
         
         self.mNids = nnids
