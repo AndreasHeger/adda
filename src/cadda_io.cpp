@@ -66,13 +66,13 @@ int toCompressedFile( unsigned char * buffer, size_t uncompressed_size, FILE * o
   if ( zok != Z_OK || fwrite( &compressed_size, sizeof(uLongf), 1, output_f ) != 1 || ferror( output_f ))
     {
       free( compressed );
-      return Z_ERRNO;
+      return zok;
     }
         
   if ( fwrite(compressed, 1, compressed_size, output_f) != compressed_size || ferror(output_f))
     {
       free( compressed );
-      return Z_ERRNO;
+      return -10;
     }
   return zok;
 }
