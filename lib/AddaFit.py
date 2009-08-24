@@ -330,8 +330,8 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
 
             # ignore links to self and those between nids without domains
             if n.mQueryToken == n.mSbjctToken or \
-                    n.mQueryToken not in self.mMapNid2Domains or \
-                    n.mSbjctToken not in self.mMapNid2Domains: continue
+                    str(n.mQueryToken) not in self.mMapNid2Domains or \
+                    str(n.mSbjctToken) not in self.mMapNid2Domains: continue
 
             if self.mContinueAt:
                 if (n.mQueryToken,n.mSbjctToken) == self.mContinueAt:
@@ -339,8 +339,8 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
                     self.mContinueAt = None
                 continue
 
-            qdomains = self.mMapNid2Domains[n.mQueryToken]
-            sdomains = self.mMapNid2Domains[n.mSbjctToken]
+            qdomains = self.mMapNid2Domains[str(n.mQueryToken)]
+            sdomains = self.mMapNid2Domains[str(n.mSbjctToken)]
             
             for family in set(qdomains.keys()).intersection( set(sdomains.keys())):
                 xdomains = qdomains[family]
@@ -533,3 +533,4 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         self.readPreviousData( self.mFilenameDetails )
         self.finish()
             
+        return True
