@@ -30,6 +30,9 @@
 //------------------------------------------------------------------------
 FILE * openFileForRead( const std::string & filename );
 FILE * openFileForWrite( const std::string & filename );
+int toCompressedFile( unsigned char *, size_t, FILE *);
+int fromCompressedFile( unsigned char *, size_t, FILE *);
+
 
 //------------------------------------------------------------------------
 typedef long Nid;

@@ -132,12 +132,14 @@ class AddaModule:
         return self.mNumChunks > 1
 
     #--------------------------------------------------------------------------
-    def merge(self):
+    def merge(self, filenames = None):
         """merge runs from parallel computations.
 
         return false if segmented file is not complete.
         """
-        for f in self.mFilenames: 
+
+        if filenames == None: filenames = self.mFilenames
+        for f in filenames:
             self.info( "merging file %s from %i chunks" % (f, self.mNumChunks) )
 
             # check if all parts have finished and are present

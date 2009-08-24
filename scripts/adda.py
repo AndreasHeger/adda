@@ -193,13 +193,13 @@ class RunOnGraph(Run):
             iteration += 1
             neighbours = index.getNeighbours( nid )
 
-            L.info( "chunk %i: started nid=%s, neighbours=%i, progress=%i/%i" % (chunk, str(nid), len(neighbours), iteration, len(nids) ) )
+            L.info( "chunk %i: started nid=%s, neighbours=%i, progress=%i/%i (%5.1f%%)" % (chunk, str(nid), len(neighbours), iteration, len(nids), 100.0 * iteration / len(nids) ) )
 
             if neighbours:
                 for module in modules:
                     module.run( AddaIO.NeighboursRecord( nid, neighbours ) )
 
-            L.info( "chunk %i: finished nid=%s, neighbours=%i, progress=%i/%i" % (chunk, str(nid), len(neighbours), iteration, len(nids) ) )
+            L.info( "chunk %i: finished nid=%s, neighbours=%i, progress=%i/%i (%5.1f%%)" % (chunk, str(nid), len(neighbours), iteration, len(nids), 100.0 * iteration / len(nids) ) )
 
         L.info( "chunk %i: running finish on modules: %s" % (chunk, ",".join(map(str, modules))) )
 
@@ -544,7 +544,7 @@ def main():
         L.info( "graph pre-processing incomplete - will not continue." )
         E.Stop()
         return
-        
+
     run( options, 
          order = ( "optimise", ),
          map_module = map_module,
@@ -560,6 +560,7 @@ def main():
          fasta = fasta)
 
     L.info( "computing minimum spanning tree" )
+
     run( options, 
          order = ( "mst", ),
          map_module = map_module,

@@ -75,6 +75,9 @@ int param_mode = 1;
 
 double param_evalue_threshold_trusted_links = -12;
 
+// minimum domain size (used for merging links)
+int param_min_domain_size = 30;
+
 // for mst
 size_t param_initial_graph_size;
 

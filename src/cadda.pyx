@@ -360,9 +360,9 @@ cdef unsigned char * toBuffer( Neighbour * n, unsigned char * buffer):
     return buffer
 
 cdef unsigned char * fromBuffer( Neighbour * n, unsigned char * buffer):
-    '''copy data in *n* into buffer.
+    '''copy data from buffer into *n*.
 
-    returns pointer to position in buffer after reading all data
+    returns pointer to position in buffer after reading one entry
     '''
     if n.query_ali != NULL: free( n.query_ali)
     if n.sbjct_ali != NULL: free( n.sbjct_ali)

@@ -463,8 +463,7 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         self.mOutfile = self.openOutputStream( self.mFilenameFit, register = False )
         self.mOutfileTransfer = self.openOutputStream( self.mFilenameTransfer, register = False )
         self.mOutfileOverhang = self.openOutputStream( self.mFilenameOverhang, register = False )        
-        
-        
+                
         x,y = self.getCumulativeHistogram(self.mTransferValues, reverse = True )
         self.writeHistogram( self.mOutfileTransfer, x, y )
 
@@ -518,7 +517,7 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         AddaModuleRecord.finish( self )
         
     #--------------------------------------------------------------------------
-    def merge(self):
+    def merge(self, filenames = None ):
         """merge runs from parallel computations.
         """
 
@@ -527,8 +526,10 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
             for fn in glob.glob( "%s.0*" % x ):
                 os.remove(fn)
 
-        # merge the details file and compute stats
-        if SegmentedFile.merge( self.mFilenameDetails ):
-            self.readPreviousData( self.mFilenameDetails )
-            self.finish()
+        # merge the details file if all is complete
+        if not AddaModuleRecord.merge( self, (self.mFilenameDetails, ) ): return False
+
+        self.mNumChunks = 1
+        self.readPreviousData( self.mFilenameDetails )
+        self.finish()
             

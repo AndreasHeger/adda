@@ -25,6 +25,7 @@
 #include <vector>
 #include <list>
 #include <set>
+#include <algorithm>
 
 // #define DEBUG
 
@@ -103,6 +104,7 @@ extern  int param_threshold_overlap;
 
 extern  bool param_only_query;	// if true, calculate only score for query
 
+extern int param_min_domain_size;
 
 //--------------------------------------------------------------------------------
 // use int for Residue, as sometimes the difference is
@@ -112,40 +114,43 @@ typedef unsigned int Node;
 typedef std::pair< Residue, Residue> Range;
 typedef std::vector< Range > Ranges;
 
-struct Partition {
-	Partition( Node xnode,
-			Residue xfrom,
-			Residue xto) :
-				node(xnode), from(xfrom), to(xto) {};
-				Node node;
-				Residue from;
-				Residue to;
+struct Partition
+{
+  Partition( Node xnode,
+	     Residue xfrom,
+	     Residue xto) :
+    node(xnode), from(xfrom), to(xto) {};
+  Node node;
+  Residue from;
+  Residue to;
 };
 
 typedef std::list< Partition > PartitionList;
 typedef std::vector< PartitionList > Partitions;
 
-struct Link {
-	Link( Residue xquery_from,
-			Residue xquery_to,
-			Index xsbjct_index,
-			Residue xsbjct_from,
-			Residue xsbjct_to) :
-				query_from(xquery_from), query_to(xquery_to),
-				sbjct_index(xsbjct_index),
-				sbjct_from(xsbjct_from), sbjct_to(xsbjct_to) {};
-				Residue query_from;
-				Residue query_to;
-				Index sbjct_index;
-				Residue sbjct_from;
-				Residue sbjct_to;
+struct Link
+{
+  Link( Residue xquery_from,
+	Residue xquery_to,
+	Index xsbjct_nid,
+	Residue xsbjct_from,
+	Residue xsbjct_to) :
+    query_from(xquery_from),
+    query_to(xquery_to),
+    sbjct_nid(xsbjct_nid),
+    sbjct_from(xsbjct_from),
+    sbjct_to(xsbjct_to) {};
+  Residue query_from;
+  Residue query_to;
+  Nid sbjct_nid;
+  Residue sbjct_from;
+  Residue sbjct_to;
 };
 
-typedef std::list< Link > LinkList;
+typedef std::vector< Link > LinkList;
 typedef std::vector< LinkList > Links;
 
 typedef std::vector<FileIndex> FileIndexMap;
-typedef std::map<Nid,Index> IndexMap;
 typedef std::vector<Nid> NidMap;
 
 struct TreeNode
@@ -179,7 +184,7 @@ std::ostream & operator<<( std::ostream & output, const PartitionList & src) {
 }
 
 std::ostream & operator<<( std::ostream & output, const Link & src) {
-	output << " sbjct_index=" << src.sbjct_index
+	output << " sbjct_nid=" << src.sbjct_nid
 	<< " query_from=" << src.query_from << " query_to=" << src.query_to
 	<< " sbjct_from=" << src.sbjct_from << " sbjct_to=" << src.sbjct_to;
 	return output;
@@ -201,29 +206,27 @@ std::ostream & operator<<( std::ostream & output, const TreeNode & src) {
 }
 
 void printTrees( std::ostream & output,
-		const Trees & trees, const NidMap & map_index2nid )
+		 const Trees & trees )
 {
-	Index index = 0;
-	for (;index<(Index)trees.size();++index)
-	{
-		Nid nid = map_index2nid[index];
-		Index ii = 0;
-		for (; ii < (Index)trees[index].size(); ++ii)
-			output << index << "\t" << nid << "\t" << ii << "\t" << trees[index][ii] << std::endl;
-	}
+  Nid nid = 1;
+  for (;nid<(Index)trees.size();++nid)
+    {
+      Index ii = 0;
+      for (; ii < (Index)trees[nid].size(); ++ii)
+	output << nid << "\t" << ii << "\t" << trees[nid][ii] << std::endl;
+    }
 }
 
 void printPartitions( std::ostream & output ,
-		const Partitions & partitions, const NidMap & map_index2nid )
+		      const Partitions & partitions )
 {
-	Index index = 0;
-	for (;index<(Index)partitions.size();++index)
-	{
-		Nid nid = map_index2nid[index];
-		PartitionList::const_iterator it(partitions[index].begin()), end(partitions[index].end());
-		for (;it!=end;++it)
-			output << nid << "\t" << it->from << "\t" << it->to << endl;
-	}
+  Nid nid = 1;
+  for (;nid<(Nid)partitions.size();++nid)
+    {
+      PartitionList::const_iterator it(partitions[nid].begin()), end(partitions[nid].end());
+      for (;it!=end;++it)
+	output << nid << "\t" << it->from << "\t" << it->to << endl;
+    }
 }
 
 inline void printSection()
@@ -231,96 +234,97 @@ inline void printSection()
 	std::cout << "##-------------------------------------------------------" << std::endl;
 }
 
-inline int convert(int x) { return (int)(floor( ( (x-1) / param_resolution) ) ); }
+inline int convert(int x) { return (int)(floor( ( x / param_resolution) ) ); }
 
 /** retrieve all links from nid using the table table_links starting at position
     index
  */
+
+struct IndexedNeighbour 
+{
+  Nid sbjct_nid;
+  float evalue;
+  uResidue query_start;
+  uResidue query_end;
+  uResidue sbjct_start;
+  uResidue sbjct_end;
+  Length query_alen;
+  Length sbjct_alen;
+  char * query_ali;
+  char * sbjct_ali;
+};
+
 template< class OutputIter >
 void fillLinks( FILE * infile,
 		const FileIndex & index,
 		const Nid & nid,
-		const IndexMap & map_nid2index,
 		OutputIter it)
 {
 
-	fsetpos( infile, &index );
+  fsetpos( infile, &index );
 
-#ifdef DEBUG
-	// check if you are correctly positioned
-	{
-		Nid query_nid, sbjct_nid;
-		float score;
-		Residue query_from, query_to, sbjct_from, sbjct_to;
-		fscanf( infile,
-			"%ld\t%ld\t%f\t%i\t%i\t%i\t%i",
-			&query_nid,
-			&sbjct_nid,
-			&score,
-			&query_from, &query_to,
-			&sbjct_from, &sbjct_to);
+  size_t nneighbours;
+  Nid query_nid;
+	
+  int n = 0;
+  
+  n = fread( &query_nid, sizeof(Nid), 1, infile );
+  n += fread( &nneighbours, sizeof(size_t), 1, infile );
+  
+  if (n != 2 || ferror( infile ))
+    {
+      std::cerr << "error while reading neighbours: can not read query_nid" << std::endl;
+      exit(EXIT_FAILURE);
+    }
 
-		if (query_nid != nid)
-		{
-		        std::cerr << "# positioning error in fillLinks: nid=" \
-				  << nid << "\tquery_nid=" << query_nid << std::endl;
-			exit(EXIT_FAILURE);
-		}
-		fsetpos( infile, &index );
-	}
-#endif
+  if (nid != query_nid and query_nid != 0)
+    {
+      std::cerr << "positioning error for nid " << nid << " got: " << query_nid << std::endl;
+      exit(EXIT_FAILURE);
+    }
 
-	char buffer[MAX_LINE_LENGTH+1];
+  if (query_nid == 0) return;
+  
+  
+#define MAX_BUFFER_SIZE 100000000
+  unsigned char * buffer = (unsigned char *)calloc( MAX_BUFFER_SIZE, sizeof(unsigned char) );
+  int retval = fromCompressedFile( buffer, MAX_BUFFER_SIZE, infile );
+  if (retval != 0)
+    {
+      std::cerr << "error during uncompression for nid " << query_nid << ":" << retval << std::endl;
+      free(buffer);
+      exit(EXIT_FAILURE);
+    }
+	  
+  IndexedNeighbour * nei;
+  
+  unsigned char * p = buffer;
+  
+  // see also cadda.py: fromBuffer()
+  for (size_t x = 0; x < nneighbours; ++x)
+    {
+      nei = (IndexedNeighbour*)p;
+      
+      p += sizeof( IndexedNeighbour) - 2 * sizeof(char *);
+      p += sizeof( char ) * (nei->query_alen + 1);
+      p += sizeof( char ) * (nei->sbjct_alen + 1);
 
-	while (!feof(infile))
-	{
-		Nid query_nid, sbjct_nid;
-		float score;
-		Residue query_from, query_to, sbjct_from, sbjct_to;
+      if (query_nid == nei->sbjct_nid)
+	continue;
 
-		{
-		  int r = fscanf( infile,
-				  "%ld\t%ld\t%f\t%i\t%i\t%i\t%i",
-				  &query_nid,
-				  &sbjct_nid,
-				  &score,
-				  &query_from, &query_to,
-				  &sbjct_from, &sbjct_to);
-			assert( r == 7);
-		}
+      *it = Link(convert(nei->query_start),
+		 convert(nei->query_end)+1,
+		 nei->sbjct_nid,
+		 convert(nei->sbjct_start),
+		 convert(nei->sbjct_end)+1);
+      ++it;
+    }
+  
+  // reset stream, move away from eof.
+  if (feof(infile))
+    rewind(infile);
 
-		char * r = fgets( buffer, MAX_LINE_LENGTH, infile );
-		assert( r != NULL );
-
-#ifdef DEBUG
-		std::cout << "read the following: " << std::endl;
-		std::cout << " " << query_nid << " " << sbjct_nid << " " << query_from << "-" << query_to \
-			  << " " << sbjct_from << "-" << sbjct_to << " " << endl;
-#endif
-
-		if (query_nid != nid)
-			break;
-
-		if (query_nid == sbjct_nid)
-			continue;
-
-		IndexMap::const_iterator i;
-		if ( (i = map_nid2index.find( sbjct_nid )) != map_nid2index.end())
-		{
-			Index sbjct_index = i->second;
-			*it = Link(convert(query_from),
-				   convert(query_to)+1,
-				   sbjct_index,
-				   convert(sbjct_from),
-				   convert(sbjct_to)+1);
-			++it;
-		}
-	}
-
-	// reset stream, move away from eof.
-	if (feof(infile))
-		rewind(infile);
-
+  free(buffer);
 }
 
 template< class T>
@@ -344,7 +348,6 @@ inline void printMap( const T & index, const char * title = "" )
     nid	node	parent	level	xfrom	xto
  */
 void fillTrees( ifstream & infile,
-		const IndexMap & map_nid2index,
 		Trees & trees)
 {
     
@@ -366,34 +369,28 @@ void fillTrees( ifstream & infile,
       infile.ignore(10000, '\n');
       if (infile.eof()) break;
 		
-      IndexMap::const_iterator it = map_nid2index.find(nid);
-      
-      if (it != map_nid2index.end())
-	{
-	  Index index = it->second;
-	  // std::cout << nid << "\t" << parent << "\t" << xfrom << "\t" << xto << "\t" << index <<endl;
-	  trees[index].push_back( TreeNode(parent,0,0,xfrom,xto) );
-	}
+      // std::cout << nid << "\t" << parent << "\t" << xfrom << "\t" << xto << "\t" <<endl;
+      trees[nid].push_back( TreeNode(parent,0,0,xfrom,xto) );
     }
 
-	Trees::iterator it(trees.begin()), end(trees.end());
-	for (;it!=end;++it)
+  Trees::iterator it(trees.begin()), end(trees.end());
+  for (;it!=end;++it)
+    {
+      Tree & t = *it;
+      // skip root, child can not be 0 (unless in leaves)
+      for (unsigned int i = 1; i < t.size(); ++i)
 	{
-		Tree & t = *it;
-		// skip root, child can not be 0 (unless in leaves)
-		for (unsigned int i = 1; i < t.size(); ++i)
-		{
-			int parent = t[i].mParent;
-			if (t[parent].mLeftChild)
-			{
-				t[parent].mRightChild = i;
-			}
-			else
-			{
-				t[parent].mLeftChild = i;
-			}
-		}
+	  int parent = t[i].mParent;
+	  if (t[parent].mLeftChild)
+	    {
+	      t[parent].mRightChild = i;
+	    }
+	  else
+	    {
+	      t[parent].mLeftChild = i;
+	    }
 	}
+    }
 }
 
 //--------------------------------------------------------------------------------
@@ -401,22 +398,22 @@ void fillTrees( ifstream & infile,
  */
 template< class OutputIter >
 void fillPartitionsWithChildren( const Trees & trees,
-		const Index index,
-		const Node parent_node,
-		OutputIter it)
+				 const Nid nid,
+				 const Node parent_node,
+				 OutputIter it)
 {
 
-	int left = trees[index][parent_node].mLeftChild;
-	int right = trees[index][parent_node].mRightChild;
+	int left = trees[nid][parent_node].mLeftChild;
+	int right = trees[nid][parent_node].mRightChild;
 	if (left)
 	{
-		*it = Partition( left, trees[index][left].mFrom, trees[index][left].mTo );
+		*it = Partition( left, trees[nid][left].mFrom, trees[nid][left].mTo );
 		++it;
 	}
 
 	if (right)
 	{
-		*it = Partition( right, trees[index][right].mFrom, trees[index][right].mTo);
+		*it = Partition( right, trees[nid][right].mFrom, trees[nid][right].mTo);
 		++it;
 	}
 }
@@ -562,9 +559,9 @@ inline double calculateScore(
 	}
 
 	if (param_only_query)
-		return s + s2;
+	  return s + s2;
 	else
-		return s + s1 + s2;
+	  return s + s1 + s2;
 }
 
 
@@ -573,40 +570,38 @@ double calculatePartitionScore( LinkList & links,
 		Partition  & old_partition,
 		PartitionList & new_partitions)
 {
+  double delta_score = 0;
 
-	double delta_score = 0;
+  //------------------------
+  // 1. loop over links
+  LinkList::iterator it(links.begin()), it_end( links.end());
+  
+  for (; it != it_end; ++it)
+    {
+      Nid sbjct_nid = it->sbjct_nid;
 
-	//------------------------
-	// 1. loop over links
-	LinkList::iterator it(links.begin()), it_end( links.end());
+      //------------------------
+      // 2. loop over partitions in sbjct sequence linked to query sequence
+      PartitionList::iterator pit(partitions[sbjct_nid].begin()), pend(partitions[sbjct_nid].end());
 
-	for (; it != it_end; ++it)
+      for (;pit!=pend;++pit)
 	{
-
-		Index sbjct_index = it->sbjct_index;
-
-		//------------------------
-		// 2. loop over partitions in sbjct sequence linked to query sequence
-		PartitionList::iterator pit(partitions[sbjct_index].begin()), pend(partitions[sbjct_index].end());
-
-		for (;pit!=pend;++pit)
-		{
-
-			if (param_loglevel >= 4)
-				cout << "------> testing partition idx=" << sbjct_index << " from=" << pit->from << " to=" << pit->to << endl;
-
-			// calculate score for original partition
-			double old_score = calculateScore( Range( pit->from, pit->to),
-					Range( old_partition.from, old_partition.to),
-					Range( it->sbjct_from, it->sbjct_to),
-					Range( it->query_from, it->query_to));
+	  
+	  if (param_loglevel >= 4)
+	    cout << "------> testing partition nid=" << sbjct_nid << " from=" << pit->from << " to=" << pit->to << endl;
+	  
+	  // calculate score for original partition
+	  double old_score = calculateScore( Range( pit->from, pit->to),
+					     Range( old_partition.from, old_partition.to),
+					     Range( it->sbjct_from, it->sbjct_to),
+					     Range( it->query_from, it->query_to));
 
 
-			// calculate score for new partitions
-			double new_score = 0;
-			PartitionList::iterator nit( new_partitions.begin()), nit_end( new_partitions.end());
-			for (; nit != nit_end; ++nit)
-			{
+	  // calculate score for new partitions
+	  double new_score = 0;
+	  PartitionList::iterator nit( new_partitions.begin()), nit_end( new_partitions.end());
+	  for (; nit != nit_end; ++nit)
+	    {
 				new_score += calculateScore( Range( pit->from, pit->to),
 						Range( nit->from, nit->to),
 						Range( it->sbjct_from, it->sbjct_to),
@@ -619,7 +614,7 @@ double calculatePartitionScore( LinkList & links,
 			if (param_loglevel >= 4)
 				cout << endl;
 			if (param_loglevel >= 3)
-				cout << "------> " << sbjct_index
+				cout << "------> " << sbjct_nid
 				<< " new_score=" << new_score
 				<< " old_score=" << old_score
 				<< " inc=" << new_score - old_score
@@ -642,7 +637,7 @@ void fillFileIndexMap( FileIndexMap & map_nid2fileindex, std::string & file_name
     }
 
   Nid nnids = 0;
-  
+
   if (fread( &nnids, sizeof(Nid), 1, file ) != 1 or ferror( file) )
     {
       std::cerr << "could not read index from " << file_name_index << std::endl;
@@ -650,14 +645,13 @@ void fillFileIndexMap( FileIndexMap & map_nid2fileindex, std::string & file_name
     }
 
   FileIndex * index = (FileIndex *)new FileIndex[nnids];
-  
+
   if (index == NULL)
     {
       std::cerr << "out of memory when allocating index for %i nids" << nnids << std::endl;
       exit(EXIT_FAILURE);
-      
     }
-  
+
   if (fread( index, sizeof(FileIndex), nnids, file ) != (size_t)nnids or ferror(file))
     {
       free( index );
@@ -667,6 +661,8 @@ void fillFileIndexMap( FileIndexMap & map_nid2fileindex, std::string & file_name
   
   fclose( file );
 
+  map_nid2fileindex.resize( nnids );
+  
   for (Nid x = 1; x < nnids; ++x)
     {
       map_nid2fileindex[x] = index[x];
@@ -675,12 +671,65 @@ void fillFileIndexMap( FileIndexMap & map_nid2fileindex, std::string & file_name
 }
 
 // global variables
-IndexMap global_map_nid2index;
-NidMap global_map_index2nid;
 FILE * global_file_links = NULL;
 FileIndexMap global_map_nid2fileindex;
 Partitions global_partitions;
 Trees global_trees;
+
+bool Sorter(const Link& lhs, const Link& rhs)
+{
+  if (lhs.sbjct_nid == rhs.sbjct_nid)
+    return lhs.query_from < rhs.query_from;
+  else
+    return lhs.sbjct_nid < rhs.sbjct_nid;
+}
+  
+
+// merge links
+void mergeLinks( LinkList & links )
+{
+  LinkList tmp;
+  
+  std::sort( links.begin(), links.end(), Sorter );
+
+  LinkList::iterator it(links.begin()), it_end( links.end());
+  ++it;
+  
+  LinkList::iterator last(links.begin());
+  
+  for (; it != it_end; ++it)
+    {
+      if ( (it->sbjct_nid == last->sbjct_nid) &&
+	   (it->query_from - last->query_to <= param_min_domain_size ) &&
+	   (it->sbjct_from - last->sbjct_to <= param_min_domain_size ) &&
+	   (it->query_from - last->query_to > 0) &&
+	   (it->sbjct_from - last->sbjct_to > 0) )
+	{
+	  last->query_to = max(last->query_to, it->query_to);
+	  last->sbjct_to = max(last->sbjct_to, it->sbjct_to);
+	}
+      else
+	{
+	  tmp.push_back(*last);
+	  last = it;
+	}
+    }
+  
+  tmp.push_back(*last);
+  
+
+  if (links.size() != tmp.size())
+    {
+      if (param_loglevel >= 6)
+	{
+	  std::cout << "# ------------------------------------------------------------------------" << endl;
+	  std::cout << "# merged links: before=" << links.size() << " after=" << tmp.size() << endl;
+	}
+      links.clear();
+      std::copy( tmp.begin(), tmp.end(),
+		 back_insert_iterator< LinkList >(links));
+    }
+}
 
 //--------------------------------------------------------------------------------
 /** optimize partitions.
@@ -706,100 +755,104 @@ Trees global_trees;
 double cadda_optimise_iteration()
 {
 
-	if (param_loglevel >= 3)
+  if (param_loglevel >= 3)
+    {
+      std::cout << "# ------------------------------------------------------------------------" << endl;
+      std::cout << "# partitions at start of iteration" << endl;
+      printPartitions(
+		      std::cout,
+		      global_partitions );
+    }
+
+  double improvement = 0;
+  
+  Nid nid = 1;
+  
+  for (; nid < (Nid)global_map_nid2fileindex.size(); ++nid)
 	{
-		std::cout << "# ------------------------------------------------------------------------" << endl;
-		std::cout << "# partitions at start of iteration" << endl;
-		printPartitions(
-				std::cout,
-				global_partitions,
-				global_map_index2nid );
-	}
+	  if (param_loglevel >= 2)
+	    cout << "--> checking split of sequence " << nid << endl;
 
-	double improvement = 0;
+	  LinkList links;
+	  
+	  fillLinks( global_file_links,
+		     global_map_nid2fileindex[nid],
+		     nid,
+		     back_insert_iterator< LinkList >(links));
 
-	Index index = 0;
-	for (; index < (Index)global_map_index2nid.size(); ++index)
-	{
-		Nid nid = global_map_index2nid[index];
-		if (param_loglevel >= 2)
-			cout << "--> checking split of sequence " << nid << "(index=" << index << ")" << endl;
+	  if (param_loglevel >= 3)
+	    cout << "# --> found " << links.size() << " links" << endl;
+	  
+	  if (links.size() == 0)
+	    continue;
 
-		PartitionList::iterator it(global_partitions[index].begin()), end(global_partitions[index].end());
+	  mergeLinks( links );
+			
+	  if (param_loglevel >= 3)
+	    cout << "# --> found " << links.size() << " links" << endl;
 
-		while (it!=end)
+	  PartitionList::iterator it(global_partitions[nid].begin()), end(global_partitions[nid].end());
+
+	  while (it!=end)
+	    {
+
+	      Node node = it->node;
+
+	      PartitionList new_partitions;
+	      
+	      fillPartitionsWithChildren(global_trees,
+					 nid,
+					 node,
+					 back_insert_iterator< PartitionList >(new_partitions));
+
+	      if (new_partitions.size() == 0)
 		{
-
-			Node node = it->node;
-
-			PartitionList new_partitions;
-
-			fillPartitionsWithChildren(
-					global_trees,
-					index,
-					node,
-					back_insert_iterator< PartitionList >(new_partitions));
-
-			if (new_partitions.size() == 0)
-			{
-				++it;
-				continue;
-			}
-
-			if (param_loglevel >= 2)
-			{
-			  cout << "# ----> new partitions for sequence " << nid << ": ";
-			  std::copy(
-				    new_partitions.begin(),
-				    new_partitions.end(),
-				    ostream_iterator< Partition >( std::cout, ";"));
-			  cout << endl;
-			}
-
-			if (param_disallow_shortening && (new_partitions.size() != 2))
-			{
-				++it;
-				continue;
-			}
-
-			LinkList links;
-
-			fillLinks( global_file_links,
-				   global_map_nid2fileindex[nid],
-				   nid,
-				   global_map_nid2index,
-				   back_insert_iterator< LinkList >(links));
-
-			if (param_loglevel >= 3)
-				cout << "# --> found " << links.size() << " links" << endl;
-
-			double score = calculatePartitionScore( links, global_partitions, *it, new_partitions );
-
-			if (score < 0)
-			{
-				if (param_loglevel >= 2)
-					cout << "# ----> substituting partitition" << endl;
-
-				global_partitions[index].insert( it, new_partitions.begin(), new_partitions.end());
-				it = global_partitions[index].erase( it );
-				improvement += score;
-
-				if (param_descend)
-					for (unsigned int i = 0; i < new_partitions.size(); ++i)
-						--it;
-			}
-			else
-			{
-				if (param_loglevel >= 2)
-					std::cout << "# ----> keeping partitition" << endl;
-				++it;
-			}
-
-			if (param_loglevel >= 4)
-				std::cout << "# ----------------------------------------------------------------" << endl;
-
+		  ++it;
+		  continue;
 		}
 
+	      if (param_loglevel >= 2)
+		{
+		  cout << "# ----> new partitions for sequence " << nid << ": ";
+		  std::copy(
+			    new_partitions.begin(),
+			    new_partitions.end(),
+			    ostream_iterator< Partition >( std::cout, ";"));
+		  cout << endl;
+		}
+
+	      if (param_disallow_shortening && (new_partitions.size() != 2))
+		{
+		  ++it;
+		  continue;
+		}
+	      
+	      
+	      double score = calculatePartitionScore( links, global_partitions, *it, new_partitions );
+
+	      if (score < 0)
+		{
+		  if (param_loglevel >= 2)
+		    cout << "# ----> substituting partitition" << endl;
+		  
+		  global_partitions[nid].insert( it, new_partitions.begin(), new_partitions.end());
+		  it = global_partitions[nid].erase( it );
+		  improvement += score;
+		  
+		  if (param_descend)
+		    for (unsigned int i = 0; i < new_partitions.size(); ++i)
+		      --it;
+		}
+	      else
+		{
+		  if (param_loglevel >= 2)
+		    std::cout << "# ----> keeping partitition" << endl;
+		  ++it;
+		}
+	      
+	      if (param_loglevel >= 4)
+		std::cout << "# ----------------------------------------------------------------" << endl;
+	    }
 	}
 
 	if (param_loglevel >= 1)
@@ -811,15 +864,12 @@ double cadda_optimise_iteration()
 //--------------------------------------------------------------------------------
 int cadda_optimise_destroy()
 {
+  fclose( global_file_links );
+  global_map_nid2fileindex.clear();
+  global_partitions.clear();
+  global_trees.clear();
 
-	fclose( global_file_links );
-	global_map_nid2index.clear();
-	global_map_index2nid.clear();
-	global_map_nid2fileindex.clear();
-	global_partitions.clear();
-	global_trees.clear();
-
-	return 1;
+  return 1;
 }
 
 
@@ -850,7 +900,7 @@ int cadda_optimise_save_partitions( const char * filename )
 		std::cout << "# partitions written to " << filename << endl;
 
 	outfile << "nid\tstart\tend" << std::endl;	
-	printPartitions( outfile, global_partitions, global_map_index2nid);
+	printPartitions( outfile, global_partitions );
 	outfile << TOKEN;
 	outfile.close();
 
@@ -862,83 +912,56 @@ int cadda_optimise_save_partitions( const char * filename )
 int cadda_optimise_initialise()
 {
 
-	param_e = param_real_e * param_resolution;
-	param_c = param_real_c / param_resolution;
-	param_k = param_real_k / param_resolution;
+  param_e = param_real_e * param_resolution;
+  param_c = param_real_c / param_resolution;
+  param_k = param_real_k / param_resolution;
+  
+  if (param_real_f == 0) param_real_f = param_real_e;
 
-	if (param_real_f == 0) param_real_f = param_real_e;
-
-	// safety threshold for small overlaps (should be in the range of the resolution);
-	param_threshold_overlap = (int)(12.0 / param_resolution);
-
-	/*------------------------------------------------------------------*/
-	// read distribution function from file
-	//
+  // safety threshold for small overlaps (should be in the range of the resolution);
+  param_threshold_overlap = (int)(12.0 / param_resolution);
+  
+  /*------------------------------------------------------------------*/
+  // read distribution function from file
+  //
 	{
-		if (param_loglevel >= 1)
-		{
-			cout << "# retrieving values for transfers from " << param_file_name_transfers << std::endl;
-			std::cout.flush();
-		}
+	  if (param_loglevel >= 1)
+	    {
+	      cout << "# retrieving values for transfers from " << param_file_name_transfers << std::endl;
+	      std::cout.flush();
+	    }
 
-		ifstream fin(param_file_name_transfers.c_str());
-		if (!fin)
-		{
-			std::cerr << "could not open filename with transfers: " << param_file_name_transfers << std::endl;
-			exit(EXIT_FAILURE);
-		}
-		fillParameterArrays( fin, param_transfers );
-		fin.close();
+	  ifstream fin(param_file_name_transfers.c_str());
+	  if (!fin)
+	    {
+	      std::cerr << "could not open filename with transfers: " << param_file_name_transfers << std::endl;
+	      exit(EXIT_FAILURE);
+	    }
+	  fillParameterArrays( fin, param_transfers );
+	  fin.close();
 
-		interpolateParameterArrays(param_transfers);
-
-		if (param_loglevel >= 5)
-			for (unsigned int x = 0; x < param_transfers.size(); ++x)
-				std::cout << "# " << x << "\t" << param_transfers[x] << std::endl;
+	  interpolateParameterArrays(param_transfers);
+	  
+	  if (param_loglevel >= 5)
+	    for (unsigned int x = 0; x < param_transfers.size(); ++x)
+	      std::cout << "# " << x << "\t" << param_transfers[x] << std::endl;
 
 	}
 
 	/*------------------------------------------------------------------*/
-	// retrieve nids of component
-	if (param_loglevel >= 1)
+	// open links file: read indices
 	{
-		std::cout << "# retrieving nids from " << param_file_name_nids << std::endl;
-		std::cout.flush();
-	}
+	  if (param_loglevel >= 1)
+	    {
+	      std::cout << "## retrieving indices from " << param_file_name_index << "." << std::endl;
+	    }
 
-	{
-		ifstream fin(param_file_name_nids.c_str());
-		if (!fin) {
-			std::cerr << "could not open filename with nids: " << param_file_name_nids << std::endl;
-			exit(EXIT_FAILURE);
-		}
-		fillNidsFromFile( fin,
-				back_insert_iterator< NidMap >(global_map_index2nid));
-		fin.close();
-	}
-
-	if (param_loglevel >= 1)
-		std::cout << global_map_index2nid.size() << " nids in partition " << endl;
-	if (param_loglevel >= 5)
-		std::copy( global_map_index2nid.begin(),
-					global_map_index2nid.end(),
-					ostream_iterator<Nid>( std::cout, "\n"));
-
-	/*------------------------------------------------------------------*/
-	// make map of nid->index
-	{
-		NidMap::iterator it(global_map_index2nid.begin()), end(global_map_index2nid.end());
-		for (Index i=0;it!=end;++it,++i)
-			global_map_nid2index[*it] = i;
-	}
-
-	if (param_loglevel >= 5)
-	{
-		NidMap::iterator it(global_map_index2nid.begin()),
-			end(global_map_index2nid.end());
-		std::cout << "# map_index2nid\tmap_index2nid" << std::endl;
-		for (Index i=0;it!=end;++it,++i)
-			cout << "# " << i << "\t" << *it << "\t" << global_map_nid2index[*it] << "\t" << (global_map_nid2index.find(*it) != global_map_nid2index.end()) << std::endl;
+	  fillFileIndexMap( global_map_nid2fileindex, param_file_name_index );
+	  
+	  if (param_loglevel >= 1)
+	    {
+	      std::cout << "## retrieved " << global_map_nid2fileindex.size() << " indices." << std::endl;
+	    }
 	}
 
 	/*------------------------------------------------------------------*/
@@ -949,54 +972,36 @@ int cadda_optimise_initialise()
 	  std::cout.flush();
 	}
 
-	global_trees.resize(global_map_index2nid.size());
+	global_trees.resize(global_map_nid2fileindex.size());
 	{
-		ifstream fin(param_file_name_trees.c_str());
-		if (!fin) {
-			std::cerr << "could not open filename with trees: " << param_file_name_trees << std::endl;
-			exit(EXIT_FAILURE);
-		}
+	  ifstream fin(param_file_name_trees.c_str());
+	  if (!fin) {
+	    std::cerr << "could not open filename with trees: " << param_file_name_trees << std::endl;
+	    exit(EXIT_FAILURE);
+	  }
 
-		fillTrees( fin,
-					global_map_nid2index,
-					global_trees);
-
-		fin.close();
+	  fillTrees( fin,
+		     global_trees);
+	  
+	  fin.close();
 	}
 
 	if (param_loglevel >= 1)
 	{
-		Trees::iterator it(global_trees.begin()), end(global_trees.end());
-		int count = 0;
-		for (;it!=end;++it) count += (it->size() > 0);
-		std::cout << count << " trees found " << endl;
+	  Trees::iterator it(global_trees.begin()), end(global_trees.end());
+	  int count = 0;
+	  for (;it!=end;++it) count += (it->size() > 0);
+	  std::cout << count << " trees found " << endl;
 	}
 
 	if (param_loglevel >= 5)
 	{
-		printSection();
-		printTrees( std::cout,
-					global_trees,
-					global_map_index2nid );
+	  printSection();
+	  printTrees( std::cout,
+		      global_trees );
+	  
 	}
-
-
-	/*------------------------------------------------------------------*/
-	// open links file: read indices
-	{
-		if (param_loglevel >= 1)
-		{
-			std::cout << "## retrieving indices from " << param_file_name_index << "." << std::endl;
-		}
-
-		fillFileIndexMap( global_map_nid2fileindex, param_file_name_index );
-
-		if (param_loglevel >= 1)
-		{
-			std::cout << "## retrieved " << global_map_nid2fileindex.size() << " indices." << std::endl;
-		}
-	}
-
+	
 	/*------------------------------------------------------------------*/
 	if (param_loglevel >= 1)
 		cout << "# opening links file: " << std::endl;
@@ -1011,22 +1016,22 @@ int cadda_optimise_initialise()
 
 	/*------------------------------------------------------------------*/
 	// fill partitions with initial values
-	global_partitions.resize(global_map_index2nid.size());
+	global_partitions.resize(global_map_nid2fileindex.size());
 	{
-		for (Index index = 0; index < (Index)global_map_index2nid.size(); ++index)
-			if (global_trees[index].size())
-				global_partitions[index].push_back(
-						Partition( 0,
-						global_trees[index][0].mFrom,
-						global_trees[index][0].mTo) );
+	  for ( Nid nid = 1; nid < (Index)global_map_nid2fileindex.size(); ++nid)
+	    if (global_trees[nid].size())
+	      global_partitions[nid].push_back(
+					       Partition( 0,
+							  global_trees[nid][0].mFrom,
+							  global_trees[nid][0].mTo) );
 	}
 
 	if (param_loglevel >= 5)
 	{
-		std::cout << "# partitions at beginning " << endl;
-		std::copy( global_partitions.begin(),
-					global_partitions.end(),
-					ostream_iterator< PartitionList >( std::cout, ""));
+	  std::cout << "# partitions at beginning " << endl;
+	  std::copy( global_partitions.begin(),
+		     global_partitions.end(),
+		     ostream_iterator< PartitionList >( std::cout, ""));
 	}
 
 	return 1;
