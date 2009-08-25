@@ -385,7 +385,7 @@ def readMapNid2Domains( infile, map_id2nid, rx_include, storage = "memory" ):
             token, start, end, family = line[:-1].split( "\t" )[:4]
 
             try:
-                token = map_id2nid[token]
+                token = bytes(map_id2nid[token])
             except KeyError:
                 nskipped_nid += 1
                 continue

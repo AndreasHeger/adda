@@ -434,41 +434,40 @@ int cadda_convert( const char * filename )
 				  map_nid2index,
 				  param_min_residues_overlap );
 		break;
-	case 1:
-		parser = new LinkProcessorMax( domains,
-				map_nid2index,
-				param_min_residues_overlap,
-				param_min_coverage,
-				param_min_relative_overlap );
-		break;
-	}
+    case 1:
+      parser = new LinkProcessorMax( domains,
+				     map_nid2index,
+				     param_min_residues_overlap,
+				     param_min_coverage,
+				     param_min_relative_overlap );
+      break;
+    }
 
-	// parser->printHeader( outstream );
-	
-	// main loop
-	FILE * infile = openFileForRead( param_file_name_graph );
+  // parser->printHeader( outstream );
+  
+  // main loop
+  FILE * infile = openFileForRead( param_file_name_graph );
+  {
 
-	{
-
-		char * line = new char[MAX_LINE_LENGTH + 1];
-		size_t max_length = MAX_LINE_LENGTH;
-
-		// skip over header
-		ssize_t r = getline( &line, &max_length, infile);
-		assert (strncmp( line, "nid", 3) == 0);
-
-		while (!feof(infile) && getline( &line, &max_length, infile) != -1)
-		{
-			if (line[0] == '#') continue;
-			parser->process( outstream, line );
-		}
-		delete [] line;
-	}
-
-	delete parser;
-
-	outstream << TOKEN;
-	
-	outstream.close();
-	return 1;
+    char * line = new char[MAX_LINE_LENGTH + 1];
+    size_t max_length = MAX_LINE_LENGTH;
+    
+    // skip over header
+    ssize_t r = getline( &line, &max_length, infile);
+    assert (strncmp( line, "nid", 3) == 0);
+    
+    while (!feof(infile) && getline( &line, &max_length, infile) != -1)
+      {
+	if (line[0] == '#') continue;
+	parser->process( outstream, line );
+      }
+    delete [] line;
+  }
+  
+  delete parser;
+  
+  outstream << TOKEN;
+  
+  outstream.close();
+  return 1;
 }

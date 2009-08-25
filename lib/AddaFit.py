@@ -104,15 +104,18 @@ class AddaFit( AddaModuleRecord ):
         AddaModuleRecord.__init__( self, *args, **kwargs )
 
         self.mFilenameFit = self.mConfig.get("files","output_fit", "adda.fit" )
-        self.mFilenameOverhang = self.mConfig.get( "files", "output_fit_overhang" )
-        self.mFilenameTransfer = self.mConfig.get( "files", "output_fit_transfer" )
-        self.mFilenameDetails = self.mConfig.get( "files", "output_fit_details" )
+        self.mFilenameOverhang = self.mConfig.get( "files", "output_fit_overhang", "adda.fit.overhang" )
+        self.mFilenameTransfer = self.mConfig.get( "files", "output_fit_transfer", "adda.fit.transfer" )
+        self.mFilenameData = self.mConfig.get( "files", "output_fit_data", "adda.fit.data" )
+        self.mFilenameDetails = self.mConfig.get( "files", "output_fit_details", "adda.fit.details" )
         self.mMinTransfer = float(self.mConfig.get( "fit", "min_transfer" ))
         self.mMinOverhang = float(self.mConfig.get( "fit", "min_overhang" ))
         self.mFilenameNids = self.mConfig.get( "files", "output_nids", "adda.nids" )
         self.mFilenames = (self.mFilenameFit, self.mFilenameTransfer, self.mFilenameDetails, self.mFilenameOverhang )
 
         self.mOutfileDetails = None
+        self.mOutfileData = None
+
     #--------------------------------------------------------------------------        
     def startUp( self ):
 
@@ -136,10 +139,12 @@ class AddaFit( AddaModuleRecord ):
         self.mContinueAt = None
 
         # extract options
-        self.mOutfileDetails  = self.openOutputStream( self.mFilenameDetails, register = True )
+        if self.mLogLevel >= 5:
+            self.mOutfileDetails  = self.openOutputStream( self.mFilenameDetails, register = True )
+            
 
-        if not self.mContinueAt:
-            self.mOutfileDetails.write( """# FAMILY:          domain family
+            if not self.mContinueAt:
+                self.mOutfileDetails.write( """# FAMILY:          domain family
 # NID1:         sequence nid1
 # DFROM1:       domain start on nid1
 # DTO1:         domain end on nid1
@@ -158,9 +163,14 @@ class AddaFit( AddaModuleRecord ):
 # ATRAN:        average percentage transfer (transfer/ sqrt( LX * LY))
 # SCORE:        score of alignment
 class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali\tlx\tly\ttrans\tptran\tatran\tscore\n""")
-            ## flushing is important with multiprocessing - why?
-            ## if not flushed, the header and the EOF token appear twice.
-            self.mOutfileDetails.flush()
+                # flushing is important with multiprocessing - why?
+                # if not flushed, the header and the EOF token appear twice.
+                self.mOutfileDetails.flush()
+
+        self.mOutfileData  = self.openOutputStream( self.mFilenameData, register = True )
+
+        if not self.mContinueAt:
+            self.mOutfileData.write( "class\query_nid\tsbjct_nid\ttransfer\tquery_overhang\tsbjct_overhang\n" )
 
     #--------------------------------------------------------------------------        
     def registerExistingOutput(self, filename):    
@@ -238,6 +248,61 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
 
     #--------------------------------------------------------------------------    
     def readPreviousData(self, filename = None):
+        """process existing output in filename to guess correct point to continue computation."""
+        
+        if filename == None: filename = self.mFilenameData
+
+        self.info( "reading previous data from %s" % filename )
+        
+        if not os.path.exists( filename ):
+            self.warn( "file %s does not exist" % filename )
+            return
+
+        infile = open( filename, "r" )
+
+        self.mTransferValues = []
+        self.mOverhangValues = []
+        
+        def iterate_per_query(infile):
+            
+            last_query = None
+            
+            for line in infile:
+                if line.startswith("#"): continue
+                if line.startswith("class"): continue
+
+                try: 
+                    (family, query_token, sbjct_token, transfer, overhang1, overhang2) = line[:-1].split("\t")
+                except ValueError:
+                    self.warn( "parsing error in line %s\n" % line[:-1] )
+                    continue
+                
+                if query_token != last_query:
+                    if last_query: yield values
+                    values = []
+                    last_query = query_token
+                    
+                transfer, overhang1, overhang2 = map( int, (transfer, overhang2, overhang1) )
+                
+                if transfer >= 0:
+                    values.append( (family, query_token, sbjct_token, transfer, overhang1, overhang2) ) 
+                    
+            if last_query: 
+                yield values
+                self.mContinueAt = (query_token, sbjct_token)
+
+            raise StopIteration
+            
+        for values in iterate_per_query(infile):
+            self.processValues(values)
+            
+        self.info("read previous data from %s: transfer=%i, overhang=%i" % \
+                      (filename, len(self.mTransferValues), len(self.mOverhangValues) ))
+            
+        infile.close()
+
+    #--------------------------------------------------------------------------    
+    def readPreviousDataFromDetails(self, filename = None):
         """process existing output in filename to guess correct point to continue computation."""
         
         if filename == None: filename = self.mFilenameDetails
@@ -353,29 +418,41 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
                 
                 for xfrom, xto in xdomains:
                     ovlx = min(xto,n.mQueryTo) - max(xfrom,n.mQueryFrom)
+                    # no overlap between domain and alignment on query
                     if ovlx < 0: continue                            
                     lx = xto - xfrom
-                    for yfrom, yto in ydomains:
-                        ovly = min(yto,n.mQueryTo) - max(yfrom,n.mQueryFrom)
-                        if ovly < 0: continue
 
-                        lali = min(n.mSbjctTo - n.mSbjctFrom, n.mQueryTo - n.mQueryFrom)
+                    for yfrom, yto in ydomains:
+
+                        # no overlap between domain and alignment on sbjct
+                        ovly = min(yto,n.mSbjctTo) - max(yfrom,n.mSbjctFrom)
+                        if ovly < 0: continue
                         ly = yto - yfrom
 
+                        lali = min(n.mSbjctTo - n.mSbjctFrom, n.mQueryTo - n.mQueryFrom)
+                        
+                        # map domain from query to sbjct
                         zfrom = max(xfrom - n.mQueryFrom + n.mSbjctFrom, n.mSbjctFrom)
                         zto   = min(xto   - n.mQueryFrom + n.mSbjctFrom, n.mSbjctTo)                                
-                        transfer = min(zto, yto) - max(zfrom, yfrom)
+                        transfer = max(0, min(zto, yto) - max(zfrom, yfrom))
 
                         A = float(transfer) / float( lali )
                         B = float(transfer) / math.sqrt( float(lx * ly))
-                        
-                        self.mOutfileDetails.write( "\t".join( \
-                                map(str, (family,
-                                          n.mQueryToken, xfrom, xto, n.mQueryFrom, n.mQueryTo,
-                                          n.mSbjctToken, yfrom, yto, n.mSbjctFrom, n.mSbjctTo,
-                                          lali, lx, ly, transfer, A, B, n.mEvalue) )) + "\n" )
-                        self.mOutfileDetails.flush()
 
+                        if self.mOutfileDetails:
+                            self.mOutfileDetails.write( "\t".join( \
+                                    map(str, (family,
+                                              n.mQueryToken, xfrom, xto, n.mQueryFrom, n.mQueryTo,
+                                              n.mSbjctToken, yfrom, yto, n.mSbjctFrom, n.mSbjctTo,
+                                              lali, lx, ly, transfer, A, B, n.mEvalue) )) + "\n" )
+                            self.mOutfileDetails.flush()
+                        
+                        if self.mOutfileData:
+                            self.mOutfileData.write( "\t".join( \
+                                    map(str, (family, n.mQueryToken, n.mSbjctToken, 
+                                              transfer, lx-transfer, ly-transfer) ) ) + "\n")
+                            self.mOutfileData.flush()
+                            
                         if transfer >= 0:
                             values.append( (family, n.mQueryToken, n.mSbjctToken, transfer, lx-transfer, ly-transfer) ) 
                                          
@@ -527,10 +604,13 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
                 os.remove(fn)
 
         # merge the details file if all is complete
-        if not AddaModuleRecord.merge( self, (self.mFilenameDetails, ) ): return False
+        if glob.glob( "%s.0*" % self.mFilenameDetails):
+            if not AddaModuleRecord.merge( self, (self.mFilenameDetails, ) ): return False
+
+        if not AddaModuleRecord.merge( self, (self.mFilenameData, ) ): return False
 
         self.mNumChunks = 1
-        self.readPreviousData( self.mFilenameDetails )
+        self.readPreviousData( self.mFilenameData )
         self.finish()
             
         return True

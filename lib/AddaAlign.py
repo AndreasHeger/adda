@@ -35,8 +35,12 @@ class AddaAlign( AddaModuleRecord ):
 
         self.mFilenameAlignments = self.mConfig.get("files","output_align", "adda.align" )
 
+
+
         self.mFilenameProfiles = self.mConfig.get( "files", "output_profiles", "adda.profiles")
         self.mFilenameMst = self.mConfig.get( "files", "output_mst", "adda.mst" )              
+
+        self.mUsePrebuiltProfiles = self.mConfig.get( "profiles", "use_prebuilt_profiles", False)
         
         self.mScaleFactor  = self.mConfig.get( "profiles", "scale_factor", 0.3)
         self.mMaxNumNeighbours = self.mConfig.get( "profiles", "max_neighbours", 1000 )
@@ -80,8 +84,11 @@ class AddaAlign( AddaModuleRecord ):
 
         ###############################################
         # create objects for algorithm 
-        self.mProfileLibrary = ProfileLibrary.ProfileLibrary( self.mFilenameProfiles, "r" )
-        
+        if self.mUsePrebuiltProfiles:
+            self.mProfileLibrary = ProfileLibrary.ProfileLibrary( self.mFilenameProfiles, "r" )
+        else:
+            self.mProfileLibrary = None
+
         self.mChecker = self.checkLinkZScore
         self.mHeader = ("passed",
                         "qdomain",

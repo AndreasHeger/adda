@@ -134,7 +134,7 @@ class RunOnGraph(Run):
 
     def apply( self, argv ):
 
-        (chunk, nchunks, options, order, map_module, config ) = argv
+        (filename, chunk, nchunks, options, order, map_module, config ) = argv
 
         L.info( "chunk %i: setting up" % (chunk ))
 
@@ -210,9 +210,9 @@ class RunOnGraph(Run):
 
 def run_on_file( argv ):
 
-    (filename, options, order, map_module, config, chunk, nchunks ) = argv
+    (filename, chunk, nchunks, options, order, map_module, config ) = argv
 
-    L.info( "starting chunk %i on %s" % (chunk, filename) )
+    L.info( "starting chunk %i" % chunk )
 
     fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
 
@@ -291,7 +291,7 @@ def getChunks( options, config ):
 
     return nchunks, chunks
         
-def runParallel( runner, options, order, map_module, config ):
+def runParallel( runner, filename, options, order, map_module, config ):
     """process filename in paralell."""
 
     if options.num_jobs:
@@ -303,7 +303,7 @@ def runParallel( runner, options, order, map_module, config ):
 
     L.info( "running %i chunks in %i parallel jobs" % (len(chunks), njobs ))
     
-    args = [ (chunk, nchunks, options, order, map_module, config ) for chunk in chunks ]
+    args = [ (filename, chunk, nchunks, options, order, map_module, config ) for chunk in chunks ]
 
     logging.info('starting parallel jobs')
 
@@ -325,14 +325,14 @@ def runParallel( runner, options, order, map_module, config ):
 
     L.info( "all jobs finished" )
 
-def runSequentially( runner, options, order, map_module, config ):
+def runSequentially( runner, filename, options, order, map_module, config ):
     """process filename sequentially."""
 
     nchunks, chunks = getChunks( options, config )
     
     L.info( "running %i chunks sequentially" % (len(chunks) ))
 
-    args = [ (chunk, nchunks, options, order, map_module, config ) for chunk in chunks ]
+    args = [ (filename, chunk, nchunks, options, order, map_module, config ) for chunk in chunks ]
 
     for (job, argv) in enumerate(args):
         L.info( "job %i started" % job )
@@ -346,7 +346,6 @@ def runSequentially( runner, options, order, map_module, config ):
             sys.exit(1)
 
         L.info( "job %i finished" % job )
-
 
     L.info( "all jobs finished" )
 
@@ -519,6 +518,7 @@ def main():
     run_on_graph = RunOnGraph( config, options.steps )
 
     if "realign" in options.steps:
+        raise NotImplementError("broken")
         run_parallel( 
             run_on_graph,
             filename = config.get( "files", "input_graph", "adda.graph" ),
@@ -529,6 +529,7 @@ def main():
 
     run_parallel( 
         run_on_graph,
+        filename = config.get( "files", "input_graph", "adda.graph" ),
         options = options, 
         order = ("fit", "segment" ),
         map_module = map_module,
@@ -571,6 +572,7 @@ def main():
 
     run_parallel( 
         run_on_file,
+        filename = config.get( "files", "output_mst", "adda.mst" ),
         options = options, 
         order = ( "align", ),
         map_module = map_module,
