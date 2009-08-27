@@ -248,6 +248,14 @@ ctypedef struct Neighbour:
     Length sbjct_alen
     char * query_ali
     char * sbjct_ali
+
+cdef void init_neighbour( Neighbour * n):
+    n.query_ali = NULL
+    n.sbjct_ali = NULL
+
+cdef destroy_neighbour( Neighbour * n):
+    if n.query_ali != NULL: free( n.query_ali)
+    if n.sbjct_ali != NULL: free( n.sbjct_ali)
     
 cdef fromNeighbour( Neighbour * n, neighbour ):
     '''load data from neighbour.'''
@@ -471,6 +479,7 @@ def indexGraph( graph_iterator, num_nids, output_filename_graph, output_filename
     The index format is:
     Nid number of nids
     FileIndex [] index
+
     """
 
     # allocate index
@@ -488,14 +497,14 @@ def indexGraph( graph_iterator, num_nids, output_filename_graph, output_filename
     
     output_f = fopen( output_filename_graph, "wb" );
     if output_f == NULL:
+        free(index)
         raise ValueError( "opening of file %s failed" % output_filename_graph )
 
     # iterate over graph
     cdef Nid query_nid
     cdef FileIndex pos
     cdef Neighbour neighbour
-    neighbour.query_ali = NULL
-    neighbour.sbjct_ali = NULL
+    init_neighbour( &neighbour )
     cdef size_t nneighbours
     cdef unsigned char * buffer
     buffer = <unsigned char *>calloc( MAX_BUFFER_SIZE, sizeof(unsigned char) )
@@ -541,21 +550,34 @@ def indexGraph( graph_iterator, num_nids, output_filename_graph, output_filename
             p1 = toBuffer( &neighbour, p1 )
             used = p1 - buffer
             if used > MAX_BUFFER_SIZE:
+                destroy_neighbour( &neighbour )
+                free(index)
+                free(buffer)
                 raise MemoryError( "memory overflow in indexing: nid=%i, neighbours=%i, used=%i, allocated=%i" % (query_nid, nneighbours, used, MAX_BUFFER_SIZE) )
 
         err = toCompressedFile( buffer, used, output_f )
-        if err: raise ValueError( "error %i while writing compressed buffer to file for nid %i (%i neighbours)" % (err, query_nid, nneighbours) )
+        if err: 
+            destroy_neighbour( &neighbour )
+            free(index)
+            free(buffer)
+            raise ValueError( "error %i while writing compressed buffer to file for nid %i (%i neighbours)" % (err, query_nid, nneighbours) )
 
-
+    # clean up part 1
+    destroy_neighbour( &neighbour )
+    free(buffer)
     fclose( output_f )
 
     # save index
     output_f = fopen( output_filename_index, "wb" );
     if output_f == NULL:
+        free(index)
         raise ValueError( "opening of file %s failed" % output_filename_index )
     fwrite( &nnids, sizeof( Nid ), 1, output_f )
     fwrite( index, sizeof( FileIndex ), nnids, output_f )
     fclose(output_f)
+
+    # clean up part 2
+    free(index)
 
 cdef class IndexedNeighbours:
     """access to indexed ADDA graph."""
@@ -615,12 +637,13 @@ cdef class IndexedNeighbours:
 
         cdef int retval
         retval = fromCompressedFile( buffer, MAX_BUFFER_SIZE, self.mFile )
-        if retval != 0: raise ValueError("error while reading data for %i" % nid )
+        if retval != 0: 
+            free(buffer)
+            raise ValueError("error while reading data for %i" % nid )
 
         # create neighbours
         cdef Neighbour neighbour
-        neighbour.query_ali = NULL
-        neighbour.sbjct_ali = NULL
+        init_neighbour( &neighbour )
 
         cdef unsigned char * p
         cdef int i
@@ -631,6 +654,8 @@ cdef class IndexedNeighbours:
         for i from 0 <= i < nneighbours:
             p = fromBuffer( &neighbour, p )
             result.append( toNeighbour( query_nid, &neighbour) )
+
+        destroy_neighbour( &neighbour )
 
         free( buffer )
         return result

@@ -103,3 +103,47 @@ int fromCompressedFile( unsigned char * buffer, size_t uncompressed_size, FILE *
   return zok;
 }
   
+//--------------------------------------------------------------------------------
+void fillFileIndexMap( FileIndexMap & map_nid2fileindex, std::string & file_name_index)
+{
+  FILE * file = fopen(file_name_index.c_str(), "r");
+
+  if (file == NULL)
+    {
+      std::cerr << "could not open filename with indices: " << file_name_index << std::endl;
+      exit(EXIT_FAILURE);
+    }
+
+  Nid nnids = 0;
+
+  if (fread( &nnids, sizeof(Nid), 1, file ) != 1 or ferror( file) )
+    {
+      std::cerr << "could not read index from " << file_name_index << std::endl;
+      exit(EXIT_FAILURE);
+    }
+
+  FileIndex * index = (FileIndex *)new FileIndex[nnids];
+
+  if (index == NULL)
+    {
+      std::cerr << "out of memory when allocating index for %i nids" << nnids << std::endl;
+      exit(EXIT_FAILURE);
+    }
+
+  if (fread( index, sizeof(FileIndex), nnids, file ) != (size_t)nnids or ferror(file))
+    {
+      free( index );
+      std::cerr << "failure while reading index for %i nids" << nnids << std::endl;
+      exit(EXIT_FAILURE);
+    }
+  
+  fclose( file );
+
+  map_nid2fileindex.resize( nnids );
+  
+  for (Nid x = 1; x < nnids; ++x)
+    {
+      map_nid2fileindex[x] = index[x];
+    }
+  delete [] index;
+}

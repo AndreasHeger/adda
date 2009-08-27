@@ -128,30 +128,6 @@ struct Partition
 typedef std::list< Partition > PartitionList;
 typedef std::vector< PartitionList > Partitions;
 
-struct Link
-{
-  Link( Residue xquery_from,
-	Residue xquery_to,
-	Index xsbjct_nid,
-	Residue xsbjct_from,
-	Residue xsbjct_to) :
-    query_from(xquery_from),
-    query_to(xquery_to),
-    sbjct_nid(xsbjct_nid),
-    sbjct_from(xsbjct_from),
-    sbjct_to(xsbjct_to) {};
-  Residue query_from;
-  Residue query_to;
-  Nid sbjct_nid;
-  Residue sbjct_from;
-  Residue sbjct_to;
-};
-
-typedef std::vector< Link > LinkList;
-typedef std::vector< LinkList > Links;
-
-typedef std::vector<FileIndex> FileIndexMap;
-typedef std::vector<Nid> NidMap;
 
 struct TreeNode
 {
@@ -234,98 +210,12 @@ inline void printSection()
 	std::cout << "##-------------------------------------------------------" << std::endl;
 }
 
-inline int convert(int x) { return (int)(floor( ( x / param_resolution) ) ); }
 
 /** retrieve all links from nid using the table table_links starting at position
     index
  */
 
-struct IndexedNeighbour 
-{
-  Nid sbjct_nid;
-  float evalue;
-  uResidue query_start;
-  uResidue query_end;
-  uResidue sbjct_start;
-  uResidue sbjct_end;
-  Length query_alen;
-  Length sbjct_alen;
-  char * query_ali;
-  char * sbjct_ali;
-};
 
-template< class OutputIter >
-void fillLinks( FILE * infile,
-		const FileIndex & index,
-		const Nid & nid,
-		OutputIter it)
-{
-
-  fsetpos( infile, &index );
-
-  size_t nneighbours;
-  Nid query_nid;
-	
-  int n = 0;
-  
-  n = fread( &query_nid, sizeof(Nid), 1, infile );
-  n += fread( &nneighbours, sizeof(size_t), 1, infile );
-  
-  if (n != 2 || ferror( infile ))
-    {
-      std::cerr << "error while reading neighbours: can not read query_nid" << std::endl;
-      exit(EXIT_FAILURE);
-    }
-
-  if (nid != query_nid and query_nid != 0)
-    {
-      std::cerr << "positioning error for nid " << nid << " got: " << query_nid << std::endl;
-      exit(EXIT_FAILURE);
-    }
-
-  if (query_nid == 0) return;
-  
-  
-#define MAX_BUFFER_SIZE 100000000
-  unsigned char * buffer = (unsigned char *)calloc( MAX_BUFFER_SIZE, sizeof(unsigned char) );
-  int retval = fromCompressedFile( buffer, MAX_BUFFER_SIZE, infile );
-  if (retval != 0)
-    {
-      std::cerr << "error during uncompression for nid " << query_nid << ":" << retval << std::endl;
-      free(buffer);
-      exit(EXIT_FAILURE);
-    }
-	  
-  IndexedNeighbour * nei;
-  
-  unsigned char * p = buffer;
-  
-  // see also cadda.py: fromBuffer()
-  for (size_t x = 0; x < nneighbours; ++x)
-    {
-      nei = (IndexedNeighbour*)p;
-      
-      p += sizeof( IndexedNeighbour) - 2 * sizeof(char *);
-      p += sizeof( char ) * (nei->query_alen + 1);
-      p += sizeof( char ) * (nei->sbjct_alen + 1);
-
-      if (query_nid == nei->sbjct_nid)
-	continue;
-
-      *it = Link(convert(nei->query_start),
-		 convert(nei->query_end)+1,
-		 nei->sbjct_nid,
-		 convert(nei->sbjct_start),
-		 convert(nei->sbjct_end)+1);
-      ++it;
-    }
-  
-  // reset stream, move away from eof.
-  if (feof(infile))
-    rewind(infile);
-
-  free(buffer);
-}
 
 template< class T>
 inline void printMap( const T & index, const char * title = "" )
@@ -625,50 +515,6 @@ double calculatePartitionScore( LinkList & links,
 	return delta_score;
 }
 
-//--------------------------------------------------------------------------------
-void fillFileIndexMap( FileIndexMap & map_nid2fileindex, std::string & file_name_index)
-{
-  FILE * file = fopen(file_name_index.c_str(), "r");
-
-  if (file == NULL)
-    {
-      std::cerr << "could not open filename with indices: " << file_name_index << std::endl;
-      exit(EXIT_FAILURE);
-    }
-
-  Nid nnids = 0;
-
-  if (fread( &nnids, sizeof(Nid), 1, file ) != 1 or ferror( file) )
-    {
-      std::cerr << "could not read index from " << file_name_index << std::endl;
-      exit(EXIT_FAILURE);
-    }
-
-  FileIndex * index = (FileIndex *)new FileIndex[nnids];
-
-  if (index == NULL)
-    {
-      std::cerr << "out of memory when allocating index for %i nids" << nnids << std::endl;
-      exit(EXIT_FAILURE);
-    }
-
-  if (fread( index, sizeof(FileIndex), nnids, file ) != (size_t)nnids or ferror(file))
-    {
-      free( index );
-      std::cerr << "failure while reading index for %i nids" << nnids << std::endl;
-      exit(EXIT_FAILURE);
-    }
-  
-  fclose( file );
-
-  map_nid2fileindex.resize( nnids );
-  
-  for (Nid x = 1; x < nnids; ++x)
-    {
-      map_nid2fileindex[x] = index[x];
-    }
-  delete [] index;
-}
 
 // global variables
 FILE * global_file_links = NULL;
@@ -774,9 +620,9 @@ double cadda_optimise_iteration()
 	    cout << "--> checking split of sequence " << nid << endl;
 
 	  LinkList links;
+	  fsetpos( global_file_links, &global_map_nid2fileindex[nid] );
 	  
 	  fillLinks( global_file_links,
-		     global_map_nid2fileindex[nid],
 		     nid,
 		     back_insert_iterator< LinkList >(links));
 
@@ -907,7 +753,6 @@ int cadda_optimise_save_partitions( const char * filename )
 	return 1;
 }
 
-
 //--------------------------------------------------------------------------------
 int cadda_optimise_initialise()
 {
@@ -1004,7 +849,7 @@ int cadda_optimise_initialise()
 	
 	/*------------------------------------------------------------------*/
 	if (param_loglevel >= 1)
-		cout << "# opening links file: " << std::endl;
+	  cout << "# opening links file " << param_file_name_graph << std::endl;
 
 	global_file_links = fopen(param_file_name_graph.c_str(),"r");
 
