@@ -206,7 +206,6 @@ class ProfileLibrary:
         
         The profile is appended.
         """
-
         if name in self.mIndex:
             raise IndexError("profile with name %s already exists" % name )
         

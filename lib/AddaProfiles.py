@@ -57,13 +57,11 @@ class AddaProfiles( AddaModuleRecord ):
         self.mProfileLibrary.setWeightor( alignlib.makeWeightor() )
         alignlib.setDefaultEncoder( alignlib.getEncoder( alignlib.Protein20 ) )
 
-    def buildMali(self, neighbours):
+    def buildMali(self, query_nid, neighbours ):
         """build a multiple alignment from a set of neighbours.
         """
         # build multiple alignment
         mali = alignlib.makeMultipleAlignment()
-        
-        query_nid = neighbours.mQueryToken
         
         query_sequence = self.mFasta.getSequence( query_nid )
 
@@ -75,7 +73,7 @@ class AddaProfiles( AddaModuleRecord ):
 
         nskipped = 0
 
-        for n in neighbours.mMatches[:self.mMaxNumNeighbours]:
+        for n in neighbours[:self.mMaxNumNeighbours]:
 
             if n.mSbjctToken == query_nid: continue
             sequence = self.mFasta.getSequence( n.mSbjctToken )
@@ -136,7 +134,7 @@ class AddaProfiles( AddaModuleRecord ):
         if nskipped > 0:
             self.warn( "nid %s: %i/%i alignments skipped" % (str(query_nid),
                                                              nskipped,
-                                                             min( len(neighbours.mMatches), self.mMaxNumNeighbours ) ) )
+                                                             min( len(neighbours), self.mMaxNumNeighbours ) ) )
             
         return mali
 
@@ -162,7 +160,7 @@ class AddaProfiles( AddaModuleRecord ):
 
         self.debug( "working on profile %s with %i neighbours" % (query_nid, len(neighbours.mMatches) ) )
 
-        mali = self.buildMali( neighbours )
+        mali = self.buildMali( query_nid, neighbours.mMatches )
 
         self.debug( "built mali for %s with %i neighbours" % (query_nid, len(neighbours.mMatches) ) )
         

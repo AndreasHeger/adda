@@ -1,6 +1,7 @@
 """
 Pyrex extension classes used by `cadda.py`.
 """
+import alignlib
 
 cdef extern from "string.h":
     ctypedef int size_t
@@ -286,6 +287,16 @@ class NeighbourRecord(object):
             self.mQueryToken, self.mSbjctToken, self.mEvalue,
             self.mQueryFrom, self.mQueryTo,
             self.mSbjctFrom, self.mSbjctTo )))
+
+    def getAlignment(self ):
+        """parse alignment into a AlignmentVector object."""
+        r = alignlib.makeAlignmentVector()
+        f = alignlib.AlignmentFormatEmissions()
+        f.mRowFrom, f.mRowTo, f.mRowAlignment = self.mQueryFrom, self.mQueryTo, self.mQueryAli
+        f.mColFrom, f.mColTo, f.mColAlignment = self.mSbjctFrom, self.mSbjctTo, self.mSbjctAli     
+        f.copy( r )
+        return r   
+
 
 cdef toNeighbour( Nid query_nid, Neighbour * n ):
     '''load data from neighbour.'''

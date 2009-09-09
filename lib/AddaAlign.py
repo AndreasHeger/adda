@@ -3,6 +3,8 @@ import alignlib
 import ProfileLibrary
 from AddaModule import AddaModuleRecord
 import SegmentedFile
+import AddaProfiles
+import cadda
 
 class AddaAlign( AddaModuleRecord ):
     """align domains and check if similarity is sufficient to
@@ -34,8 +36,8 @@ class AddaAlign( AddaModuleRecord ):
         AddaModuleRecord.__init__( self, *args, **kwargs )
 
         self.mFilenameAlignments = self.mConfig.get("files","output_align", "adda.align" )
-
-
+        self.mFilenameGraph = self.mConfig.get("files","output_graph", "adda.graph" )
+        self.mFilenameIndex = self.mConfig.get("files","output_index", "adda.graph.index" )
 
         self.mFilenameProfiles = self.mConfig.get( "files", "output_profiles", "adda.profiles")
         self.mFilenameMst = self.mConfig.get( "files", "output_mst", "adda.mst" )              
@@ -76,7 +78,9 @@ class AddaAlign( AddaModuleRecord ):
         self.mMinAlignmentMotifLength = self.mConfig.get( "align", "min_motif_length", 10 )
 
         self.mFilenames = (self.mFilenameAlignments, )
-                
+        
+        self.mProfileBuilder = AddaProfiles.AddaProfiles( *args, **kwargs )
+
     #--------------------------------------------------------------------------------
     def startUp( self ):
 
@@ -84,10 +88,24 @@ class AddaAlign( AddaModuleRecord ):
 
         ###############################################
         # create objects for algorithm 
+        self.mLogOddor    = alignlib.makeLogOddorDirichlet( self.mScaleFactor )
+        self.mRegularizor = alignlib.makeRegularizorDirichletPrecomputed()
+        self.mWeightor    = alignlib.makeWeightor()
+
         if self.mUsePrebuiltProfiles:
             self.mProfileLibrary = ProfileLibrary.ProfileLibrary( self.mFilenameProfiles, "r" )
+            self.mProfileLibrary.setWeightor( self.mWeightor )
+            self.mProfileLibrary.setLogOddor( self.mLogOddor )
+            self.mProfileLibrary.setRegularizor( self.mRegularizor )
+
         else:
             self.mProfileLibrary = None
+            self.mIndexedNeighbours = cadda.IndexedNeighbours( self.mFilenameGraph, self.mFilenameIndex )
+            self.mToolkit = alignlib.makeToolkit()
+            alignlib.setDefaultToolkit( self.mToolkit )
+            self.mToolkit.setWeightor( self.mWeightor )
+            self.mToolkit.setLogOddor( self.mLogOddor )
+            self.mToolkit.setRegularizor( self.mRegularizor )
 
         self.mChecker = self.checkLinkZScore
         self.mHeader = ("passed",
@@ -111,12 +129,6 @@ class AddaAlign( AddaModuleRecord ):
         # the cache to store alignandum objects
         self.mCache = {}        
         
-        self.mLogOddor    = alignlib.makeLogOddorDirichlet( self.mScaleFactor )
-        self.mRegularizor = alignlib.makeRegularizorDirichletPrecomputed()
-        self.mWeightor    = alignlib.makeWeightor()
-        self.mProfileLibrary.setWeightor( self.mWeightor )
-        self.mProfileLibrary.setLogOddor( self.mLogOddor )
-        self.mProfileLibrary.setRegularizor( self.mRegularizor )
         
         alignlib.setDefaultEncoder( alignlib.getEncoder( alignlib.Protein20 ) )
 
@@ -151,12 +163,26 @@ class AddaAlign( AddaModuleRecord ):
                         alignandum.MaskResidue( s )
                         
     #--------------------------------------------------------------------------------
+    def getProfile( self, nid ):
+        """build a profile for nid."""
+        
+        neighbours = self.mIndexedNeighbours.getNeighbours( nid )
+        
+        mali = self.mProfileBuilder.buildMali( nid, neighbours )
+        
+        return alignlib.makeProfile( mali )
+
+    #--------------------------------------------------------------------------------
     def getAlignandum( self, nid ):
         """get the alignandum object for an nid."""
 
         if self.mCache:
             if nid not in self.mCache:
-                a = self.mProfileLibrary.getProfile(nid)
+                if self.mProfileLibrary:
+                    a = self.mProfileLibrary.getProfile(nid)
+                else:
+                    a = self.getProfile( nid )
+                    
                 self.mCache[nid] = a
                 a.prepare()
                 if self.mMask: self.mask( nid, a)
@@ -164,7 +190,10 @@ class AddaAlign( AddaModuleRecord ):
                 a = self.mCache[nid]
         else:
             try:
-                a = self.mProfileLibrary.getProfile(nid)
+                if self.mProfileLibrary:
+                    a = alignlib.makeProfile( self.mProfileBuilder.getMali( neighbours ) )
+                else:
+                    a = self.getProfile( nid )
             except KeyError:
                 self.warn( "profile for sequence %s not found." % str(nid))
                 return None
@@ -211,12 +240,10 @@ class AddaAlign( AddaModuleRecord ):
                             float(self.mReportStep * ( t - t_start )) / self.mInput, 
                             ) )
 
-        query_nid, query_from, query_to = query_token.split("_")
-        sbjct_nid, sbjct_from, sbjct_to = sbjct_token.split("_")
-        query_from, query_to = map(int, (query_from, query_to) )
-        sbjct_from, sbjct_to = map(int, (sbjct_from, sbjct_to) )
+        query_nid, query_from, query_to = map(int, query_token.split("_") )
+        sbjct_nid, sbjct_from, sbjct_to = map(int, sbjct_token.split("_") )
 
-        self.debug( "checking link between %s (%i-%i) and %s (%i-%i)" %\
+        self.debug( "checking link between %i (%i-%i) and %i (%i-%i)" %\
                     (query_nid, query_from, query_to,
                      sbjct_nid, sbjct_from, sbjct_to) )
 

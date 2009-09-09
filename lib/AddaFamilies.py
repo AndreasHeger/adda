@@ -66,6 +66,7 @@ class AddaFamilies( AddaModuleBlock ):
             if line[0] == "#": continue
             if line.startswith("nid"): continue
             nid, start, end, family = line[:-1].split("\t")
+            nid = int(nid)
             nid2domains[nid].append( (int(start),int(end),family) )
             family2domains[family].append( (nid,int(end)-int(start) ) )
             ndomains += 1

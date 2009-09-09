@@ -139,7 +139,11 @@ class AddaModule:
         """
 
         if filenames == None: filenames = self.mFilenames
+
         for f in filenames:
+
+            if SegmentedFile.isComplete( f ): return True
+
             self.info( "merging file %s from %i chunks" % (f, self.mNumChunks) )
 
             # check if all parts have finished and are present

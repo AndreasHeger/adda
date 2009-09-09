@@ -111,7 +111,8 @@ class AddaFit( AddaModuleRecord ):
         self.mMinTransfer = float(self.mConfig.get( "fit", "min_transfer" ))
         self.mMinOverhang = float(self.mConfig.get( "fit", "min_overhang" ))
         self.mFilenameNids = self.mConfig.get( "files", "output_nids", "adda.nids" )
-        self.mFilenames = (self.mFilenameFit, self.mFilenameTransfer, self.mFilenameDetails, self.mFilenameOverhang )
+
+        self.mFilenames = (self.mFilenameFit, self.mFilenameTransfer, self.mFilenameData, self.mFilenameOverhang )
 
         self.mOutfileDetails = None
         self.mOutfileData = None
@@ -170,7 +171,7 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         self.mOutfileData  = self.openOutputStream( self.mFilenameData, register = True )
 
         if not self.mContinueAt:
-            self.mOutfileData.write( "class\query_nid\tsbjct_nid\ttransfer\tquery_overhang\tsbjct_overhang\n" )
+            self.mOutfileData.write( "class\tquery_nid\tsbjct_nid\ttransfer\tquery_overhang\tsbjct_overhang\n" )
 
     #--------------------------------------------------------------------------        
     def registerExistingOutput(self, filename):    
@@ -597,6 +598,9 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
     def merge(self, filenames = None ):
         """merge runs from parallel computations.
         """
+
+        if SegmentedFile.isComplete( self.mFilenameFit ):
+            return True
 
         # remove unwanted results
         for x in (self.mFilenameTransfer, self.mFilenameOverhang, self.mFilenameFit):

@@ -494,16 +494,6 @@ def main():
          map_module = map_module,
          config = config )
 
-    mFilenameGraph = config.get( "files", "output_graph", "adda.graph")
-    mFilenameIndex = config.get( "files", "output_index", "adda.graph.index")
-
-    #i = cadda.IndexedNeighbours( mFilenameGraph, mFilenameIndex )
-    #n = i.getNeighbours(1)
-    #for nn in n: print str(nn)
-    #sys.exit(1)
-
-
-
     # build the adda graph
     run( options,
          order = ( "index", ),

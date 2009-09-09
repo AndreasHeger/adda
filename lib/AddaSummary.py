@@ -114,6 +114,9 @@ class AddaSummary( AddaModuleBlock ):
     def outputSummaryProfiles( self ):
         """analyse the alignments."""
 
+        if not os.path.exists( self.mFilenameProfiles ):
+            return { 'nids' : 0 }
+
         self.mProfileLibrary = ProfileLibrary.ProfileLibrary( self.mFilenameProfiles, "r" )
 
         nids = self.mProfileLibrary.keys()
@@ -200,6 +203,8 @@ class AddaSummary( AddaModuleBlock ):
 
     def outputSummaryGraph( self ):
         """analyse the alignments."""
+
+        return {}
 
         infile = SegmentedFile.openfile( self.mFilenameGraph, "r" )
 
