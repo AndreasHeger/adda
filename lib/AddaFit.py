@@ -111,7 +111,7 @@ class AddaFit( AddaModuleRecord ):
         self.mMinTransfer = float(self.mConfig.get( "fit", "min_transfer" ))
         self.mMinOverhang = float(self.mConfig.get( "fit", "min_overhang" ))
         self.mFilenameNids = self.mConfig.get( "files", "output_nids", "adda.nids" )
-
+        self.mMaxSequenceLength = self.mConfig.get( "segment", "max_sequence_length", 10000 )
         self.mFilenames = (self.mFilenameFit, self.mFilenameTransfer, self.mFilenameData, self.mFilenameOverhang )
 
         self.mOutfileDetails = None
@@ -131,9 +131,9 @@ class AddaFit( AddaModuleRecord ):
         #self.mDomainBoundaries = AddaIO.readMapNid2Domains( infile, self.mMapId2Nid, rx_include )
         #infile.close()
 
-        # result containers
-        self.mTransferValues = []
-        self.mOverhangValues = []
+        # result containers - histograms
+        self.mTransferValues = numpy.array( [0] * (self.mMaxSequenceLength + 1), numpy.int )
+        self.mOverhangValues = numpy.array( [0] * (self.mMaxSequenceLength + 1), numpy.int )
 
         # used to store data from an aborted run
         self.mValues = []
@@ -143,7 +143,6 @@ class AddaFit( AddaModuleRecord ):
         if self.mLogLevel >= 5:
             self.mOutfileDetails  = self.openOutputStream( self.mFilenameDetails, register = True )
             
-
             if not self.mContinueAt:
                 self.mOutfileDetails.write( """# FAMILY:          domain family
 # NID1:         sequence nid1
@@ -243,9 +242,9 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         for transfer, overhang in __iterate( values):                   
 
             if transfer:
-                self.mTransferValues.append( transfer )
+                self.mTransferValues[transfer] += 1
             if overhang:
-                self.mOverhangValues.append( overhang )
+                self.mOverhangValues[overhang] += 1
 
     #--------------------------------------------------------------------------    
     def readPreviousData(self, filename = None):
@@ -254,16 +253,16 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         if filename == None: filename = self.mFilenameData
 
         self.info( "reading previous data from %s" % filename )
-        
+
         if not os.path.exists( filename ):
             self.warn( "file %s does not exist" % filename )
             return
 
+        self.mTransferValues = numpy.array( [0] * (self.mMaxSequenceLength + 1), numpy.int )
+        self.mOverhangValues = numpy.array( [0] * (self.mMaxSequenceLength + 1), numpy.int )
+        
         infile = open( filename, "r" )
 
-        self.mTransferValues = []
-        self.mOverhangValues = []
-        
         def iterate_per_query(infile):
             
             last_query = None
@@ -314,11 +313,11 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
             self.warn( "file %s does not exist" % filename )
             return
 
+        self.mTransferValues = numpy.array( [0] * (self.mMaxSequenceLength + 1), numpy.int )
+        self.mOverhangValues = numpy.array( [0] * (self.mMaxSequenceLength + 1), numpy.int )
+
         infile = open( filename, "r" )
 
-        self.mTransferValues = []
-        self.mOverhangValues = []
-        
         def iterate_per_query(infile):
             
             last_query = None
@@ -461,34 +460,22 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         self.processValues( values )
                                         
     #--------------------------------------------------------------------------
-    def writeHistogram(self, outfile, intervals, frequencies ):
-        
-        for bin, value in zip(intervals, frequencies ):
+    def writeHistogram(self, outfile, frequencies ):
+        '''write a histogram'''
+        for bin, value in enumerate(frequencies):
             outfile.write( "%i\t%f\n" % (bin, value) )
 
-    #--------------------------------------------------------------------------
-    def cumulateHistogram( self, values ):
-        t = 0
-        v = []
-        for x in values:
-            t += x
-            v.append( t )
-        return v
-
     #--------------------------------------------------------------------------    
-    def getCumulativeHistogram(self, values, reverse = False):
-        
-        if len(values) == 0: return [],[]
-        x = numpy.arange( int(min(values)), int(max(values)) )
-        h = scipy.stats.histogram2( values, x)
+    def getCumulativeHistogram(self, histogram, reverse = False):
+        '''return a normalized and cumulative histogram for histogram.'''
         if reverse:
-            c = numpy.add.accumulate( numpy.array( h[::-1], numpy.float) )
+            c = numpy.add.accumulate( numpy.array( histogram[::-1], numpy.float) )
         else: 
-            c = numpy.add.accumulate( numpy.array( h, numpy.float) )
+            c = numpy.add.accumulate( numpy.array( histogram, numpy.float) )
         total = max(c)
         y = c / total
         if reverse: y = y[::-1].copy()
-        return x,y
+        return y
     
     #--------------------------------------------------------------------------
     def plotHistogram(self, bins, vals,
@@ -542,8 +529,8 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         self.mOutfileTransfer = self.openOutputStream( self.mFilenameTransfer, register = False )
         self.mOutfileOverhang = self.openOutputStream( self.mFilenameOverhang, register = False )        
                 
-        x,y = self.getCumulativeHistogram(self.mTransferValues, reverse = True )
-        self.writeHistogram( self.mOutfileTransfer, x, y )
+        y = self.getCumulativeHistogram(self.mTransferValues, reverse = True )
+        self.writeHistogram( self.mOutfileTransfer, y )
 
         def f(x):
             return A() + B() * numpy.exp ( - numpy.exp( -(x - C()) / K() ) - (x - C()) / K() + 1 )
@@ -553,26 +540,27 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         C = Parameter(76.0)
         K = Parameter(8.6)
 
-        result = fit(f,[A,B,C,K], y=y, x=x)
+        bins = numpy.arange(0,len(y))
+        result = fit(f,[A,B,C,K], y=y, x=bins)
 
-        self.plotHistogram(x, y, 
-                           f = f,
-                           filename = self.mFilenameTransfer + ".png",
-                           title = "transfer" )
+        self.plotHistogram( bins, y, 
+                            f = f,
+                            filename = self.mFilenameTransfer + ".png",
+                            title = "transfer" )
 
 
         # fit an exponential function to overhangs
-        x,y = self.getCumulativeHistogram(self.mOverhangValues, reverse = True)
-        self.writeHistogram( self.mOutfileOverhang, x, y )
+        y = self.getCumulativeHistogram(self.mOverhangValues, reverse = True)
+        self.writeHistogram( self.mOutfileOverhang, y )
         
         def f(x): return F() * numpy.exp ( -(x)* E() )
         
         E = Parameter(0.05)
         F = Parameter(1.0)
           
-        result = fit(f,[E,F], y=y, x=x)
+        result = fit(f,[E,F], y=y, x=bins)
         
-        self.plotHistogram(x, y, 
+        self.plotHistogram(bins, y, 
                            f = f,
                            filename = self.mFilenameOverhang + ".png",
                            title = "overhang" )
