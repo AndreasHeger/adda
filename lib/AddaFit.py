@@ -112,10 +112,26 @@ class AddaFit( AddaModuleRecord ):
         self.mMinOverhang = float(self.mConfig.get( "fit", "min_overhang" ))
         self.mFilenameNids = self.mConfig.get( "files", "output_nids", "adda.nids" )
         self.mMaxSequenceLength = self.mConfig.get( "segment", "max_sequence_length", 10000 )
-        self.mFilenames = (self.mFilenameFit, self.mFilenameTransfer, self.mFilenameData, self.mFilenameOverhang )
+
+        self.mFilenames = (self.mFilenameFit, self.mFilenameTransfer, self.mFilenameOverhang)
 
         self.mOutfileDetails = None
         self.mOutfileData = None
+        self.mDataIsComplete = False
+
+    #--------------------------------------------------------------------------        
+    def isComplete( self ):
+        '''check if files are complete'''
+
+        if AddaModuleRecord.isComplete( self ):
+            return True
+        
+        # if the data files is complete, re-compute fit, transfer and overhang
+        # only and then return as complete
+        if SegmentedFile.isComplete( self.mFilenameData ):
+            return self.merge()
+        
+        return False
 
     #--------------------------------------------------------------------------        
     def startUp( self ):
@@ -460,22 +476,42 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         self.processValues( values )
                                         
     #--------------------------------------------------------------------------
-    def writeHistogram(self, outfile, frequencies ):
+    def writeHistogram(self, outfile, bins, frequencies ):
         '''write a histogram'''
-        for bin, value in enumerate(frequencies):
+        for bin, value in zip( bins, frequencies):
             outfile.write( "%i\t%f\n" % (bin, value) )
 
     #--------------------------------------------------------------------------    
     def getCumulativeHistogram(self, histogram, reverse = False):
-        '''return a normalized and cumulative histogram for histogram.'''
+        '''return a normalized and cumulative histogram for histogram.
+        
+        also truncates.
+        '''
+
+        # truncate
+        ma = len(histogram) - 1
+        while ma > 0 and histogram[ma] == 0: ma -= 1
+        ma += 1
+
+        mi = 0
+        while mi < len(histogram) and histogram[mi] == 0: mi+= 1
+        
+        bins = numpy.arange(mi,ma)
+        histogram = histogram[mi:ma]
+
+        # cumulate
         if reverse:
             c = numpy.add.accumulate( numpy.array( histogram[::-1], numpy.float) )
         else: 
             c = numpy.add.accumulate( numpy.array( histogram, numpy.float) )
+            
+        # normalize
         total = max(c)
         y = c / total
+
         if reverse: y = y[::-1].copy()
-        return y
+
+        return bins, y
     
     #--------------------------------------------------------------------------
     def plotHistogram(self, bins, vals,
@@ -529,8 +565,8 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         self.mOutfileTransfer = self.openOutputStream( self.mFilenameTransfer, register = False )
         self.mOutfileOverhang = self.openOutputStream( self.mFilenameOverhang, register = False )        
                 
-        y = self.getCumulativeHistogram(self.mTransferValues, reverse = True )
-        self.writeHistogram( self.mOutfileTransfer, y )
+        bins, y = self.getCumulativeHistogram(self.mTransferValues, reverse = True )
+        self.writeHistogram( self.mOutfileTransfer, bins, y )
 
         def f(x):
             return A() + B() * numpy.exp ( - numpy.exp( -(x - C()) / K() ) - (x - C()) / K() + 1 )
@@ -540,7 +576,6 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         C = Parameter(76.0)
         K = Parameter(8.6)
 
-        bins = numpy.arange(0,len(y))
         result = fit(f,[A,B,C,K], y=y, x=bins)
 
         self.plotHistogram( bins, y, 
@@ -550,14 +585,14 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
 
 
         # fit an exponential function to overhangs
-        y = self.getCumulativeHistogram(self.mOverhangValues, reverse = True)
-        self.writeHistogram( self.mOutfileOverhang, y )
+        bins, y = self.getCumulativeHistogram(self.mOverhangValues, reverse = True)
+        self.writeHistogram( self.mOutfileOverhang, bins, y )
         
         def f(x): return F() * numpy.exp ( -(x)* E() )
         
         E = Parameter(0.05)
         F = Parameter(1.0)
-          
+
         result = fit(f,[E,F], y=y, x=bins)
         
         self.plotHistogram(bins, y, 
