@@ -2,6 +2,7 @@ import sys, os, re, time, types, gzip, shelve
 import alignlib
 from ConfigParser import ConfigParser as PyConfigParser
 import Experiment as E
+import fileinput
 
 class ConfigParser( PyConfigParser ):
     """config parser with defaults."""
@@ -36,6 +37,10 @@ def openStream( filename ):
     """open an input stream.
     """
     
+    files = filename.split(",")
+    fi = fileinput.FileInput( files, openhook=fileinput.hook_compressed)
+    return fi
+
     if filename[-3:] == ".gz":
         return gzip.open( filename, "r" )
     else:
