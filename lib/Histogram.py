@@ -30,7 +30,6 @@ import sys,os,string,re
 import math
 from types import *
 import scipy
-import scipy.stats
 import bisect
 import numpy
 
@@ -168,7 +167,7 @@ def Calculate( values,
             
         values = new_values
 
-    return Convert(scipy.stats.histogram2( values, intervals), intervals, no_empty_bins)
+    return Convert(numpy.histogram( values, intervals), intervals, no_empty_bins)
 
 #-------------------------------------------------------------------------------------------------------
 def Scale( h, scale = 1.0):

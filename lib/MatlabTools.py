@@ -7,7 +7,7 @@
 ##
 ## Author: Andreas Heger <heger@ebi.ac.uk>
 ##
-## $Id: MatlabTools.py,v 1.2 2002/11/18 12:56:53 heger Exp $
+## $Id: MatlabTools.py 2784 2009-09-10 11:41:14Z andreas $
 ##
 ##
 ####
@@ -18,7 +18,7 @@
 # and MatLab
 
 import sys, string, re
-import Numeric
+import numpy
 
 
 def WriteMatrixOld( matrix, separator = "\t"):
@@ -43,7 +43,7 @@ def WriteMatrix( matrix, outfile = sys.stdout, separator = "\t", format="%f",
 
 def ReadMatrix( file,
                 separator = "\t",
-                numeric_type = Numeric.Float,
+                numeric_type = numpy.float,
                 take = "all",
                 headers = False
                 ):
@@ -72,7 +72,7 @@ def ReadMatrix( file,
 
     num_cols = len(take)
             
-    matrix = Numeric.zeros( (num_rows, num_cols), numeric_type )
+    matrix = numpy.zeros( (num_rows, num_cols), numeric_type )
     
     nrow = 0
     for l in lines:
@@ -85,7 +85,6 @@ def ReadMatrix( file,
             print "error parsing data", data
             raise
 
-
         matrix[nrow] = data
         nrow += 1
 
@@ -94,7 +93,7 @@ def ReadMatrix( file,
 
 def ReadSparseMatrix( filename,
                       separator = "\t",
-                      numeric_type = Numeric.Float,
+                      numeric_type = numpy.float,
                       is_symmetric = None):
     """read sparse matrix."""
 
@@ -110,7 +109,7 @@ def ReadSparseMatrix( filename,
         num_rows= max( num_rows, num_cols)
         num_cols= max( num_rows, num_cols)
 
-    matrix = Numeric.zeros( (num_rows, num_cols), numeric_type )
+    matrix = numpy.zeros( (num_rows, num_cols), numeric_type )
 
     for row, col, weight in data:
         matrix[row-1,col-1] = weight
@@ -124,7 +123,7 @@ def ReadSparseMatrix( filename,
 
 def ReadBinarySparseMatrix( filename,
                             separator = "\t",
-                            numeric_type = Numeric.Float,
+                            numeric_type = numpy.float,
                             is_symmetric = None):
     """read sparse matrix."""
 
@@ -139,7 +138,7 @@ def ReadBinarySparseMatrix( filename,
     if (is_symmetric):
         num_rows= max( num_rows, num_cols)
         num_cols= max( num_rows, num_cols)
-    matrix = Numeric.zeros( (num_rows, num_cols), numeric_type )
+    matrix = numpy.zeros( (num_rows, num_cols), numeric_type )
 
 
     for row, col in data:
@@ -155,13 +154,14 @@ def ReadBinarySparseMatrix( filename,
 def readMatrix( infile,
                 format = "full",
                 separator = "\t",
-                numeric_type = Numeric.Float,
+                numeric_type = numpy.float,
                 take = "all",
                 headers = True,
+                missing = None,
                 ):
-    """read a matrix from file ane return a Numeric matrix.
+    """read a matrix from file ane return a numpy matrix.
 
-    various formats are:
+    formats accepted are:
     * full
     * sparse
     * phylip
@@ -170,6 +170,8 @@ def readMatrix( infile,
     row_headers, col_headers = [], []
 
     lines = filter( lambda x: x[0] != "#", infile.readlines())
+
+    if len(lines) == 0: raise IOError("no input")
 
     if format == "full":
 
@@ -190,22 +192,35 @@ def readMatrix( infile,
 
         num_cols = len(take)
 
-        matrix = Numeric.zeros( (num_rows, num_cols), numeric_type )
+        matrix = numpy.zeros( (num_rows, num_cols), numeric_type )
 
         nrow = 0
         for l in lines:
             data = l[:-1].split("\t")
             if headers: row_headers.append( data[0] )
 
-            try:
-                data = map( lambda x: float(data[x]), take)
-            except ValueError:
-                print "error parsing data", data
-                raise
-            except IndexError:
-                print "row of incorrect length", data
-                raise
+            if missing == None:
+                try:
+                    data = map( lambda x: float(data[x]), take)
+                except ValueError, msg:
+                    raise ValueError( "error %s: data=%s" % (msg, str( data )))
+                except IndexError, msg:
+                    raise IndexError( "error %s: data=%s" % (msg, str( data )))
+
+            else:
+                d = []
+                for x in take:
+                    try:
+                        d.append( float(data[x]) )
+                    except ValueError:
+                        d.append( missing )
+                    except IndexError, msg:
+                        raise IndexError( "error %s: data=%s" % (msg, str( data )))
+
+                data = d
+
             matrix[nrow] = data
+
             nrow += 1
 
     elif format == "phylip":
@@ -221,7 +236,7 @@ def readMatrix( infile,
         
         num_cols = num_rows
 
-        matrix = Numeric.zeros( (num_rows, num_cols), numeric_type )
+        matrix = numpy.zeros( (num_rows, num_cols), numeric_type )
         take = range( 1, num_rows)
 
         nrow = 0

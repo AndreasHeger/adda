@@ -1,5 +1,4 @@
 import sys, os, re, time, math, copy, glob, optparse, math
-import pylab
 
 import cadda
 

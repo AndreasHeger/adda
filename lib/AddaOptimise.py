@@ -1,5 +1,10 @@
 import sys, os, re, time, math, copy, glob, optparse, math
-import pylab
+
+try:
+    import matplotlib, pylab
+    PLOT = True
+except ImportError:
+    PLOT = False
 
 import cadda
 
@@ -78,6 +83,8 @@ class AddaOptimise( AddaModuleBlock ):
                      data, 
                      filename = None,
                      title = None):
+
+        if not PLOT: return
 
         pylab.plot( range(len(data)), data )
 

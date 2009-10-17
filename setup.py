@@ -9,13 +9,6 @@ import os
 # numpy, pyrex, matplotlib and scipy
 
 # build the pure c++ part
-libcadda = Extension('libcadda', 
-                     ['src/cadda_parameters.cpp',
-                      'src/cadda_io.cpp',
-                      'src/cadda_optimise.cpp',
-                      'src/cadda_index.cpp', 
-                      'src/cadda_convert.cpp',
-                      'src/cadda_mst.cpp',])
                                
 # build the interface
 cadda = Extension(
@@ -26,7 +19,7 @@ cadda = Extension(
         'src/cadda_optimise.cpp',
         'src/cadda_index.cpp', 
         'src/cadda_convert.cpp',
-        'src/cadda_mst.cpp',],
+        'src/cadda_mst.cpp' ],
     library_dirs=[],
     libraries=["z"],              
     language="c++",               # this causes Pyrex/Cython to create C++ source
@@ -35,7 +28,7 @@ cadda = Extension(
 Components = Extension(
      "Components",                   # name of extension
      [ "src/Components.pyx",        # filename of our Pyrex/Cython source
-       'src/connected_components.cpp',],
+       'src/connected_components.cpp'],
      library_dirs=[],
      libraries=[],
      language="c++",               # this causes Pyrex/Cython to create C++ source

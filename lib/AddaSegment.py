@@ -1,6 +1,6 @@
 import sys, os, re, time, math, copy, glob, optparse, logging
-import Numeric
 
+import numpy
 from AddaModule import AddaModuleRecord
 import CorrespondenceAnalysis
 import MatlabTools
@@ -184,13 +184,13 @@ class AddaSegment( AddaModuleRecord ):
         The matrix is converted to floats to prevent integer
         overflows and returned as percent.
         """
-        matrix = old_matrix.astype(Numeric.Float)
-        Numeric.multiply( matrix, matrix, matrix )
-        Numeric.divide( matrix, sums, matrix )        
-        matrix = Numeric.transpose( matrix )
-        Numeric.divide( matrix, sums, matrix )
+        matrix = old_matrix.astype(numpy.float)
+        numpy.multiply( matrix, matrix, matrix )
+        numpy.divide( matrix, sums, matrix )        
+        matrix = numpy.transpose( matrix )
+        numpy.divide( matrix, sums, matrix )
         matrix *= 100
-        return matrix.astype( Numeric.Int )
+        return matrix.astype( numpy.int )
 
     #--------------------------------------------------------------------------
     def addLocalBiasToMatrix( self, matrix ):
@@ -680,7 +680,7 @@ class AddaSegment( AddaModuleRecord ):
 
         # build matrix and add query sequence
         nneighbours += 1
-        matrix = Numeric.zeros( (nneighbours, query_length), Numeric.Int)    
+        matrix = numpy.zeros( (nneighbours, query_length), numpy.int)    
         matrix[0, 0:query_length] = 1
         row = 1
         
@@ -720,12 +720,12 @@ class AddaSegment( AddaModuleRecord ):
             return []
         
         ## calculate dot product of the matrix
-        dot_matrix = Numeric.matrixmultiply( Numeric.transpose( blast_matrix ), blast_matrix, )
+        dot_matrix = numpy.dot( numpy.transpose( blast_matrix ), blast_matrix, )
     
         ## perform some matrix magic
         if int(self.mConfig.get('segments','multiply')) > 0:
             for x in range(0, int(self.mConfig.get('segments','multiply'))):
-                dot_matrix = Numeric.matrixmultiply( dot_matrix, dot_matrix)
+                dot_matrix = numpy.dot( dot_matrix, dot_matrix)
 
                 if E.getLogLevel() >= 3:
                     MatlabTools.WriteMatrix(dot_matrix, outfile=open("correlation_%s_%i.matrix" % (nid, x), "w"))
@@ -734,7 +734,7 @@ class AddaSegment( AddaModuleRecord ):
             self.addLocalBiasToMatrix( dot_matrix )
     
         if self.mConfig.get('segments','normalize'):
-            dot_matrix = self.normalizeMatrix( dot_matrix, Numeric.sum( blast_matrix ))
+            dot_matrix = self.normalizeMatrix( dot_matrix, numpy.sum( blast_matrix ))
             
         if E.getLogLevel() >= 3:
             self.debug( "correlation matrix for %s: %s" % (nid, str(dot_matrix.shape)))            
@@ -748,7 +748,7 @@ class AddaSegment( AddaModuleRecord ):
             if not row_indices:
                 print "# error for %i: correspondence analysis did not converge" % nid
             else:
-                map_row_new2old = Numeric.argsort(row_indices)
+                map_row_new2old = numpy.argsort(row_indices)
             
             dot_matrix = CorrespondenceAnalysis.GetPermutatedMatrix( dot_matrix, map_row_new2old, map_row_new2old)
                 
@@ -817,13 +817,13 @@ class AddaSegment( AddaModuleRecord ):
         self.debug( "# splitting matrix on level %i in intervall %s %i" % (level, intervall, min_length))
     
         ## 1. build Interfaces
-        I = Numeric.zeros( l, Numeric.Float )
+        I = numpy.zeros( l, numpy.float )
     
         for x in range(xfrom+1, xto-1):
     
-            i11 = float(Numeric.sum(Numeric.sum(matrix[xfrom:x,xfrom:x])))
-            i22 = float(Numeric.sum(Numeric.sum(matrix[x:xto,x:xto])))
-            i12 = float(Numeric.sum(Numeric.sum(matrix[xfrom:x,x:xto] )))
+            i11 = float(numpy.sum(numpy.sum(matrix[xfrom:x,xfrom:x])))
+            i22 = float(numpy.sum(numpy.sum(matrix[x:xto,x:xto])))
+            i12 = float(numpy.sum(numpy.sum(matrix[xfrom:x,x:xto] )))
             i21 = i12
     
             row1 = i11 + i12
@@ -846,9 +846,9 @@ class AddaSegment( AddaModuleRecord ):
 
         ## 2. split at maximum
         if min_distance_border and l > 2 * min_distance_border:
-            xmax = Numeric.argmax( I[min_distance_border:(-min_distance_border)] ) + min_distance_border
+            xmax = numpy.argmax( I[min_distance_border:(-min_distance_border)] ) + min_distance_border
         else:
-            xmax = Numeric.argmax( I )
+            xmax = numpy.argmax( I )
     
         val  = I[xmax]
         pos = xmax + xfrom

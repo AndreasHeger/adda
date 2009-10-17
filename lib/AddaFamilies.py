@@ -1,6 +1,13 @@
 import sys, os, re, time, math, copy, glob, optparse, math, collections
-import pylab
 import numpy
+
+try:
+    import matplotlib, pylab
+    PLOT = True
+except ImportError:
+    PLOT = False
+
+
 
 import cadda
 
@@ -170,48 +177,49 @@ class AddaFamilies( AddaModuleBlock ):
             family_size_domains.append( ndomains )
 
 
-        ## output length distributions
-        lines, legends = [], []
-        for title, vals in (
-            ("sequences", hist_sequences), 
-            ("domains", hist_domains_mst), 
-            ("partial singletons", hist_domains_full_singletons),
-            ("full singletons", hist_domains_partial_singletons), ):
-            
-            vv = numpy.zeros( max_length )
-            for x in range( 0, max_length, 10 ):
-                vv[x] = sum( vals[x:x+10] )
-            x = numpy.flatnonzero( vv > 0 )
-            s = sum(vals)
-            if s > 0: vv /= s
+        if PLOT:
+            ## output length distributions
+            lines, legends = [], []
+            for title, vals in (
+                ("sequences", hist_sequences), 
+                ("domains", hist_domains_mst), 
+                ("partial singletons", hist_domains_full_singletons),
+                ("full singletons", hist_domains_partial_singletons), ):
 
-            lines.append( pylab.plot( x, vv[x] ) )
-            legends.append( title )
+                vv = numpy.zeros( max_length )
+                for x in range( 0, max_length, 10 ):
+                    vv[x] = sum( vals[x:x+10] )
+                x = numpy.flatnonzero( vv > 0 )
+                s = sum(vals)
+                if s > 0: vv /= s
 
-        pylab.xlabel( "sequence or domain length / residues" )
-        pylab.ylabel( "relative frequency" )
-        pylab.legend( lines, legends )
-        pylab.savefig( os.path.expanduser( self.mFilenameDomains + "_domainsizes_all.png" ) )
+                lines.append( pylab.plot( x, vv[x] ) )
+                legends.append( title )
 
-        pylab.xlim( 0, 2000 )
-        pylab.savefig( os.path.expanduser( self.mFilenameDomains + "_domainsizes_small.png" ) )
+            pylab.xlabel( "sequence or domain length / residues" )
+            pylab.ylabel( "relative frequency" )
+            pylab.legend( lines, legends )
+            pylab.savefig( os.path.expanduser( self.mFilenameDomains + "_domainsizes_all.png" ) )
 
-        pylab.xlim( max_length - max_length // 4, max_length + 1 )
-        pylab.savefig( os.path.expanduser( self.mFilenameDomains + "_domainsize_large.png" ) )
+            pylab.xlim( 0, 2000 )
+            pylab.savefig( os.path.expanduser( self.mFilenameDomains + "_domainsizes_small.png" ) )
 
-        pylab.clf()
-            
-        ## output domain family sizes
-        lines = []
-        (yvals, xvals) = numpy.histogram( family_size_sequences, bins=50, new = True)
-        lines.append( pylab.loglog( xvals[:-1], yvals ) )
-        (yvals, xvals) = numpy.histogram( family_size_domains, bins=50, new = True)
-        lines.append( pylab.loglog( xvals[:-1], yvals ) )
-        
-        pylab.legend( lines, ( "sequeces", "domains") )
-        pylab.xlabel( "sequences/domains per family" )
-        pylab.ylabel( "relative frequency" )
-        pylab.savefig( os.path.expanduser( self.mFilenameDomains + "_familysizes.png" ) )
+            pylab.xlim( max_length - max_length // 4, max_length + 1 )
+            pylab.savefig( os.path.expanduser( self.mFilenameDomains + "_domainsize_large.png" ) )
+
+            pylab.clf()
+
+            ## output domain family sizes
+            lines = []
+            (yvals, xvals) = numpy.histogram( family_size_sequences, bins=50, new = True)
+            lines.append( pylab.loglog( xvals[:-1], yvals ) )
+            (yvals, xvals) = numpy.histogram( family_size_domains, bins=50, new = True)
+            lines.append( pylab.loglog( xvals[:-1], yvals ) )
+
+            pylab.legend( lines, ( "sequeces", "domains") )
+            pylab.xlabel( "sequences/domains per family" )
+            pylab.ylabel( "relative frequency" )
+            pylab.savefig( os.path.expanduser( self.mFilenameDomains + "_familysizes.png" ) )
 
 
     def finish( self ):

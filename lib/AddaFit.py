@@ -1,7 +1,14 @@
 import sys, os, re, time, math, copy, random, glob  
 import numpy
-import scipy, scipy.stats, scipy.optimize
-import matplotlib, pylab
+import scipy, scipy.optimize
+
+PLOT = True
+
+try:
+    import matplotlib, pylab
+except ImportError:
+    PLOT = False
+ 
 
 from AddaModule import AddaModuleRecord
 import AddaIO
@@ -531,6 +538,8 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         # find how best to test if within MainProcess or not.
         if not re.search( "MainProcess", str(multiprocessing.current_process())):
             return
+
+        if not PLOT: return
 
         pylab.plot( bins, vals )
         if f: 
