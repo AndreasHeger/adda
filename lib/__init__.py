@@ -27,6 +27,8 @@ __all__ = [
            "AddaFamilies",
            "AddaRealignment", 
            "AddaSummary",
+           "AddaStats",
+           "AddaPlot",
            ]
 
 

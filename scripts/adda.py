@@ -418,6 +418,7 @@ def main():
                                 "cluster", 
                                 "realign",
                                 "families", 
+                                "stats",
                                 "summary"),
                        help="perform this step [default=%default]" )
 
@@ -472,6 +473,7 @@ def main():
                    'segment' : AddaSegment.AddaSegment,
                    'blast' : AddaBlast.AddaBlast,
                    'graph' : AddaGraph.AddaGraph,
+                   'stats' : AddaStats.AddaStats,
                    'profiles' : AddaProfiles.AddaProfiles, 
                    'realign' : AddaRealignment.AddaRealignment,
                    'index' : AddaIndex.AddaIndexBuild,
@@ -526,6 +528,12 @@ def main():
         config = config )
 
     fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
+
+    run( options,
+         order = ("stats", ),
+         map_module = map_module,
+         config = config,
+         fasta = fasta )
 
     if not merge( options,
                   order = ("fit", "segment" ),

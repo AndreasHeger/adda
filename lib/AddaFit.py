@@ -2,16 +2,8 @@ import sys, os, re, time, math, copy, random, glob
 import numpy
 import scipy, scipy.optimize
 
-PLOT = True
-
-try:
-    import matplotlib, pylab
-except ImportError:
-    PLOT = False
- 
-
 from AddaModule import AddaModuleRecord
-import AddaIO
+import AddaIO, AddaPlot
 import SegmentedFile
 import multiprocessing
 
@@ -519,46 +511,6 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         if reverse: y = y[::-1].copy()
 
         return bins, y
-    
-    #--------------------------------------------------------------------------
-    def plotHistogram(self, bins, vals,
-                      title = None, 
-                      filename = None,
-                      f = None):
-            
-        # do not plot if called in subprocess. The first time this
-        # function is called in a subprocess, it is fine, but called
-        # by another, the error
-        #
-        # adda.py: Fatal IO error 0 (Success) on X server :0.0.
-        #
-        # appears.
-        #
-        # The test is not pretty and maintainable, but I could not
-        # find how best to test if within MainProcess or not.
-        if not re.search( "MainProcess", str(multiprocessing.current_process())):
-            return
-
-        if not PLOT: return
-
-        pylab.plot( bins, vals )
-        if f: 
-            xstart, xend = pylab.gca().get_xlim()
-            increment = (xend - xstart) / 100.0
-            xvals = numpy.arange( xstart, xend, increment )
-            yvals = f( xvals )
-            pylab.plot( xvals, yvals )
-
-        if title: pylab.title( title )
-        pylab.xlabel( "residue" )
-        pylab.ylabel( "relative cumulative frequency" )
-
-        if filename:
-            pylab.savefig( os.path.expanduser(filename) )
-        else:
-            pylab.show()
-            
-        pylab.clf()
 
     #--------------------------------------------------------------------------    
     def finish(self):
@@ -587,10 +539,10 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
 
         result = fit(f,[A,B,C,K], y=y, x=bins)
 
-        self.plotHistogram( bins, y, 
-                            f = f,
-                            filename = self.mFilenameTransfer + ".png",
-                            title = "transfer" )
+        AddaPlot.plotHistogram( bins, y, 
+                                f = f,
+                                filename = self.mFilenameTransfer + ".png",
+                                title = "transfer" )
 
 
         # fit an exponential function to overhangs
@@ -604,10 +556,10 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
 
         result = fit(f,[E,F], y=y, x=bins)
         
-        self.plotHistogram(bins, y, 
-                           f = f,
-                           filename = self.mFilenameOverhang + ".png",
-                           title = "overhang" )
+        AddaPlot.plotHistogram(bins, y, 
+                               f = f,
+                               filename = self.mFilenameOverhang + ".png",
+                               title = "overhang" )
         
         self.mOutfile.write( "[optimise]\n" )
         self.mOutfile.write( "sigmoid_min=%f\n" % A() )

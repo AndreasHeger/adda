@@ -125,7 +125,7 @@ class AddaModule:
             return ".%010i.%010i" % (self.mNumChunks, chunk )
         else:
             return ""
-    
+
     #--------------------------------------------------------------------------
     def isSubset( self ):
         """return true if the module works on a subset of the data."""
