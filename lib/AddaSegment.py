@@ -178,18 +178,22 @@ class AddaSegment( AddaModuleRecord ):
             return False
         
     #--------------------------------------------------------------------------
-    def normalizeMatrix( self, matrix ):
-        """normalize matrix. 
+    def normalizeMatrix( self, matrix, sums ):
+        """normalize square matrix with sums.
 
-        Each matrix element x will by x^2 / sum(row) / sum(col).
+        Each matrix element x_ij will by (x_{ij})^2 / sums[i] / sums[j]
         
         The matrix is converted to floats
         """
-        row_sums = matrix.sum( axis= 1).astype(float)
-        col_sums = matrix.sum( axis= 0).astype(float)
         matrix = matrix.astype( float )
-        ma = numpy.multiply( matrix, matrix) / row_sums / col_sums * 100
-        return ma
+
+        numpy.multiply( matrix, matrix, matrix )
+        numpy.divide( matrix, sums, matrix )        
+        matrix = numpy.transpose( matrix )
+        numpy.divide( matrix, sums, matrix )
+        matrix *= 100
+
+        return matrix.astype( numpy.int )
 
     #--------------------------------------------------------------------------
     def addLocalBiasToMatrix( self, matrix ):
@@ -720,6 +724,10 @@ class AddaSegment( AddaModuleRecord ):
         ## calculate dot product of the matrix
         dot_matrix = numpy.dot( numpy.transpose( blast_matrix ), blast_matrix, )
 
+        if E.getLogLevel() >= 3:
+            self.debug( "correlation matrix for %s: %s" % (nid, str(dot_matrix.shape)))            
+            MatlabTools.WriteMatrix(dot_matrix, outfile=open("correlation_%s.matrix" % nid, "w"))
+
         ## perform some matrix magic
         if int(self.mConfig.get('segments','multiply')) > 0:
             for x in range(0, int(self.mConfig.get('segments','multiply'))):
@@ -732,11 +740,11 @@ class AddaSegment( AddaModuleRecord ):
             self.addLocalBiasToMatrix( dot_matrix )
     
         if self.mConfig.get('segments','normalize'):
-            dot_matrix = self.normalizeMatrix( dot_matrix )
-            
+            dot_matrix = self.normalizeMatrix( dot_matrix, numpy.sum( blast_matrix, axis=0) )
+
         if E.getLogLevel() >= 3:
-            self.debug( "correlation matrix for %s: %s" % (nid, str(dot_matrix.shape)))            
-            MatlabTools.WriteMatrix(dot_matrix, outfile=open("correlation_%s.matrix" % nid, "w"))
+            self.debug( "work matrix for %s: %s" % (nid, str(dot_matrix.shape)))            
+            MatlabTools.WriteMatrix(dot_matrix, outfile=open("work_%s.matrix" % nid, "w"))
             
         ## rearrange matrix if necessary
         map_row_new2old = range(0, lmatrix)        
