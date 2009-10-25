@@ -178,19 +178,18 @@ class AddaSegment( AddaModuleRecord ):
             return False
         
     #--------------------------------------------------------------------------
-    def normalizeMatrix( self, old_matrix, sums ):
-        """normalize matrix. Each element will by x2 / row / col.
+    def normalizeMatrix( self, matrix ):
+        """normalize matrix. 
+
+        Each matrix element x will by x^2 / sum(row) / sum(col).
         
-        The matrix is converted to floats to prevent integer
-        overflows and returned as percent.
+        The matrix is converted to floats
         """
-        matrix = old_matrix.astype(numpy.float)
-        numpy.multiply( matrix, matrix, matrix )
-        numpy.divide( matrix, sums, matrix )        
-        matrix = numpy.transpose( matrix )
-        numpy.divide( matrix, sums, matrix )
-        matrix *= 100
-        return matrix.astype( numpy.int )
+        row_sums = matrix.sum( axis= 1).astype(float)
+        col_sums = matrix.sum( axis= 0).astype(float)
+        matrix = matrix.astype( float )
+        ma = numpy.multiply( matrix, matrix) / row_sums / col_sums * 100
+        return ma
 
     #--------------------------------------------------------------------------
     def addLocalBiasToMatrix( self, matrix ):
@@ -241,7 +240,7 @@ class AddaSegment( AddaModuleRecord ):
         return new_ranges
     #--------------------------------------------------------------------------
     def convertResidues2Ranges( self, residues, max_length ):
-    
+
         ## skip over gaps
         residues = list(residues)
         residues.sort()
@@ -698,7 +697,6 @@ class AddaSegment( AddaModuleRecord ):
                 
         return matrix
     
-    
     #--------------------------------------------------------------------------
     def getTree( self, nid, lsequence, neighbours):
         
@@ -721,7 +719,7 @@ class AddaSegment( AddaModuleRecord ):
         
         ## calculate dot product of the matrix
         dot_matrix = numpy.dot( numpy.transpose( blast_matrix ), blast_matrix, )
-    
+
         ## perform some matrix magic
         if int(self.mConfig.get('segments','multiply')) > 0:
             for x in range(0, int(self.mConfig.get('segments','multiply'))):
@@ -734,7 +732,7 @@ class AddaSegment( AddaModuleRecord ):
             self.addLocalBiasToMatrix( dot_matrix )
     
         if self.mConfig.get('segments','normalize'):
-            dot_matrix = self.normalizeMatrix( dot_matrix, numpy.sum( blast_matrix ))
+            dot_matrix = self.normalizeMatrix( dot_matrix )
             
         if E.getLogLevel() >= 3:
             self.debug( "correlation matrix for %s: %s" % (nid, str(dot_matrix.shape)))            

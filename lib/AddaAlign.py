@@ -141,6 +141,8 @@ class AddaAlign( AddaModuleRecord ):
             self.mOutfile.write( "\t".join( self.mHeader ) + "\n" ) 
             self.mOutfile.flush()
 
+        self.mStartTime = time.time()
+
     #--------------------------------------------------------------------------------
     def mask( self, nid, alignandum):
         """mask a sequence or profile with nid.
@@ -217,13 +219,12 @@ class AddaAlign( AddaModuleRecord ):
     def applyMethod( self, line ):
         """output the graph."""
 
-        t_start = time.time()
             
         self.mInput += 1
               
         if self.mContinueAt and (query_token,sbjct_token) == self.mContinueAt:
             self.mContinueAt = None
-            t_start = time.time() 
+            self.mStartTime = time.time() 
             self.info("continuing processing after iteration %i" % self.mInput )
             return
 
@@ -236,8 +237,8 @@ class AddaAlign( AddaModuleRecord ):
             t = time.time() 
             self.info( "iteration=%i, passed=%i, failed=%i, notfound=%i, total time=%i, time per step=%f" %\
                            (self.mInput, self.mNPassed, self.mNFailed, self.mNNotFound,
-                            t - t_start,
-                            float(self.mReportStep * ( t - t_start )) / self.mInput, 
+                            t - self.mStartTime,
+                            float(self.mReportStep * ( t - self.mStartTime )) / self.mInput, 
                             ) )
 
         query_nid, query_from, query_to = map(int, query_token.split("_") )

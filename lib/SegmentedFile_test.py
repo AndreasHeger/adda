@@ -68,6 +68,31 @@ class TestSegmentedFileNoHeader(TestSegmentedFile):
         data = [int(x) for x in infile ]
         self.assertEqual( data, range( 20 ) )
 
+class TestSegmentedEmpty(TestSegmentedFile):
+    """check if empty files work."""
+
+    mHasHeader = True
+    def create(self):
+        fd, self.mFilename = tempfile.mkstemp()
+        outfile = SegmentedFile.openfile( self.mFilename, "w", slice="00-10" )
+        outfile.write("header\n")
+        for x in range(10): outfile.write( "%i\n" % x )
+        outfile.close()
+        outfile = SegmentedFile.openfile( self.mFilename, "w", slice="10-20" )
+        outfile.write("header\n")
+        outfile.close()
+        outfile = SegmentedFile.openfile( self.mFilename, "w", slice="20-30" )
+        outfile.write("header\n")
+        for x in range(10,20): outfile.write( "%i\n" % x )
+        outfile.close()
+
+    def checkContents( self ):
+        self.checkToken( self.mFilename )
+        infile = SegmentedFile.openfile( self.mFilename, "r", has_header = self.mHasHeader )
+        data = [ x for x in infile ]
+        self.assertEqual( data[0], "header\n" )
+        self.assertEqual( [int(x) for x in data[1:]], range( 20 ) )
+
 class TestSegmentedFileWithHeader(TestSegmentedFile):
     """create two files."""
     mHasHeader = True
@@ -101,7 +126,7 @@ class TestSegmentedFileWithHeaderComments(TestSegmentedFile):
         outfile.close()
         outfile = SegmentedFile.openfile( self.mFilename, "w", slice="10-20" )
         outfile.write("#comment2\n")
-        outfile.write("header2\n")
+        outfile.write("header1\n")
         for x in range(10,20): outfile.write( "%i\n" % x )
         outfile.close()
 

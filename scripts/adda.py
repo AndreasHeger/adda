@@ -200,6 +200,9 @@ class RunOnGraph(Run):
                     module.run( AddaIO.NeighboursRecord( nid, neighbours ) )
 
             L.info( "chunk %i: finished nid=%s, neighbours=%i, progress=%i/%i (%5.1f%%)" % (chunk, str(nid), len(neighbours), iteration, len(nids), 100.0 * iteration / len(nids) ) )
+            
+            if options.test and iteration >= options.test:
+                break
 
         L.info( "chunk %i: running finish on modules: %s" % (chunk, ",".join(map(str, modules))) )
 
@@ -502,6 +505,14 @@ def main():
          map_module = map_module,
          config = config )
 
+    fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
+
+    run( options,
+         order = ("stats", ),
+         map_module = map_module,
+         config = config,
+         fasta = fasta )
+
     if options.num_jobs == 1: 
         run_parallel = runSequentially
     else:
@@ -526,14 +537,6 @@ def main():
         order = ("fit", "segment" ),
         map_module = map_module,
         config = config )
-
-    fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
-
-    run( options,
-         order = ("stats", ),
-         map_module = map_module,
-         config = config,
-         fasta = fasta )
 
     if not merge( options,
                   order = ("fit", "segment" ),

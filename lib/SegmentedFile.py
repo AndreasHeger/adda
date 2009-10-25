@@ -49,23 +49,34 @@ class SegmentedFiles(object):
         object.__setattr__(self, '_hasHeader', has_header)
         self._check = False
         self._isFirstFile= True
+        self._header = None
 
     def next(self):
-        l = self._file.next()
-        while l == TOKEN: l = self._file.next()
-        if self._hasHeader:
-            if self._file.isfirstline():
-                self._check = True
-            if self._check:
-                if not l.startswith("#"): 
-                    self._check = False
-                    if self._isFirstFile: 
-                        self._isFirstFile = False
-                        return l
-                    l = self._file.next()
-                    
-        return l
+        '''return next line. 
 
+        Only output the first header and skip the eof token.
+        '''
+        while 1:
+            # raises StopIteration
+            l = self._file.next()
+            if self._file.isfirstline(): 
+                # start checking for header
+                self._check = True
+
+            if l.startswith(TOKEN): continue
+            if l.startswith("#"): return l
+
+            if self._hasHeader and self._check:
+                self._check = False
+                if self._header == None:
+                    self._header = l
+                    return l
+                else:
+                    assert l == self._header, "incompatiple headers: got `%s`, expected `%s`" % (l, self._header)
+                    # skip over header
+                    continue
+            return l
+        
     def __getattr__(self, name):
         return getattr(self._file, name)
 
