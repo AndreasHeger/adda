@@ -47,9 +47,9 @@ class AddaMst( AddaModuleBlock ):
         tmpfile = os.path.join( tmpdir, "sorted" )
 
         if not os.path.exists( tmpfile ):
-            statement = "cut -f 1-3 %s | sort -T%s -k3,3n > %s" % ( self.mFilenameDomainGraph, 
-                                                                    tmpdir,                                                  
-                                                                    tmpfile ) 
+            statement = "gunzip < %s | sort -T%s -k3,3n | gzip > %s" % ( self.mFilenameDomainGraph, 
+                                                                         tmpdir,                                                  
+                                                                         tmpfile ) 
         
             self.info( "sorting started" )
                         

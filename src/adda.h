@@ -30,6 +30,7 @@
 #include <fstream>
 #include <vector>
 #include <cstdlib>
+#include "gzstream.h"
 
 //------------------------------------------------------------------------
 typedef long Nid;
@@ -57,6 +58,10 @@ typedef std::map< Nid, Index > MapNid2Index;
 //------------------------------------------------------------------------
 typedef std::vector<FileIndex> FileIndexMap;
 typedef std::vector<Nid> NidMap;
+
+// streams for non-parallel output
+typedef ogzstream OutStream;
+typedef igzstream InStream;
 
 //------------------------------------------------------------------------
 FILE * openFileForRead( const std::string & filename );

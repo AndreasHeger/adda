@@ -30,6 +30,7 @@
 #include <set>
 
 #include "adda.h"
+#include "gzstream.h"
 
 //---------------------------------------------------------------
 extern std::string param_file_name_domains;
@@ -99,7 +100,7 @@ public:
     mLinks.clear();
   };
   
-  void process( std::ofstream & outstream, const Link & link )
+  void process( OutStream & outstream, const Link & link )
   {
     mQueryNid = link.query_nid;
     mQueryFrom = link.query_from;
@@ -225,7 +226,7 @@ protected:
   {
   }
   
-  virtual void printLinks( std::ofstream & outstream)
+  virtual void printLinks( OutStream & outstream)
   {
     std::vector< _Link >::const_iterator it(mLinks.begin()), end(mLinks.end());
     
@@ -233,7 +234,6 @@ protected:
     // All links with an evalue of less than
     // param_evalue_threshold_trusted_links get a better score
     // than those with evalues above the threshold.
-    
     for (;it != end;++it)
       {
 	outstream
@@ -241,13 +241,7 @@ protected:
 	  << it->mSbjctToken << SEPARATOR
 	  << ( (it->mScore < param_evalue_threshold_trusted_links) ? 
 	       (200 - it->mRelativeOverlap * 100) : 
-	       (100 - it->mRelativeOverlap * 100) ) << SEPARATOR
-	  << it->mScore << SEPARATOR
-	  << it->mCoverageQuery << SEPARATOR
-	  << it->mCoverageSbjct << SEPARATOR
-	  << it->mOverlap << SEPARATOR
-	  << it->mRelativeOverlap << SEPARATOR
-	  << std::endl;
+	       (100 - it->mRelativeOverlap * 100) ) << std::endl;
       }
   }
   
@@ -296,7 +290,6 @@ protected:
   {
     
     std::sort( mLinks.begin(), mLinks.end(), SorterByOverlap());
-    
     std::vector <_Link> old_links;
     std::copy( mLinks.begin(), mLinks.end(), std::back_inserter< std::vector<_Link> >(old_links) );
     mLinks.clear();
@@ -413,8 +406,8 @@ int cadda_convert( const char * filename )
   
   LinkProcessor * parser = NULL;
   
-  std::ofstream outstream( filename );
-	
+  OutStream outstream( filename );
+  
   switch (param_mode )
     {
     case 0: 
@@ -457,8 +450,14 @@ int cadda_convert( const char * filename )
   
   delete parser;
   
-  outstream << TOKEN;
-  
   outstream.close();
+
+  // add token as clear texn
+  {
+    std::ofstream outstream( filename, std::ios_base::app | std::ios_base::out | std::ios_base::binary );
+    outstream << TOKEN;
+    outstream.close();
+  }
+  
   return 1;
 }

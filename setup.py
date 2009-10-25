@@ -19,8 +19,10 @@ cadda = Extension(
         'src/cadda_optimise.cpp',
         'src/cadda_index.cpp', 
         'src/cadda_convert.cpp',
-        'src/cadda_mst.cpp' ],
+        'src/cadda_mst.cpp',
+        'src/gzstream.C'],
     library_dirs=[],
+    include_dirs=["src",],
     libraries=["z"],              
     language="c++",               # this causes Pyrex/Cython to create C++ source
     )
