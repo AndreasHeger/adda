@@ -327,8 +327,6 @@ protected:
 void readDomains( FILE * file,
 		  std::vector< Domains > & domains )
 {
-  domains.clear();
-
   int nid = 0;
   int start = 0;
   int end = 0;
