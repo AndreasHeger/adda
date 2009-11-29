@@ -1,4 +1,4 @@
-import sys, os, re, time, math, copy, glob, optparse, math
+import sys, os, re, time, math, copy, glob, optparse, math, gzip
 
 import cadda
 
@@ -177,20 +177,25 @@ class AddaSummary( AddaModuleBlock ):
     def outputSummaryDomainGraph( self ):
         """analyse the alignments."""
 
-        infile = SegmentedFile.openfile( self.mFilenameDomainGraph, "r" )
+        infile = gzip.open( self.mFilenameDomainGraph, "r" )
+        # SegmentedFile.openfile( self.mFilenameDomainGraph, "r" )
 
         nlinks = 0
         nids, domains = set(), set()
-        for line in infile:
-            if line[0] == "#": continue
-            if line.startswith( "nid"): continue
-            
-            nlinks += 1
-            query, sbjct = line[:-1].split("\t")[:2]
-            nids.add( query.split("_")[0])
-            nids.add( sbjct.split("_")[0])
-            domains.add( query )
-            domains.add( sbjct )
+        try:
+            for line in infile:
+                if line[0] == "#": continue
+                if line.startswith( "nid"): continue
+                
+                nlinks += 1
+                query, sbjct = line[:-1].split("\t")[:2]
+                nids.add( query.split("_")[0])
+                nids.add( sbjct.split("_")[0])
+                domains.add( query )
+                domains.add( sbjct )
+        except IOError:
+            pass
+
         infile.close()
 
         self.mOutfile.write( ">%s\n" % self.mFilenameDomainGraph )
@@ -245,6 +250,7 @@ class AddaSummary( AddaModuleBlock ):
             nids.add( sbjct.split("_")[0])
             domains.add( query )
             domains.add( sbjct )
+
         infile.close()
 
         self.mOutfile.write( ">%s\n" % self.mFilenameMst )

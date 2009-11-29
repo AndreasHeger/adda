@@ -1,4 +1,4 @@
-import unittest, os, glob, re, tempfile
+import unittest, os, glob, re, tempfile, fileinput
 
 import SegmentedFile
 
@@ -140,6 +140,37 @@ class TestSegmentedFileWithHeaderComments(TestSegmentedFile):
         self.assertEqual( data[0], "#comment1\n" )
         self.assertEqual( data[12], "#comment2\n" )
         self.assertEqual( [int(x) for x in data[2:12] + data[13:]], range( 20 ) )
+
+# class TestSegmentedFileCompressed(TestSegmentedFile):
+#     """create two files."""
+#     def create(self):
+#         fd, self.mFilename = tempfile.mkstemp( suffix = ".gz" )
+#         outfile = SegmentedFile.openfile( self.mFilename, "w", 
+#                                           slice="00-10", 
+#                                           openhook = fileinput.hook_compressed )
+#         outfile.write("#comment1\n")
+#         outfile.write("header1\n")
+#         for x in range(10): outfile.write( "%i\n" % x )
+#         outfile.close()
+#         outfile = SegmentedFile.openfile( self.mFilename, "w", slice="10-20",
+#                                           openhook = fileinput.hook_compressed )
+#         outfile.write("#comment2\n")
+#         outfile.write("header1\n")
+#         for x in range(10,20): outfile.write( "%i\n" % x )
+#         outfile.close()
+
+#     def checkContents(self):
+#         # self.assertEqual( SegmentedFile.isComplete( self.mFilename), True )
+#         print "flinemae=", self.mFilename
+#         self.assertEqual( SegmentedFile.merge( self.mFilename, openhook = fileinput.hook_compressed ), True )
+#         print "flinemae=", self.mFilename
+#         self.checkToken( self.mFilename )
+#         infile = SegmentedFile.openfile( self.mFilename, "r" )
+#         data = [ x for x in infile ]
+#         self.assertEqual( data[1], "header1\n" )
+#         self.assertEqual( data[0], "#comment1\n" )
+#         self.assertEqual( data[12], "#comment2\n" )
+#         self.assertEqual( [int(x) for x in data[2:12] + data[13:]], range( 20 ) )
 
 if __name__ == '__main__':
     unittest.main()

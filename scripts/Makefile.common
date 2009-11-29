@@ -98,6 +98,7 @@ summary.mail: summary
 
 ######################################################
 CMD_SQL=mysql --user=heger --password=HeinBloed --host=localhost --database=$(PARAM_DATABASE_ADDA) -B -N -e
+CMD_SQL_CREATE=mysql --user=heger --password=HeinBloed --host=localhost -B -N -e
 CMD_SQL_STDIN=mysql --user=heger --password=HeinBloed --host=localhost --database=$(PARAM_DATABASE_ADDA) 
 
 CMD_STATISTICS=python $(DIR_SCRIPTS_SRC)OutputStatisticsClustering.py --Database=$(PARAM_DATABASE_PAIRSDB)

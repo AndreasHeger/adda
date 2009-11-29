@@ -45,14 +45,15 @@ PARAM_DATABASE_PAIRSDB?=pairsdb
 
 ################################
 ## Database to store adda results
-PARAM_DATABASE_ADDA?=adda_realignment
+PARAM_DATABASE_ADDA?=adda_helsinki
 
 #########################################################################
 #########################################################################
 #########################################################################
 ## database connection options
 #########################################################################
-PARAM_DB_CONNECTION?=--backend=mysql \
+PARAM_DB_CONNECTION?=\
+	--backend=mysql \
 	--user=heger \
 	--password=HeinBloed \
 	--host=localhost \
@@ -61,6 +62,7 @@ PARAM_DB_CONNECTION?=--backend=mysql \
 #########################################################################
 ## script and tools directories
 #########################################################################
+
 
 ###########################################################################
 ## source
@@ -74,12 +76,6 @@ PARAM_TABLE_ALIGN_NEIGHBOURS?=$(PARAM_DATABASE_PAIRSDB).pairsdb_40x40
 ## PARAM_TABLE_REPEATS?=core.nrdb40_core_domains
 
 PARAM_TABLE_MASKS?=$(PARAM_DATABASE_PAIRSDB).nrdb90_masks
-## table used for annotation minimum spanning trees
-PARAM_TABLE_ANNOTATION?=$(PARAM_DATABASE_PAIRSDB).nrdb40_pfam_domains_nr
-
-#########################################################################
-## source directory with graph to use
-DIR_GRAPH_GRAPH?=/production/pairsdb/graph/pairsdb_40x40/
 
 ###########################################################################
 ## table names
@@ -94,8 +90,8 @@ PARAM_TABLE_ANNOTATIONS?=$(PARAM_DATABASE_ADDA).nrdb40_annotatedadda_families$(S
 PARAM_TABLE_NRDB_DOMAINS?=$(PARAM_DATABASE_ADDA).nrdb_adda_domains$(SUFFIX)
 PARAM_TABLE_NRDB_FAMILIES?=$(PARAM_DATABASE_ADDA).nrdb_adda_families$(SUFFIX)
 
-PARAM_TABLE_DOMAINS_REFERENCE?=$(PARAM_DATABASE_ADDA).nrdb40_reference_domains$(SUFFIX)
-PARAM_TABLE_FAMILIES_REFERENCE?=$(PARAM_DATABASE_ADDA).nrdb40_reference_families$(SUFFIX)
+PARAM_TABLE_DOMAINS_REFERENCE?=$(PARAM_DATABASE_ADDA).nrdb40_$*_domains$(SUFFIX)
+PARAM_TABLE_FAMILIES_REFERENCE?=$(PARAM_DATABASE_ADDA).nrdb40_$*_families$(SUFFIX)
 
 PARAM_TABLE_MODULES?=$(PARAM_DATABASE_ADDA).modules
 
@@ -111,10 +107,10 @@ PARAM_TABLE_TAXONOMY?=
 PARAM_DIR_EXPORT_SUFFIX?=nrdb40_adda
 
 ## filename with reference domain information
-PARAM_FILENAME_REFERENCE_DOMAINS?=../../data/reference.domains.gz
+PARAM_FILENAME_REFERENCE_DOMAINS?=../data/reference.domains.gz
 
 ## filename with benchmark domain information
-PARAM_FILENAME_BENCHMARK_DOMAINS?=../../data/benchmark.domains.gz
+PARAM_FILENAME_PFAM_DOMAINS?=../data/benchmark.domains.gz
 
 PARAM_MODULE_MIN_UNITS=5
 
@@ -125,19 +121,30 @@ PARAM_LINK_MIN_STRENGTH=5
 PARAM_FLAGS_GDL_SPLIT=--min_size=5
 
 ## directory with results of ADDA run
-PARAM_DIR_ADDA=../
+PARAM_DIR_ADDA=../data/
 
 ################################################
 ## Section parameters: end
 ################################################
 
+prepare: create-database load-primary
+
 load-primary:	\
 	adda_nids.load \
 	adda_nrdb.load \
-	reference.load \
+	$(PARAM_REFERENCES:%=reference_%s.load) \
 	adda_domains.load 
 
 all: load-primary modules annotation
+
+#####################################################
+#####################################################
+#####################################################
+## prepare targets
+#####################################################
+create-database:
+	@$(CMD_SQL_CREATE) \
+	"CREATE database $(PARAM_DATABASE_ADDA)"
 
 #####################################################
 #####################################################
@@ -170,7 +177,7 @@ all: load-primary modules annotation
 #####################################################
 ## load reference domains into table
 #####################################################
-reference.load: $(PARAM_FILENAME_REFERENCE_DOMAINS)
+reference_%.load: $(PARAM_DIR_ADDA)%.domains.gz
 	$(PROLOG)
 	@python $(DIR_SCRIPTS_SRC)DomainsAdda.py \
 		--Database=$(PARAM_DATABASE_PAIRSDB) \
@@ -328,7 +335,7 @@ domains_x_domains.load: domains_x_domains.links
 ################################################
 
 ## Benchmark sets
-PARAM_REFERENCES?=reference # pfam scop
+PARAM_REFERENCES?=scop pfam # pfam scop
 
 ## Maximum family size
 PARAM_MAX_FAMILY?=1000000
@@ -336,7 +343,7 @@ PARAM_MAX_FAMILY?=1000000
 ## Level for comparison
 PARAM_COMPARISON_LEVEL?=$(PARAM_DATABASE_PAIRSDB).nrdb40
 
-PARAM_DIR_EXPORT?=/afs/biocenter.helsinki.fi/bioinfo/group/src/Zope-2.6.0-linux2-x86/export/
+PARAM_DIR_EXPORT?=export/
 
 PARAM_MIN_TAXONOMY_MATCHES?=0
 
@@ -354,13 +361,17 @@ PARAM_TABLE_STRUCTURES?=
 ## Section parameters: end
 ################################################
 
-BENCHMARKS=$(REFERENCE_BENCHMARKS) # $(PFAM_BENCHMARKS) $(SCOP_BENCHMARKS) $(INTERPRO_BENCHMARKS)
-EXPORTS=$(REFERENCE_EXPORT) # $(PFAM_EXPORT) $(SCOP_EXPORT) $(INTERPRO_EXPORT)
+BENCHMARKS=annotations selectivity sensitivity unknown extended roc 
+EXPORTS=.html _sensitivity.html _selectivity.html _roc.png 
 
-SUMMARY_TABLE=annotations_table.create struc_coverage.load taxonomy.load nlinks.load unknown.load extended.load modules.load
+TARGETS_BENCHMARKS=$(foreach i, $(PARAM_REFERENCES), $(foreach j, $(BENCHMARKS), $(i).$(j)))
+TARGETS_EXPORTS=$(foreach i, $(PARAM_REFERENCES), $(foreach j, $(BENCHMARKS), $(i)$(j)))
+TARGETS_SUMMARY=annotations_table.create struc_coverage.load taxonomy.load nlinks.load unknown.load extended.load modules.load
 
-LOAD=reference.load_annotations reference.load_sensitivity reference.load_selectivity \
-	$(SUMMARY_TABLE) \
+LOAD=$(PARAM_REFERENCES:%=%.load_annotations) \
+	$(PARAM_REFERENCES:%=%.load_sensitivity) \
+	$(PARAM_REFERENCES:%=%.load_selectivity) \
+	$(TARGETS_SUMMARY) \
 	summary_all_modules summary_all_annotation summary_all_taxonomy \
 	summary_modules_annotation summary_modules_taxonomy \
 	summary_nonmodules_annotation summary_nonmodules_taxonomy \
@@ -375,8 +386,8 @@ LOAD=reference.load_annotations reference.load_sensitivity reference.load_select
 # 	summary_nonmodules_annotation summary_nonmodules_taxonomy \
 # 	summary_table
 
-UNKNOWN=reference.unknown # pfam.unknown interpro.unknown scop.unknown
-EXTENDED=reference.extended # pfam.extended interpro.extended scop.extended
+UNKNOWN=$(PARAM_REFERENCES:%=%.unknown)
+EXTENDED=$(PARAM_REFERENCES:%=%.extended) 
 
 TABLES_SUMMARY=summary_modules
 
@@ -386,19 +397,6 @@ FLAGS_EVALUATION_PARTS=--switch --skip_repeats --quality --bin_size=10
 FLAGS_EVALUATION_NOFULL=--switch --skip_repeats --quality --no_full_length --bin_size=10
 FLAGS_EVALUATION_FULL=--switch --skip_repeats --quality --only_full_length --bin_size=10
 FLAGS_EVALUATION=--switch --skip_repeats --quality
-
-ANNOTATIONS=$(PARAM_REFERENCES:%=%.annotations)
-
-TARGETS_EXPORT=.html _sensitivity.html _selectivity.html _roc.png 
-REFERENCE_EXPORT=$(TARGETS_EXPORT:%=reference%)
-PFAM_EXPORT=$(TARGETS_EXPORT:%=pfam%)
-SCOP_EXPORT=$(TARGETS_EXPORT:%=scop%)
-
-TARGETS_BENCHMARKS=annotations selectivity sensitivity unknown extended roc 
-REFERENCE_BENCHMARKS=$(TARGETS_BENCHMARKS:%=reference.%)
-PFAM_BENCHMARKS=$(TARGETS_BENCHMARKS:%=pfam.%)
-SCOP_BENCHMARKS=$(TARGETS_BENCHMARKS:%=scop.%)
-INTERPRO_BENCHMARKS=$(TARGETS_BENCHMARKS:%=interpro.%)
 
 EXPORT=lhist.png fhist.png struc.html $(EXPORTS)
 
@@ -421,7 +419,8 @@ TAXONOMY=taxonomy
 ##
 annotation: sanity annotate load unknown quality
 
-annotate: $(SUMMARY) $(BENCHMARKS) 
+summary: $(SUMMARY) 
+annotate: $(TARGETS_BENCHMARKS) 
 unknown: $(UNKNOWN) 
 quality: 
 load: $(LOAD)
@@ -475,7 +474,9 @@ fhist.png: fhist
 ## calculate annotations for export (only biggest families)
 %.large_annotations:
 	$(PROLOG)
-	@$(CMD_STATISTICS) --domains=$(PARAM_TABLE_DOMAINS) --families=$(PARAM_TABLE_FAMILIES) --max_family=$(PARAM_MAX_FAMILY) --min_evidence=2 --min_units=50 --ref_domains=$(PARAM_COMPARISON_LEVEL)_$*_domains_nr --ref_families=$(PARAM_COMPARISON_LEVEL)_$*_families_nr Annotation > $@
+	@$(CMD_STATISTICS) --domains=$(PARAM_TABLE_DOMAINS) --families=$(PARAM_TABLE_FAMILIES) \
+				--max_family=$(PARAM_MAX_FAMILY) --min_evidence=2 --min_units=50 
+				--ref_domains=$(PARAM_COMPARISON_LEVEL)_$*_domains_nr --ref_families=$(PARAM_COMPARISON_LEVEL)_$*_families_nr Annotation > $@
 	$(EPILOG)
 
 ##########################################################################
@@ -483,18 +484,15 @@ fhist.png: fhist
 ##########################################################################
 ## calculate and load annotations for sensitivity/selectivity (all families)
 ##########################################################################
-reference.annotations: TABLE_DOMAINS_REFERENCE=$(PARAM_TABLE_DOMAINS_REFERENCE)
-reference.annotations: TABLE_FAMILIES_REFERENCE=$(PARAM_TABLE_FAMILIES_REFERENCE)
-
-%.annotations:
+%.annotations: reference_%.load
 	$(PROLOG)
 	@$(CMD_STATISTICS) \
 		--domains=$(PARAM_TABLE_DOMAINS) \
 		--families=$(PARAM_TABLE_FAMILIES) \
 		--max_family=$(PARAM_MAX_FAMILY) \
 		--min_evidence=2 --min_units=2 \
-		--ref_domains=$(TABLE_DOMAINS_REFERENCE) \
-		--ref_families=$(TABLE_FAMILIES_REFERENCE) \
+		--ref_domains=$(PARAM_TABLE_DOMAINS_REFERENCE) \
+		--ref_families=$(PARAM_TABLE_FAMILIES_REFERENCE) \
 		Annotation > $@
 	$(EPILOG)
 

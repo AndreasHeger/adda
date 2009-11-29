@@ -40,8 +40,9 @@ Use file import where appropriate to speed up loading. Currently data
 is imported via insert statements.
 """
 
-import Experiment as E
-import csv, CSV
+import Adda.Experiment as E
+import csv
+import Adda.CSV as CSV
 
 def quoteRow( row, take, 
               map_column2type, 
