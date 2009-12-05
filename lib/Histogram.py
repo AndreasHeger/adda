@@ -167,7 +167,7 @@ def Calculate( values,
             
         values = new_values
 
-    return Convert(numpy.histogram( values, intervals), intervals, no_empty_bins)
+    return Convert(numpy.histogram( values, intervals), no_empty_bins)
 
 #-------------------------------------------------------------------------------------------------------
 def Scale( h, scale = 1.0):
@@ -179,14 +179,15 @@ def Scale( h, scale = 1.0):
     return n
         
 #-------------------------------------------------------------------------------------------------------
-def Convert( h, i, no_empty_bins = 0):
+def Convert( h, no_empty_bins = 0):
     """add bins to histogram.
     """
     n = []
-    for x in range(0, len(h)):
-        if no_empty_bins and h[x] == 0:
+    vals, bins = h
+    for x in xrange(0, len(vals)):
+        if no_empty_bins and vals[x] == 0:
             continue
-        n.append( (i[x], h[x]) )
+        n.append( (bins[x], vals[x]) )
     return n
     
 #-------------------------------------------------------------------------------------------------------

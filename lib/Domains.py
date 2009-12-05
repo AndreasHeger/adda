@@ -1,7 +1,7 @@
 ## $Id$
 ##
 ##
-import sys, re, string, os, tempfile
+import sys, re, string, os, tempfile, gzip
 
 import Intervals
 from Pairsdb import *
@@ -10,6 +10,7 @@ from Table_nrdb import Table_nrdb
 from TableDomainsCore import TableDomainsCore, TableFamiliesCore
 from TableDomains import TableDomains, TableFamilies
 from TableNids import TableNids
+import Adda.AddaIO
 
 #-------------------------------------------
 # Class:	       Brackets
@@ -52,6 +53,10 @@ class Domains (Experiment):
                                 'source=', 'repeats=', "mapping=",
                                 'filter_repeats','combine_overlaps',
                                 'min_domain_length=']
+
+        self.mShortOptions  += 'i:M:'
+        self.mLongOptions   += ['input=', "filename_map=" ]
+        self.mFileNameMapNids = None
 
         self.mMinSingletonLength = 30
         self.mMinDomainLength = 20
@@ -96,7 +101,7 @@ class Domains (Experiment):
 
         self.mTableFamilies.SetName( self.mTableNameFamilies )        
         self.mTableDomains.SetName( self.mTableNameDomains  )
-        
+
     ##---------------------------------------------------------------------------------
     def Finish(self):
         return os.path.exists("stop")
@@ -127,6 +132,10 @@ class Domains (Experiment):
                 self.mTableNameSource = a
             elif o in ("-m", "--mapping"):
                 self.mTableNameMapping = a
+            elif o in ("-i", "--input"):
+                self.mFileNameInput = a
+            elif o in ("-M", "--filename_map"):
+                self.mFileNameMapNids = a
             elif o in ("-r", "--repeats"):
                 self.mTableNameDomainsCore = a
                 self.mTableDomainsCore = TableDomainsCore( self.mDbHandle, "core" )
@@ -139,7 +148,6 @@ class Domains (Experiment):
                 self.mFilterRepeats = 1
             elif o == "--combine_overlaps":
                 self.mCombineOverlaps = 1
-                
     #----------------------------------------------------------------------------------------------------------
     def Load( self ):
         """Load data into table."""
@@ -196,6 +204,53 @@ class Domains (Experiment):
     def UpdateDomains( self ):
         """update domains table."""
         self.mTableFamilies.Update(self.mTableDomains )
+
+    #----------------------------------------------------------------------------------------------------------
+    def MakeNonRedundantClone( self ):
+
+        src_table_domains = self.mTableNameDomains
+        src_table_families = self.mTableNameFamilies
+        result_table_domains = self.mTableNameMappedDomains
+        result_table_families = self.mTableNameMappedFamilies
+
+        if not self.mDbHandle.Exists( src_table_domains ):
+            print "--> no mapping, as %s does not exist" % (src_table_domains)
+            sys.stdout.flush()
+            return
+
+        if self.mLogLevel >= 1:
+            print "--> making non-redundant clone"
+            print "--> source table names: %s and %s" % (src_table_domains,
+                                                         src_table_families)
+            print "--> result table names: %s and %s" % (result_table_domains,
+                                                         result_table_families)
+
+            sys.stdout.flush()
+
+        ## set to source
+        self.mTableDomains.SetName( src_table_domains )
+        self.mTableFamilies.SetName( src_table_families )
+
+        ## make domains clone
+        self.mTableDomains.MakeNonRedundantClone( result_table_domains )
+        self.mTableDomains.SetName( result_table_domains )
+
+        if self.mLogLevel >= 1:
+            print "--> entries in %s: %i" % (self.mTableDomains.GetName(),
+                                             self.mTableDomains.RowCount())
+            sys.stdout.flush()
+
+        ## make descriptions clone
+        self.mTableFamilies.SetName( result_table_families )
+        self.mTableFamilies.Drop()
+        self.mTableFamilies.Create()
+        self.mTableFamilies.Fill( src_table_families, self.mTableDomains )
+        self.mTableFamilies.Update( self.mTableDomains )
+
+        if self.mLogLevel >= 1:
+            print "--> entries in %s: %i" % (self.mTableFamilies.GetName(),
+                                             self.mTableFamilies.RowCount())
+            sys.stdout.flush()
 
     #----------------------------------------------------------------------------------------------------------
     def Renumber( self ):
@@ -361,6 +416,7 @@ class Domains (Experiment):
                 family_intervalls.append( (domain_from, domain_to) )
 
             if last_family:
+
                 if self.mCombineOverlaps:
                     i = Intervals.combine( family_intervalls )
                 else:
@@ -640,6 +696,84 @@ class Domains (Experiment):
         self.mTableDomains.Drop()
         self.mTableFamilies.Create()
         self.mTableDomains.Create()
+
+    ##---------------------------------------------------------------------------------
+    def Open( self, filename, mode= "r" ):
+        """return opened file."""
+        if filename.endswith(".gz"):
+            return gzip.open( filename, "r" )
+        else:
+            return open( filename, "r" )
+
+    ##---------------------------------------------------------------------------------
+    def Create( self ):
+        """select all members of a connected component and
+        add to families. Each connected component gives the
+        component_id for a given family.
+        """
+
+        self.mTableFamilies.Clear()
+        self.mTableDomains.Clear()
+
+        if self.mFileNameMapNids != None:
+            if self.mLogLevel >= 1:
+                print "--> loading map of ids to nids."
+            infile = self.Open( self.mFileNameMapNids )
+            self.mMapId2Nid = Adda.AddaIO.readMapId2Nid( infile )
+
+            if self.mLogLevel >= 1:
+                print "--> read mapping for %i ids." % len(self.mMapId2Nid)
+        else:
+            self.mMapId2Nid = None
+
+        if self.mLogLevel >= 1:
+            print "--> loading data"            
+            print "--> at start: %i families with %i members" % (self.mTableFamilies.RowCount(),
+                                                                 self.mTableDomains.RowCount())
+            sys.stdout.flush()
+
+        self.OpenOutfiles()
+
+        infile = self.Open(self.mFileNameInput, "r")
+
+        families = {}
+        
+        nskipped = 0
+
+        for line in infile:
+            if line.startswith("#"): continue
+            if line.startswith("nid"): continue
+            (domain_nid, domain_from, domain_to, family) = line[:-1].split("\t")
+
+            if self.mMapId2Nid: 
+                if domain_nid in self.mMapId2Nid:
+                    domain_nid = self.mMapId2Nid[domain_nid]
+                else:
+                    print "not found:", domain_nid
+                    nskipped += 1
+                    continue
+
+            domain_from, domain_to = map( int, (domain_from, domain_to) )
+            if not families.has_key(family):
+                self.mTableFamilies.AddFamily(family)
+                families[family] = 1
+
+            l = domain_to - domain_from + 1
+
+            self.mFileDomains.write( string.join( map(str, (domain_nid, domain_from, domain_to, "+%i" % l,
+                                                            domain_nid, domain_from, domain_to, "+%i" % l,
+                                                            family
+                                                            )), "\t") + "\n")
+
+        self.CloseOutfiles()
+        self.Load()
+        
+        if self.mLogLevel >= 1:
+            print "--> skipped because of unmapped nids: %i domains" % nskipped
+            print "--> at the end: %i families with %i members" % (self.mTableFamilies.RowCount(),
+                                                                   self.mTableDomains.RowCount())
+            sys.stdout.flush()
+
 
 #--------------------------------------< end of class definition >----------------------------------
 

@@ -16,12 +16,13 @@ Evaluate trees of domain partitions (or alternatively, parts or other benchmarki
 
 import string, getopt, sys, os, re, time, math, glob
 
-import Experiment,Histogram
+import Adda.Experiment as Experiment
+import Adda.Histogram as Histogram
 
-from Pairsdb import *
+from Adda.Pairsdb import *
 # from Table_nrdb90_masks import Table_nrdb90_masks
-from Table_nrdb import Table_nrdb
-from TableDomains import TableDomains
+from Adda.Table_nrdb import Table_nrdb
+from Adda.TableDomains import TableDomains
 
 param_database = "pairsdb"
 param_table_name_reference = None
@@ -231,7 +232,7 @@ if __name__ == "__main__":
     for nid in nids:
 
         it += 1
-        # if it is > 1000: break
+        # if it > 1000: break
 
         if param_loglevel >= 2:
             print "# --> processing %i" % nid
@@ -390,7 +391,6 @@ if __name__ == "__main__":
         print "## parts like trees=", parts_same_as_trees
         print "## parts smaller than trees=", parts_smaller_than_trees                
         print "## parts much smaller than trees (<%f)=" % param_selection_threshold, parts_much_smaller_than_trees
-        
         
     else:
         print "## histogram over overlaps"

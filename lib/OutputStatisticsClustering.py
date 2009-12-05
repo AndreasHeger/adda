@@ -69,7 +69,7 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
 
         if self.mTableNameSubset:
             self.mSubsetTables = ", %s AS s" % self.mTableNameSubset
-            self.mSubsetWhere = " AND a.family = s.family "
+            self.mSubsetWhere = " AND domains.family = s.family "
         else:
             self.mSubsetTables = ""
             self.mSubsetWhere = ""
@@ -114,8 +114,16 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
         """write a table of annotated domains sorted by number of units.
         """
         self.PrintStatus()
-        
-        print """# reference: families=%s, domains=%s, evidence >= %i, overlap >= %i
+
+        reference_families = self.mTableNameReferenceFamilies
+        reference_domains = self.mTableNameReferenceDomains
+        domains = self.mTableNameDomains
+        min_evidence = self.mAnnotationMinEvidence 
+        min_overlap = self.mAnnotationMinOverlap
+        subset_tables = self.mSubsetTables
+        subset_where = self.mSubsetWhere
+
+        print """# reference: families=%(reference_families)s, domains=%(reference_domains)s, evidence >= %(min_evidence)i, overlap >= %(min_overlap)i
 # FAMILY:          cluster identifier
 # NUNITS:       number of units in cluster
 # AUNITS:       number of annotated units in cluster
@@ -126,75 +134,64 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
 # TUNITS:       total number of units with annotation of class in database
 # RSEQS:        number of sequences in cluster with annotation of class
 # TSEQS:        total number of sequences with reference annotation of class in database
+# SEL:          selectivity of pair
+# SEN:          sensitivity of pair
 # ALENGTH:      length ratio avg_cluster/avg_source
 # AOVL:         average overlap
 # ANNO:         description of annotation
-family\tnunits\taunits\tnseqs\taseqs\tlength\trunits\ttunits\trseqs\ttseqs\talength\taovl\tanno""" %\
-        (self.mTableNameReferenceFamilies,
-         self.mTableNameReferenceDomains,
-         self.mAnnotationMinEvidence,
-         self.mAnnotationMinOverlap)
+family\tnunits\taunits\tnseqs\taseqs\tlength\trunits\ttunits\trseqs\ttseqs\tsel\tsen\talength\taovl\tanno""" % locals()
 
         ##################################################################
         ## count number of domains and sequences in the reference for
         ## the subset of the nids that are in the database to be compared
         statement_summary = """
         SELECT
-        i.family,
-        COUNT(DISTINCT i.rep_nid, i.rep_from) AS nunits,
-        COUNT(DISTINCT i.rep_nid) AS nseqs,
-        AVG(i.rep_to-i.rep_from+1)
-        FROM %s AS i,
-        %s AS a %s
-        WHERE a.rep_nid = i.rep_nid %s
-        GROUP BY i.family
-        """ % (self.mTableNameReferenceDomains, self.mTableNameDomains, self.mSubsetTables, self.mSubsetWhere)
-
+        ref_domains.family,
+        COUNT(DISTINCT ref_domains.rep_nid, ref_domains.rep_from) AS nunits,
+        COUNT(DISTINCT ref_domains.rep_nid) AS nseqs,
+        AVG(ref_domains.rep_to-ref_domains.rep_from+1)
+        FROM %(reference_domains)s AS ref_domains,
+        %(domains)s AS domains 
+        %(subset_tables)s
+        WHERE domains.rep_nid = ref_domains.rep_nid %(subset_where)s
+        GROUP BY ref_domains.family
+        """ % locals()
 
         ##################################################################
         ## preformulated statement for counting nunits and nseqs
         ## matching between reference families and cluster per reference family
         statement_counts = """
         SELECT
-        COUNT(DISTINCT i.rep_nid, i.rep_from) AS nunits,
-        COUNT(DISTINCT i.rep_nid) AS nseqs, 
-        i.family, "na",
-        AVG(LEAST(i.rep_to,a.rep_to)-GREATEST(i.rep_from, a.rep_from)),
-        GREATEST(i.rep_to,a.rep_to)-LEAST(i.rep_from, a.rep_from),
-        LEAST(i.rep_to,a.rep_to)-GREATEST(i.rep_from, a.rep_from)            
-        FROM %s AS a,
-        %s AS i,
-        %s AS p 
-        WHERE a.family = '%%s'
-        AND a.rep_nid = i.rep_nid 
-        AND (LEAST(i.rep_to,a.rep_to)-GREATEST(i.rep_from, a.rep_from)) > %i
-        AND i.family = p.family
-        GROUP BY i.family
-        HAVING nunits >= %i  
-        ORDER BY nunits DESC""" % (
-            self.mTableNameDomains,
-            self.mTableNameReferenceDomains,
-            self.mTableNameReferenceFamilies,
-            self.mAnnotationMinOverlap,
-            self.mAnnotationMinEvidence )
-
+        COUNT(DISTINCT ref_domains.rep_nid, ref_domains.rep_from) AS nunits,
+        COUNT(DISTINCT ref_domains.rep_nid) AS nseqs, 
+        ref_domains.family, ref_family.description,
+        AVG(LEAST(ref_domains.rep_to,domains.rep_to)-GREATEST(ref_domains.rep_from, domains.rep_from)),
+        GREATEST(ref_domains.rep_to,domains.rep_to)-LEAST(ref_domains.rep_from, domains.rep_from),
+        LEAST(ref_domains.rep_to,domains.rep_to)-GREATEST(ref_domains.rep_from, domains.rep_from)            
+        FROM %(domains)s AS domains,
+        %(reference_domains)s AS ref_domains,
+        %(reference_families)s AS ref_family
+        WHERE domains.family = '%%s'
+        AND ref_family.family = ref_domains.family
+        AND domains.rep_nid = ref_domains.rep_nid 
+        AND (LEAST(ref_domains.rep_to,domains.rep_to)-GREATEST(ref_domains.rep_from, domains.rep_from)) > %(min_overlap)i
+        GROUP BY ref_domains.family
+        HAVING nunits >= %(min_evidence)i  
+        ORDER BY nunits DESC""" % locals()
 
         ##################################################################
         ## preformulated statement for counting nunits and nseqs
         ## that are annotated in a cluster
         statement_annotated = """
         SELECT
-        COUNT(DISTINCT a.rep_nid, a.rep_from) AS nunits,
-        COUNT(DISTINCT a.rep_nid) AS nseqs
-        FROM %s AS a,
-        %s AS i
-        WHERE a.family = '%%s'
-        AND a.rep_nid = i.rep_nid             
-        AND (LEAST(i.rep_to,a.rep_to)-GREATEST( i.rep_from, a.rep_from)) > %i
-        """ % ( 
-            self.mTableNameDomains,
-            self.mTableNameReferenceDomains,
-            self.mAnnotationMinOverlap )
+        COUNT(DISTINCT domains.rep_nid, domains.rep_from) AS nunits,
+        COUNT(DISTINCT domains.rep_nid) AS nseqs
+        FROM %(domains)s AS domains,
+        %(reference_domains)s AS ref_domains
+        WHERE domains.family = '%%s'
+        AND domains.rep_nid = ref_domains.rep_nid             
+        AND (LEAST(ref_domains.rep_to,domains.rep_to)-GREATEST( ref_domains.rep_from, domains.rep_from)) > %(min_overlap)i
+        """ % locals()
 
         ##
         ## a very crude patch for dealing with hierarchical classifications, for example
@@ -225,41 +222,75 @@ family\tnunits\taunits\tnseqs\taseqs\tlength\trunits\ttunits\trseqs\ttseqs\talen
         clusters = self.mDbhandle.Execute( statement ).fetchall()
 
         totals = {}
-
         result = self.mDbhandle.Execute(statement_summary).fetchall()
         for key, nunits, nseqs, length in result:
             totals[key]= (nunits, nseqs,length)
 
-        for family, nunits, nsequences,length in clusters:
-            annotations = self.mDbhandle.Execute( statement_counts % str(family) ).fetchall()
-            # anno_units, anno_seqs = 0,0
-            anno_units, anno_seqs   = self.mDbhandle.Execute( statement_annotated % str(family) ).fetchone()
+        for adda_family, adda_nunits, adda_nsequences, adda_length in clusters:
+
+            annotations = self.mDbhandle.Execute( statement_counts % str(adda_family) ).fetchall()
+
+            # annotated units and sequences in family
+            anno_units, anno_seqs = self.mDbhandle.Execute( statement_annotated % str(adda_family) ).fetchone()
             
-            print string.join( map(str, ( family,nunits,anno_units,nsequences,anno_seqs,length)), "\t" ),
-
             if not annotations:
-                print "\t\t\t\t\t\t\t\tunknown" 
-            else:
-                nunits, nseqs, key, description, avg, union, inter = annotations[0]
-
-                tunits, tseqs, tlength = totals[key]
+                print "%s\t%i\t%i\t%i\t%i\t%i\t\t\t\t\t\t\t\t\t\t" %\
+                    (adda_family,
+                     adda_nunits,anno_units,
+                     adda_nsequences,anno_seqs,
+                     adda_length )
                 
-                print "\t%i\t%i\t%i\t%i\t%5.2f\t%5.2f\t%s\t%s" %\
-                      (nunits, tunits,
-                       nseqs, tseqs,
-                       avg/tlength,
-                       float(inter)/float(union),
-                       key, description, )
-                for a in annotations[1:]:
-                    nunits, nseqs, key, description,avg, union, inter = a
-                    tunits, tseqs, tlength = totals[key]                    
-                    print "\t\t\t\t\t\t%i\t%i\t%i\t%i\t%5.2f\t%5.2f\t%s\t%s" %\
-                          (nunits, tunits, nseqs, tseqs,
-                           avg/tlength,
-                           float(inter)/float(union),
-                           key, description)
-            sys.stdout.flush()
+            for nunits, nseqs, key, description,avg, union, inter in annotations:
+                
+                tunits, tseqs, tlength = totals[key]
+                selectivity = float(nunits) / anno_units
+                sensitivity = float(nunits) / tunits
 
+                print "%s\t%i\t%i\t%i\t%i\t%i\t%i\t%i\t%i\t%i\t%5.2f\t%5.2f\t%5.2f\t%5.2f\t%s\t%s" %\
+                    (adda_family,
+                     adda_nunits,anno_units,
+                     adda_nsequences,anno_seqs,
+                     adda_length,
+                     nunits, tunits,
+                     nseqs, tseqs,
+                     selectivity,
+                     sensitivity,
+                     avg/tlength,
+                     float(inter)/float(union),
+                     key, description )
+
+    #-------------------------------------------------------------------------------------
+    def ReferenceMatches( self ):
+        """write a table reference domains and their ADDA overlaps.
+        """
+        reference_families = self.mTableNameReferenceFamilies
+        reference_domains = self.mTableNameReferenceDomains
+        domains = self.mTableNameDomains
+        min_evidence = self.mAnnotationMinEvidence 
+        min_overlap = self.mAnnotationMinOverlap
+        subset_tables = self.mSubsetTables
+        subset_where = self.mSubsetWhere
+        print """# reference: families=%(reference_families)s, domains=%(reference_domains)s, evidence >= %(min_evidence)i, overlap >= %(min_overlap)i"""
+        print "nid\tstart\tend\tfamily\tref_start\tref_end\tref_family"
+
+        ##################################################################
+        ## preformulated statement for counting nunits and nseqs
+        ## matching between reference families and cluster per reference family
+        statement = """
+        SELECT
+        ref_domains.rep_nid, 
+        domains.rep_from, domains.rep_to, 
+        domains.family,
+        ref_domains.rep_from, ref_domains.rep_to,
+        ref_domains.family
+        FROM %(domains)s AS domains,
+        %(reference_domains)s AS ref_domains
+        WHERE
+        domains.rep_nid = ref_domains.rep_nid 
+        AND (LEAST(ref_domains.rep_to,domains.rep_to)-GREATEST(ref_domains.rep_from, domains.rep_from)) > %(min_overlap)i""" % locals()
+ 
+        for x in self.mDbhandle.Execute( statement ).fetchall():
+            print "\t".join( map(str,x) )
     #-------------------------------------------------------------------------------------
     def AssociatedDomains( self ):
         """write a table of annotated domains sorted by number of units.

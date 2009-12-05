@@ -176,22 +176,28 @@ create-database:
 #####################################################
 #####################################################
 ## load reference domains into table
+## Note that nids need NOT to be mapped for the reference
+## databases as adda does that.
 #####################################################
 reference_%.load: $(PARAM_DIR_ADDA)%.domains.gz
 	$(PROLOG)
-	@python $(DIR_SCRIPTS_SRC)DomainsAdda.py \
+	@python $(DIR_SCRIPTS_SRC)DomainsReference.py \
 		--Database=$(PARAM_DATABASE_PAIRSDB) \
-		--domains=$(PARAM_TABLE_DOMAINS_REFERENCE) \
-		--families=$(PARAM_TABLE_FAMILIES_REFERENCE) \
+		--domains=$(PARAM_TABLE_DOMAINS_REFERENCE)_src \
+		--families=$(PARAM_TABLE_FAMILIES_REFERENCE)_src \
+		--mapped_domains=$(PARAM_TABLE_DOMAINS_REFERENCE) \
+		--mapped_families=$(PARAM_TABLE_FAMILIES_REFERENCE) \
 		--input=$< \
+		--descriptions=$(PARAM_DIR_ADDA)$*.families.gz \
 		--source=$(PARAM_TABLE_NIDS) \
-		Create UpdateDomains > $@ 
+		Create UpdateDomains MakeNonRedundantClone > $@ 
 	$(EPILOG)
 
 #####################################################
 #####################################################
 #####################################################
 ## load families and domains into main adda table
+##
 #####################################################
 %_domains.load: $(PARAM_DIR_ADDA)%.result
 	$(PROLOG)
@@ -392,8 +398,9 @@ EXTENDED=$(PARAM_REFERENCES:%=%.extended)
 TABLES_SUMMARY=summary_modules
 
 ## flags for domain boundary evaluation
+## --quality removed
 FLAGS_EVALUATION_TREES=--switch --skip_repeats --quality --no_full_length --bin_size=10
-FLAGS_EVALUATION_PARTS=--switch --skip_repeats --quality --bin_size=10
+FLAGS_EVALUATION_PARTS=--switch --skip_repeats --bin_size=10
 FLAGS_EVALUATION_NOFULL=--switch --skip_repeats --quality --no_full_length --bin_size=10
 FLAGS_EVALUATION_FULL=--switch --skip_repeats --quality --only_full_length --bin_size=10
 FLAGS_EVALUATION=--switch --skip_repeats --quality
@@ -527,6 +534,23 @@ fhist.png: fhist
 %.html: %.annotations
 	$(PROLOG)
 	@python $(DIR_SCRIPTS_SRC)txt2html_annotation.py --cluster=0 --ref=12 < $*.annotations > $@
+	$(EPILOG)
+
+##########################################################################	
+##########################################################################	
+##########################################################################	
+## overlap between ADDA domains and reference - for debugging purposes
+##########################################################################	
+%.overlaps: reference_%.load
+	$(PROLOG)
+	@$(CMD_STATISTICS) \
+		--domains=$(PARAM_TABLE_DOMAINS) \
+		--families=$(PARAM_TABLE_FAMILIES) \
+		--max_family=$(PARAM_MAX_FAMILY) \
+		--min_evidence=2 --min_units=2 \
+		--ref_domains=$(PARAM_TABLE_DOMAINS_REFERENCE) \
+		--ref_families=$(PARAM_TABLE_FAMILIES_REFERENCE) \
+		ReferenceMatches > $@
 	$(EPILOG)
 
 ##########################################################################	
@@ -1250,6 +1274,21 @@ parts_cumulative.png: $(QUALITY_CONTROL)
 	@gnuplot g
 	@rm -f g $@.tmp1 $@.tmp2
 	$(EPILOG)
+
+#######################################################################
+#######################################################################
+#######################################################################
+## evaluating domain boundaries (irrespective of clustering
+#######################################################################
+%.eval_parts:
+	$(PROLOG)
+	@python $(DIR_SCRIPTS)evaluate_domain_boundaries.py \
+		--Database=$(PARAM_DATABASE_PAIRSDB) \
+		--reference=$(PARAM_TABLE_DOMAINS_REFERENCE) \
+		--parts=$(PARAM_TABLE_DOMAINS) \
+		$(FLAGS_EVALUATION_PARTS) > $@
+	$(EPILOG)
+
 
 include $(DIR_SCRIPTS)Makefile.common
 

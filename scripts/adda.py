@@ -417,6 +417,7 @@ def main():
                                 "optimise",
                                 "convert",
                                 "mst", 
+                                "mst-components", 
                                 "align",
                                 "cluster", 
                                 "realign",
@@ -485,6 +486,7 @@ def main():
                    'sequences' : AddaSequences.AddaSequences,
                    'convert' : AddaConvert.AddaConvert,
                    'mst' : AddaMst.AddaMst, 
+                   'mst-components' : AddaComponentsMst.AddaComponentsMst, 
                    'align' : AddaAlign.AddaAlign, 
                    'cluster' : AddaCluster.AddaCluster,
                    'families' : AddaFamilies.AddaFamilies,
@@ -569,6 +571,13 @@ def main():
          config = config,
          fasta = fasta)
 
+    L.info( "computing connected components" )
+    run( options,
+         order = ( "mst-components", ),
+         map_module = map_module,
+         config = config,
+         fasta = fasta)
+         
     L.info( "alignment of domains" )
 
     run_parallel( 

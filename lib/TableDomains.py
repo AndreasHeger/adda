@@ -941,7 +941,8 @@ class TableFamilies( Table ):
         statement += " ORDER BY family"
         
         return map(lambda x: x[0], self.dbhandle.Execute(statement).fetchall())
-    ##---------------------------------------------------------------------
+
+    #---------------------------------------------------------------------------------
     def AddFamily(self, family ):
         """insert a new family.
         """
@@ -966,7 +967,6 @@ class TableFamilies( Table ):
         self.Execute(statement)
         self.Update( src_domains )
 
-
     ##-----------------------------------------------------------------------------------------------
     def GetMissingFamilies( self, table_domains ):
         """retrieve all dids, that are missing, but present in table_domains."""
@@ -974,7 +974,6 @@ class TableFamilies( Table ):
                     " LEFT JOIN %s AS d ON t.family = d.family " % self.name +\
                     " WHERE d.family IS NULL "
         return map( lambda x: x[0], self.Execute( statement ).fetchall())
-
 
     ##-----------------------------------------------------------------------------------------------
     def AddFamilyFromFamiliesTable( self, table_families, old_family, new_family = None, extra_fields = ""):

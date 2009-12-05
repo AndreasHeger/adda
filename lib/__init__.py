@@ -29,6 +29,8 @@ __all__ = [
            "AddaSummary",
            "AddaStats",
            "AddaPlot",
+           "AddaComponents",
+           "AddaComponentsMst",
            ]
 
 
