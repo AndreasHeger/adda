@@ -457,7 +457,7 @@ def main():
         lvl = logging.DEBUG
 
     logQueue = multiprocessing.Queue(100)
-    handler = Logger.MultiProcessingLogHandler(logging.FileHandler( "adda.log", "w"), logQueue)
+    handler = Logger.MultiProcessingLogHandler(logging.FileHandler( "adda.log", "a"), logQueue)
     handler.setFormatter( 
         logging.Formatter( '%(asctime)s pid=%(process)-8d %(name)-12s %(levelname)-8s %(message)s',
                            datefmt='%m-%d %H:%M' ) )
