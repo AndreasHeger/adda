@@ -139,7 +139,7 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
 # ALENGTH:      length ratio avg_cluster/avg_source
 # AOVL:         average overlap
 # ANNO:         description of annotation
-family\tnunits\taunits\tnseqs\taseqs\tlength\trunits\ttunits\trseqs\ttseqs\tsel\tsen\talength\taovl\tanno""" % locals()
+family\tnunits\tnseqs\tlength\taunits\taseqs\trunits\ttunits\trseqs\ttseqs\tsel\tsen\talength\taovl\tanno""" % locals()
 
         ##################################################################
         ## count number of domains and sequences in the reference for
@@ -231,33 +231,40 @@ family\tnunits\taunits\tnseqs\taseqs\tlength\trunits\ttunits\trseqs\ttseqs\tsel\
             annotations = self.mDbhandle.Execute( statement_counts % str(adda_family) ).fetchall()
 
             # annotated units and sequences in family
-            anno_units, anno_seqs = self.mDbhandle.Execute( statement_annotated % str(adda_family) ).fetchone()
+            anno_nunits, anno_nseqs = self.mDbhandle.Execute( statement_annotated % str(adda_family) ).fetchone()
             
             if not annotations:
                 print "%s\t%i\t%i\t%i\t%i\t%i\t\t\t\t\t\t\t\t\t\t" %\
                     (adda_family,
-                     adda_nunits,anno_units,
-                     adda_nsequences,anno_seqs,
-                     adda_length )
+                     adda_nunits,
+                     adda_nsequences,
+                     adda_length,
+                     anno_nunits, 
+                     anno_nseqs )
                 
             for nunits, nseqs, key, description,avg, union, inter in annotations:
                 
                 tunits, tseqs, tlength = totals[key]
-                selectivity = float(nunits) / anno_units
+                selectivity = float(nunits) / anno_nunits
                 sensitivity = float(nunits) / tunits
-
-                print "%s\t%i\t%i\t%i\t%i\t%i\t%i\t%i\t%i\t%i\t%5.2f\t%5.2f\t%5.2f\t%5.2f\t%s\t%s" %\
-                    (adda_family,
-                     adda_nunits,anno_units,
-                     adda_nsequences,anno_seqs,
-                     adda_length,
-                     nunits, tunits,
-                     nseqs, tseqs,
-                     selectivity,
-                     sensitivity,
-                     avg/tlength,
-                     float(inter)/float(union),
-                     key, description )
+                
+                print "\t".join( map( str, 
+                                      (adda_family,
+                                       adda_nunits,
+                                       adda_nsequences,
+                                       adda_length,
+                                       anno_nunits,
+                                       anno_nseqs,
+                                       nunits, tunits,
+                                       nseqs, tseqs,
+                                       "%5.2f" % selectivity,
+                                       "%5.2f" % sensitivity,
+                                       "%5.2f" % (avg/tlength),
+                                       "%5.2f" % (float(inter)/float(union)),
+                                       key, description )))
+                
+                adda_family, adda_nunits, adda_nsequences, adda_length =\
+                    [""] * 4
 
     #-------------------------------------------------------------------------------------
     def ReferenceMatches( self ):

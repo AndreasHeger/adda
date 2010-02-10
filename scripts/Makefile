@@ -123,6 +123,29 @@ PARAM_FLAGS_GDL_SPLIT=--min_size=5
 ## directory with results of ADDA run
 PARAM_DIR_ADDA=../data/
 
+## Benchmark sets
+PARAM_REFERENCES?=scop pfam # pfam scop
+
+## Maximum family size
+PARAM_MAX_FAMILY?=1000000
+
+## Level for comparison
+PARAM_COMPARISON_LEVEL?=$(PARAM_DATABASE_PAIRSDB).nrdb40
+
+PARAM_DIR_EXPORT?=export/
+
+PARAM_MIN_TAXONOMY_MATCHES?=0
+
+## if less than five percent of a family are annotated, print it.
+PARAM_THRESHOLD_UNKNOWN?=5
+PARAM_THRESHOLD_EXTENDED_MIN?=5
+PARAM_THRESHOLD_EXTENDED_MAX?=50
+
+## table names used for annotation of ADDA domains
+## table name with structural domains
+## for example: $(PARAM_DATABASE_PAIRSDB).nrdb40_pdb_domains
+PARAM_TABLE_STRUCTURES?=
+
 ################################################
 ## Section parameters: end
 ################################################
@@ -132,7 +155,8 @@ prepare: create-database load-primary
 load-primary:	\
 	adda_nids.load \
 	adda_nrdb.load \
-	$(PARAM_REFERENCES:%=reference_%s.load) \
+	pairsdb_100x40.load \
+	$(PARAM_REFERENCES:%=reference_%.load) \
 	adda_domains.load 
 
 all: load-primary modules annotation
@@ -150,6 +174,7 @@ create-database:
 #####################################################
 #####################################################
 ## load nids into table
+## WARNING: these are internal nids
 #####################################################
 %_nids.load: $(PARAM_DIR_ADDA)%.nids
 	$(PROLOG)
@@ -162,7 +187,8 @@ create-database:
 #####################################################
 #####################################################
 #####################################################
-## load nrdb into table
+## load nrdb into table 
+## WARNING: these are internal nids
 #####################################################
 %_nrdb.load: $(PARAM_DIR_ADDA)%.nids
 	$(PROLOG)
@@ -172,11 +198,28 @@ create-database:
 		--index=nid < $< > $@
 	$(EPILOG)
 
+
+#####################################################
+#####################################################
+#####################################################
+## load nrdb into table
+#####################################################
+pairsdb_100x40.load: $(PARAM_DIR_ADDA)pairsdb_100x40.gz
+	$(PROLOG)
+	@gunzip < $< |\
+	python $(DIR_SCRIPTS)csv2db.py \
+		$(PARAM_DB_CONNECTION) \
+		--table=$(PARAM_DATABASE_PAIRSDB).pairsdb_100x40 \
+		--index=rep_nid \
+		--index=mem_nid \
+	> $@
+	$(EPILOG)
+
 #####################################################
 #####################################################
 #####################################################
 ## load reference domains into table
-## Note that nids need NOT to be mapped for the reference
+## Note that nids need NOT to be mapped to the reference
 ## databases as adda does that.
 #####################################################
 reference_%.load: $(PARAM_DIR_ADDA)%.domains.gz
@@ -336,37 +379,6 @@ domains_x_domains.load: domains_x_domains.links
 	$(EPILOG)
 
 
-################################################
-## Section parameters: start
-################################################
-
-## Benchmark sets
-PARAM_REFERENCES?=scop pfam # pfam scop
-
-## Maximum family size
-PARAM_MAX_FAMILY?=1000000
-
-## Level for comparison
-PARAM_COMPARISON_LEVEL?=$(PARAM_DATABASE_PAIRSDB).nrdb40
-
-PARAM_DIR_EXPORT?=export/
-
-PARAM_MIN_TAXONOMY_MATCHES?=0
-
-## if less than five percent of a family are annotated, print it.
-PARAM_THRESHOLD_UNKNOWN?=5
-PARAM_THRESHOLD_EXTENDED_MIN?=5
-PARAM_THRESHOLD_EXTENDED_MAX?=50
-
-## table names used for annotation of ADDA domains
-## table name with structural domains
-## for example: $(PARAM_DATABASE_PAIRSDB).nrdb40_pdb_domains
-PARAM_TABLE_STRUCTURES?=
-
-################################################
-## Section parameters: end
-################################################
-
 BENCHMARKS=annotations selectivity sensitivity unknown extended roc 
 EXPORTS=.html _sensitivity.html _selectivity.html _roc.png 
 
@@ -512,17 +524,36 @@ fhist.png: fhist
 				if ($$1 != "") { \
 					a = $$1; \
 					printf("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", \
-						a, $$7, $$8, $$9, $$10, $$11, $$12, $$13, $$14, $$15);\
+						a, $$7, $$8, $$9, $$10, $$11, $$12, $$13, $$14, $$15, $$16, $$17);\
 				} else { \
 					printf("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", \
-						a, $$7, $$8, $$9, $$10, $$11, $$12, $$13, $$14, $$15);\
+						a, $$7, $$8, $$9, $$10, $$11, $$12, $$13, $$14, $$15, $$16, $$17);\
 				} \
 			}\
 			}' < $*.annotations > $@.tmp_load_hits
 	@$(CMD_SUBMIT) grep -v "^[#	]" $*.annotations | sed '/	unknown/d' | cut -f 1-6 > $@.tmp_load_summary
 	@$(CMD_SQL)"DROP TABLE IF EXISTS $(PARAM_TABLE_DOMAINS)_vs_$*_matches, $(PARAM_TABLE_DOMAINS)_vs_$*_summary; \
-	CREATE TABLE $(PARAM_TABLE_DOMAINS)_vs_$*_matches (family INT UNSIGNED NOT NULL DEFAULT 0, runits INT UNSIGNED NOT NULL DEFAULT 0, tunits INT UNSIGNED NOT NULL DEFAULT 0, rseqs INT UNSIGNED NOT NULL DEFAULT 0, tseqs INT UNSIGNED NOT NULL DEFAULT 0, alength FLOAT, aovl FLOAT, rfamily VARCHAR(20), description VARCHAR(200), INDEX(family), INDEX(rfamily)); \
-	CREATE TABLE $(PARAM_TABLE_DOMAINS)_vs_$*_summary (family INT UNSIGNED NOT NULL DEFAULT 0, nunits INT UNSIGNED NOT NULL DEFAULT 0, aunits INT UNSIGNED NOT NULL DEFAULT 0, nseqs INT UNSIGNED NOT NULL DEFAULT 0, aseqs INT UNSIGNED NOT NULL DEFAULT 0, length INT UNSIGNED NOT NULL DEFAULT 0, INDEX(family))" $(PARAM_DATABASE_ADDA)
+		CREATE TABLE $(PARAM_TABLE_DOMAINS)_vs_$*_matches \
+			(family INT UNSIGNED NOT NULL DEFAULT 0, \
+			runits INT UNSIGNED NOT NULL DEFAULT 0, \
+			tunits INT UNSIGNED NOT NULL DEFAULT 0, \
+			rseqs INT UNSIGNED NOT NULL DEFAULT 0, \
+			tseqs INT UNSIGNED NOT NULL DEFAULT 0, \
+			selectivity FLOAT, \
+			sensitivity FLOAT, \
+			alength FLOAT, \
+			aovl FLOAT, \
+			rfamily VARCHAR(20), \
+			description VARCHAR(200), \
+			INDEX(family), INDEX(rfamily)); \
+		CREATE TABLE $(PARAM_TABLE_DOMAINS)_vs_$*_summary \
+			(family INT UNSIGNED NOT NULL DEFAULT 0, \
+			nunits INT UNSIGNED NOT NULL DEFAULT 0, \
+			aunits INT UNSIGNED NOT NULL DEFAULT 0, \
+			nseqs INT UNSIGNED NOT NULL DEFAULT 0, \
+			aseqs INT UNSIGNED NOT NULL DEFAULT 0, \
+			length INT UNSIGNED NOT NULL DEFAULT 0, INDEX(family))" \
+		$(PARAM_DATABASE_ADDA)
 	@$(CMD_SQL) \
 	"LOAD DATA LOCAL INFILE '$@.tmp_load_hits' INTO TABLE $(PARAM_TABLE_DOMAINS)_vs_$*_matches" $(PARAM_DATABASE_ADDA)
 	@$(CMD_SQL) \

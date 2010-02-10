@@ -111,6 +111,7 @@ class AddaAlign( AddaModuleRecord ):
         self.mHeader = ("passed",
                         "qdomain",
                         "sdomain",
+                        "evalue",
                         "qstart",
                         "qend",
                         "qali",
@@ -128,7 +129,6 @@ class AddaAlign( AddaModuleRecord ):
 
         # the cache to store alignandum objects
         self.mCache = {}        
-        
         
         alignlib.setDefaultEncoder( alignlib.getEncoder( alignlib.Protein20 ) )
 

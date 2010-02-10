@@ -16,8 +16,19 @@ def readAlignmentGraph( infile ):
     G = nx.Graph()
     for line in infile:
         if line.startswith("#"): continue
-        passed, start, end = line[:-1].split()[:3]
-        G.add_edge( start, end, passed )
+        if line.startswith("passed"): continue
+        data = line[:-1].split("\t")
+        try:
+            (passed, start, end, 
+             evalue,
+             qstart, qend, qali, 
+             sstart, send, sali,
+             score, naligned, ngaps,
+             zscore) = data
+        except ValueError:
+            print "parsing error in line `%s`" % data
+            raise
+        G.add_edge( start, end, (passed, float(score), int(naligned)) )
         
     return G
 
@@ -62,14 +73,22 @@ def main():
             map_nid2id = dict([[v,k] for k,v in map_id2nid.iteritems()])
 
         def translate_alignments( line ):        
+            if line.startswith("passed"): return line
             data = line.split( "\t" )
+            
             x = data[1].split("_")
             y = data[2].split("_")
             try:
                 data[1] = "%s_%s_%s" % (map_nid2id[int(x[0])],x[1],x[2])
+            except KeyError:
+                sys.stderr.write("could not map: %s\n" % str(x) )
+                raise
+            try:
                 data[2] = "%s_%s_%s" % (map_nid2id[int(y[0])],y[1],y[2])
-            except (KeyError, ValueError):
-                pass
+            except KeyError:
+                sys.stderr.write("could not map: %s\n" % str(y) )
+                raise
+
             return "\t".join(data)
 
         if options.graph_format == "alignments":
@@ -91,8 +110,14 @@ def main():
     t = time.time()
 
     if options.method == "shortest-path":
-        print nx.shortest_path(G, options.node1, options.node2)
+        path = nx.shortest_path(G, options.node1, options.node2)
+        last_node = path[0]
+        for node in path[1:]:
+            print "%s\t%s\t%s" % (last_node, node, str(G[last_node][node]))
+            last_node = node
+
     elif options.method == "components":
+        print "component\tnode"
         for id, component in enumerate(nx.connected_components( G )):
             for c in component:
                 print "%i\t%s" % (id,c)

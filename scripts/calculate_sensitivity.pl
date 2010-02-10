@@ -34,9 +34,13 @@ while (<STDIN>) {
     next if (/^family/);
     chop();
 
-    my ($did, $nunits, $aunits, $nseqs, $aseqs, $length, 
-	$runits, $tunits, $rseqs, $tseqs, $alength, $aovl, $anno1, $anno2) = split(/\t/);
-    
+    my ($did, $nunits, $nseqs, $length, 
+	$aunits, $aseqs, 
+	$runits, $tunits, $rseqs, $tseqs, 
+	$sel, $sen, 
+	$alength, $aovl, 
+	$anno1, $anno2) = split(/\t/);
+
     $did = $last_did if (!$did);
 
     my $family = $anno1."\t".$anno2;

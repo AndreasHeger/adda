@@ -25,7 +25,6 @@ print <<END_OF_TEXT;
 family\tanno\ttotal\tsensi\treff
 END_OF_TEXT
 
-
 while (<STDIN>) {
     if (/# master/) {
 	print $_; 
@@ -41,19 +40,22 @@ while (<STDIN>) {
     next if (/^family/);
     chop();
 
-    my ($did, $nunits, $aunits, $nseqs, $aseqs, $length, 
-	$runits, $tunits, $rseqs, $tseqs, $alength, $aovl, $anno1, $anno2) = split(/\t/);
+    my ($did, $nunits, $nseqs, $length, 
+	$aunits, $aseqs, 
+	$runits, $tunits, $rseqs, $tseqs, 
+	$sel, $sen, 
+	$alength, $aovl, 
+	$anno1, $anno2) = split(/\t/);
     
-    if ($did) 
-    {
-	my $family = $anno1."\t".$anno2;
-	next unless ($runits);
-	my $r = $runits / $aunits;
-	if ($r > 1) {$r = 1};
-	printf ("$did\t$runits\t$aunits\t%5.2f\t$family\n", $r);	
-	$t += $r;
-	$n++;
-    }
+    my $family = $anno1."\t".$anno2;
+    next unless ($did);
+    next unless ($runits);
+    next unless ($aunits);
+    my $r = $runits / $aunits;
+    if ($r > 1) {$r = 1};
+    printf ("$did\t$runits\t$aunits\t%5.2f\t$family\n", $r);	
+    $t += $r;
+    $n++;
 }
 
 
