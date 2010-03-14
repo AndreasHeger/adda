@@ -25,7 +25,7 @@ class AddaConvert( AddaModuleBlock ):
         self.mFilenameGraph = self.mConfig.get( "files", "output_graph", "adda.graph" )
         self.mFilenameDomains = self.mConfig.get( "files", "output_domains", "adda.domains" )
         self.mEvalueThresholdTrustedLinks = float(self.mConfig.get( "convert", "evalue_threshold_trusted_links", -12.0 ))
-        self.mFilenameDomainGraph = self.mConfig.get( "files", "output_domain_graph", "adda.domain_graph" )
+        self.mFilenameDomainGraph = self.mConfig.get( "files", "output_domaingraph", "adda.domain_graph" )
 
         cadda.setFilenameGraph( self.mFilenameGraph )
         cadda.setFilenameDomains( self.mFilenameDomains )

@@ -78,7 +78,9 @@ def Start( parser = None,
            add_mysql_options = False,
            add_psql_options = False,
            add_pipe_options = True,
-           add_cluster_options = False ):
+           add_cluster_options = False,
+           add_output_options = False ):
+
     """set up an experiment.
 
     returns a tuple containing (options, args).
@@ -149,6 +151,16 @@ def Start( parser = None,
                              cluster_priority = -10,
                              cluster_num_jobs = 100,
                              cluster_options = "")
+
+    if add_output_options:
+        parser.add_option( "-P", "--output-filename-pattern", dest="output_filename_pattern", type="string" ,
+                           help="OUTPUT filename pattern for various methods [%default].")
+
+        parser.add_option( "-F", "--force", dest="output_force", action="store_true",
+                           help="force over-writing of existing files." )
+
+        parser.set_defaults( output_filename_pattern = "%s",
+                             output_force = False )
 
     if add_pipe_options:
         parser.add_option("-I", "--stdin", dest="stdin", type="string",

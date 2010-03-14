@@ -120,7 +120,7 @@ if __name__ == "__main__":
 
             d = line[:-1].split("\t")
             try:
-                a, b = d[0].strip(), d[1].strip()
+                a, b = d[:2]
             except ValueError:
                 print "# invalid map skipped in line: %s" % line
                 continue

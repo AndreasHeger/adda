@@ -1,627 +1,466 @@
-#!/usr/bin/env python
-
-USAGE="""adda.py [OPTIONS] cmds
-
-interface to compute adda
+################################################################################
+#
+#   MRC FGU Computational Genomics Group
+#
+#   $Id: pipeline_kamilah.py 2869 2010-03-03 10:20:13Z andreas $
+#
+#   Copyright (C) 2009 Andreas Heger
+#
+#   This program is free software; you can redistribute it and/or
+#   modify it under the terms of the GNU General Public License
+#   as published by the Free Software Foundation; either version 2
+#   of the License, or (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program; if not, write to the Free Software
+#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+#################################################################################
 """
 
-import sys, os, re, time, math, copy, glob, optparse, logging, traceback, shelve
-from multiprocessing import Process, cpu_count, Pool
-import multiprocessing
+:Author: Andreas Heger
+:Release: $Id: pipeline_kamilah.py 2869 2010-03-03 10:20:13Z andreas $
+:Date: |today|
+:Tags: Python
 
-import fileinput
-import cadda
+Purpose
+-------
+
+
+Usage
+-----
+
+Type::
+
+   python <script_name>.py --help
+
+for command line help.
+
+Code
+----
+"""
+import sys, tempfile, optparse, shutil, itertools, csv, math, random, re, glob, os, shutil
+import fileinput, collections, gzip
 
 import Adda.Experiment as E
-from Adda import *
+import Adda.Pipeline as P
+from ruffus import *
+import csv
+import sqlite3
+from Adda import IndexedFasta, FastaIterator, IOTools
 
-from logging import warn, info, debug
+PARAMS = P.getParameters( "adda.ini" )
 
-L = {}
+ADDA_STATEMENT="adda.py %(cmd)s"
 
-def run( options, order, map_module, config, fasta = None ):
+def sequences(infile, outfile ):
+    cmd = "sequences"
+    statement = ADDA_STATEMENT
+    P.run()
 
-    if "all" in options.steps:
-        steps = order
+@files( PARAMS["input_graph"], PARAMS["output_graph"])
+def graph(infile, outfile):
+    cmd = "graph"
+    statement = ADDA_STATEMENT
+    P.run()
+
+@files( PARAMS["output_graph"], PARAMS["output_fit"])
+def fit(infile, outfile ):
+    cmd = "fit"
+    statement = ADDA_STATEMENT
+    P.run()
+
+@files( PARAMS["output_graph"], PARAMS["output_segments"])
+def segment(infile, outfile):
+    cmd = "segment"
+    statement = ADDA_STATEMENT
+    P.run()
+
+@files( PARAMS["output_graph"], PARAMS["output_stats"])
+def stats(infile, outfile):
+    cmd = "stats"
+    statement = ADDA_STATEMENT
+    P.run()
+
+@files( (PARAMS["output_fit"], PARAMS["output_segments"]), 
+        PARAMS["output_domains"])
+def optimise(infile, outfile):
+    cmd = "optimise"
+    statement = ADDA_STATEMENT
+    P.run()
+
+@files( PARAMS["output_domains"], PARAMS["output_domaingraph"])
+def convert(infile, outfile):
+    cmd = "convert"
+    statement = ADDA_STATEMENT
+    P.run()
+
+@files( PARAMS["output_domaingraph"], PARAMS["output_mst"])
+def mst(infile, outfile):
+    cmd = "mst"
+    statement = ADDA_STATEMENT
+    P.run()
+
+@files( PARAMS["output_mst"], PARAMS["output_mst"] + ".components")
+def mst_components(infile, outfile):
+    cmd = "mst-components"
+    statement = ADDA_STATEMENT
+    P.run()
+
+@files( PARAMS["output_mst"], PARAMS["output_align"])
+def align(infile, outfile):
+    cmd = "align"
+    statement = ADDA_STATEMENT
+    P.run()
+
+@files( PARAMS["output_align"], PARAMS["output_cluster"])
+def cluster(infile, outfile):
+    cmd = "cluster"
+    statement = ADDA_STATEMENT
+    P.run()
+
+@files( PARAMS["output_cluster"], PARAMS["output_families"])
+def families(infile, outfile):
+    cmd = "families"
+    statement = ADDA_STATEMENT
+    P.run()
+
+@files( PARAMS["output_families"], PARAMS["output_summary"])
+def summary(infile, outfile):
+    cmd = "summary"
+    statement = ADDA_STATEMENT
+    P.run()
+
+
+#########################################################################
+#########################################################################
+#########################################################################
+@merge( (PARAMS["filename_target_sequences"], 
+         PARAMS["filename_adda_sequences"]),
+         "target.new.fasta" )
+def collectTargetSequences( infiles, outfile ):
+    '''extract new sequences from input.'''
+        
+    filename_target, filename_adda = infiles
+    statement = '''
+	python %(scriptsdir)s/map_fasta2fasta.py 
+		--filename-reference=%(filename_adda)s
+                --output-filename-pattern=target.%%s
+		%(filename_target)s > %(outfile)s.log
+    '''
+
+    P.run()
+
+#########################################################################
+#########################################################################
+#########################################################################
+@files( PARAMS["filename_adda_sequences"], "query.fasta" )
+def collectADDASequences( infile, outfile ):
+    '''unpack adda sequences.'''
+
+    if infile.endswith(".gz"):
+        statement = '''gunzip < %(infile)s > %(outfile)s'''
     else:
-        steps = options.steps
+        statement = '''ln -s %(infile)s %(outfile)s'''
 
-    modules = []
+    P.run()
 
-    for step in order:
-        if step in steps:
-            module = map_module[step]( options, config, fasta = fasta )
-            
-            if not module.isComplete():
-                modules.append( module )
-            else:
-                L.info( "%s complete" % step )
+#########################################################################
+#########################################################################
+#########################################################################
+@files( (collectADDASequences, collectTargetSequences), "5.ooc" )
+def buildBlatIndex( infiles, outfile):
+    '''build blat index.'''
+    infiles = " ".join( infiles )
 
-    if len(modules) == 0: return
+    statement = '''
+    blat -dots=100 -prot 
+                -makeOoc=%(outfile)s 
+		-minIdentity=%(map_min_identity)i
+		%(infiles)s %(outfile)s.log < /dev/null >> %(outfile)s.log
+    '''
 
-    L.info( "working with modules: %s" % (",".join(map(str, modules))) )
+    P.run()
 
-    for module in modules:
-        module.startUp()
-        module.run()
-        module.finish()
+#########################################################################
+#########################################################################
+#########################################################################
+@files( PARAMS["filename_target_sequences"], "target.lengths" )
+def collectSequenceLengths( infile, outfile ):
+    '''get sequence lengths from input file.'''
 
-def merge( options, 
-           order, 
-           map_module, 
-           config, 
-           fasta ):
-    """return True if all merging operations succeeded."""
-
-    if "all" in options.steps: steps = order
-    else: steps = options.steps
-
-    nchunks = config.get( "adda", "num_slices", 10 )
-
-    modules = []
-    for step in order:
-        if step in steps:
-            modules.append( map_module[step]( options, 
-                                              config, 
-                                              fasta = fasta,
-                                              chunk = 0,
-                                              num_chunks = nchunks ) )
-
-    L.info( "performing merge on modules: %s" % str(modules) )
-
-    for module in modules:
-        if not module.merge():
-            return False
-    return True
-
-
-class Run(object):
-    pass
-
-class RunOnGraph(Run):
+    inf = gzip.open(infile)
+    outf = open( outfile, "w" )
+    outf.write( "id\tlength\n" )
     
-    def __init__(self, config, steps ):
-
-        #from guppy import hpy
-        #h = hpy()
-        # ignore memory usage of previous object
-        #h.setrelheap()
-
-        L.info( "loading fasta sequences from %s" % config.get( "files", "output_fasta", "adda" ) ) 
-
-        self.mFasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
-
-        #print h.heap()
-
-        if "all" in steps or "fit" in steps:
-
-            L.info( "loading map_id2nid from %s" % config.get( "files", "output_nids", "adda.nids" ))
-            infile = open( config.get( "files", "output_nids", "adda.nids" ) )
-            self.mMapId2Nid = AddaIO.readMapId2Nid( infile, 
-                                                    storage = config.get( "files", "storage_nids", "memory" ) )
-            infile.close()
-
-            L.info( "loading domain boundaries from %s" % config.get( "files", "input_reference") )
-            infile = AddaIO.openStream( config.get( "files", "input_reference") )
-            rx_include = config.get( "fit", "family_include", "") 
-
-            self.mMapNid2Domains = AddaIO.readMapNid2Domains( infile, 
-                                                              self.mMapId2Nid, 
-                                                              rx_include,
-                                                              storage = config.get( "files", "storage_domains", "memory" ) )
-            infile.close()
-            self.mMapId2Nid = None
-        else:
-            self.mMapNid2Domains = None
-            self.mMapId2Nid = None
-        #print h.heap()
-
-        self.mFilenameGraph = config.get( "files", "output_graph", "adda.graph")
-        self.mFilenameIndex = config.get( "files", "output_index", "adda.graph.index")
-
-    def __call__(self, argv ):
-        """run job, catching all exceptions and returning a tuple."""
+    for seq in FastaIterator.FastaIterator(inf):
+        pid = re.sub("\s.*", "", seq.title )
+        outf.write( "%s\t%i\n" %  (pid, len(seq.sequence) ))
         
-        try:
-            self.apply( argv )
-            return None
-        except:
-            exceptionType, exceptionValue, exceptionTraceback = sys.exc_info()
-            exception_stack  = traceback.format_exc(exceptionTraceback)
-            exception_name   = exceptionType.__module__ + '.' + exceptionType.__name__
-            exception_value  = str(exceptionValue)
-            return (exception_name, exception_value, exception_stack)
+    outf.close()
+    inf.close()
 
-    def apply( self, argv ):
+#########################################################################
+#########################################################################
+#########################################################################
+@follows( mkdir("blat.dir") )
+@split( collectTargetSequences, "blat.dir/chunk_*.fasta" )
+def splitSequenceFile( infile, outfiles ):
 
-        (filename, chunk, nchunks, options, order, map_module, config ) = argv
+    # patch ruffus bug
+    if type(infile) == type(list()):
+        infile = infile[0]
 
-        L.info( "chunk %i: setting up" % (chunk ))
+    statement = '''
+       perl %(scriptsdir)s/split_fasta.pl 
+            -a blat.dir/chunk_%%s.fasta %(map_chunksize)i
+            < %(infile)s > split.log
+       '''
 
-        if "all" in options.steps: steps = order
-        else: steps = options.steps
+    P.run()
 
-        # load all maps that were not inherited from the parent process
-        if "all" in steps or "fit" in steps and self.mMapNid2Domains == None:
-            L.info( "opening map_nid2domains from cache" )
-            self.mMapNid2Domains = shelve.open( config.get( "files", "storage_domains", "memory" ), "r")
+#########################################################################
+#########################################################################
+#########################################################################
+@transform( splitSequenceFile, 
+            suffix( ".fasta"), 
+            inputs( [".fasta", collectADDASequences] ),
+            ".blat.gz" )
+def runBlat( infiles, outfile ):
+    '''run a blat job.'''
 
-        # build the modules
-        modules = []
-        for step in order:
-            if step in steps:
-                if map_module[step]( options, 
-                                     config = config, 
-                                     fasta = self.mFasta ).isComplete():
-                    L.info( "chunk %i: step %s is complete" % (chunk, step ))
-                    continue
+    to_cluster = True
+    infile, fasta = infiles
+    statement = '''
+    blat  
+	  -prot
+	  -ooc=5.ooc
+	  -noHead
+	  -minIdentity=%(map_min_identity)i 
+	  %(fasta)s
+	  %(infile)s
+          stdout | gzip > %(outfile)s
+    '''
+    
+    P.run()
 
-                module = map_module[step]( options, 
-                                           config = config, 
-                                           fasta = self.mFasta,
-                                           num_chunks = nchunks,
-                                           chunk = chunk,
-                                           map_id2nid = self.mMapId2Nid,
-                                           map_nid2domains = self.mMapNid2Domains )
+@transform( runBlat, suffix( ".blat.gz"), ".domains" )
+def mapDomains( infile, outfile ):
+    '''collect blat matching stats.'''
 
-                if not module.isComplete():
-                    modules.append( module )
-                else:
-                    L.info( "chunk %i: step %s is complete" % (chunk,step) )
+    to_cluster= True
+    statement = '''
+        gunzip < %(infile)s |
+	python %(scriptsdir)s/map_blat2adda.py 
+		--filename-domains=%(map_filename_domains)s
+		--output-filename-pattern="%(outfile)s.%%s" 
+		--log=%(outfile)s.log 
+		--verbose=2 
+       > %(outfile)s
+    '''
+    P.run()
 
-        if len(modules) == 0: 
-            L.info( "chunk %i: nothing to be done" % chunk )
-            return
+def mergeWithHeader( infiles, outfile ):
+    first = True
+    outf = open( outfile, "w" )
+    for line in fileinput.input( infiles ):
+        if line.startswith("id"): 
+            if not first: continue
+            first = False
+        outf.write(line)
+    outf.close()
+    
+@merge( mapDomains, "mapped.stats" )
+def collectMappingStats( infiles, outfile ):
+    '''collect mapping stats.'''
+    
+    for x in ("full", "good", "partial", "log"):
+        outf = open( "%s.%s" % (outfile,x), "w")
+        for line in fileinput.input( [ "%s.%s" % (x,y) for y in infiles ] ):
+            outf.write( line )
+        outf.close()
 
-        for module in modules: module.startUp()
+    for x in ("mapped", "aggregate"):
+        outf = open( "%s.%s" % (outfile,x), "w")
+        outf.write( "bin\tcounts\n" )
+        for line in fileinput.input( [ "%s.%s" % (x,y) for y in infiles ] ):
+            if line.startswith("#"): continue
+            if line.startswith("bin"): continue
+            d = line[:-1].split("\t")
+            outf.write( "%s\t%i\n" % (d[0], sum( map(int, d[1:] ))))
+        outf.close()
 
-        L.info( "chunk %i: starting work on modules: %s" % (chunk, ",".join(map(str, modules))) )
+@merge( mapDomains, "mapped.domains" )
+def buildMappedDomains( infiles, outfile ):
+    '''collect domains mapped via BLAT.'''
+    mergeWithHeader( infiles, outfile )
 
-        # find out nids to work with
-        nids = map(int, self.mFasta.keys())
-        nids.sort()
-        increment = int( math.ceil( len(nids) / float(nchunks) ) )
-        start = chunk * increment
-        nids = nids[start:start+increment]
-        
-        L.info( "chunk %i: starting work on %i nids from %s to %s" % (chunk, len(nids), str(nids[0]), str(nids[-1]) ) )
+@merge( (collectTargetSequences, PARAMS["map_filename_domains"]), "direct.domains" )
+def buildDirectDomains( infiles, outfile ):
+    '''collect domains that could be transfered without mapping.'''
+    
+    x, filename_domains = infiles
 
-        index = cadda.IndexedNeighbours( self.mFilenameGraph, self.mFilenameIndex )
+    statement = '''
+	python %(scriptsdir)s/substitute_tokens.py \
+		--apply=target.new2old.map \
+		--invert \
+		--column=1 \
+		--filter \
+	< %(filename_domains)s > %(outfile)s
+    '''
+    P.run()
 
-        iteration = 0
-        for nid in nids:
-            iteration += 1
-            neighbours = index.getNeighbours( nid )
+@merge( (buildMappedDomains, buildDirectDomains), "indirect.domains" )
+def buildIndirectDomains( infiles, outfile ):
+    '''collect domains mapped from domains mapped via BLAT.'''
+    
+    infiles = " ".join(infiles)
+    statement = '''
+	cat %(infiles)s |
+	python %(scriptsdir)s/substitute_tokens.py 
+		--apply=target.new2new.map
+		--column=1 
+		--invert \
+		--filter > %(outfile)s
+    '''
+    P.run()
 
-            L.info( "chunk %i: started nid=%s, neighbours=%i, progress=%i/%i (%5.1f%%)" % (chunk, str(nid), len(neighbours), iteration, len(nids), 100.0 * iteration / len(nids) ) )
+@merge( (buildMappedDomains, buildDirectDomains, buildIndirectDomains), "overlap.table" )
+def buildOverlapTable( infiles, outfile ):
+    '''calculate overlap between the different sources of domains.'''
+    infiles = " ".join(infiles)
+    statement = '''
+    python %(scriptsdir)s/set_diff.py --add-percent %(infiles)s > %(outfile)s
+    '''
+    P.run()
 
-            if neighbours:
-                for module in modules:
-                    module.run( AddaIO.NeighboursRecord( nid, neighbours ) )
+@merge( (buildMappedDomains, buildDirectDomains, buildIndirectDomains), "all.domains" )
+def buildMappingAllDomains( infiles, outfile ):
+    '''calculate overlap between the different sources of domains.'''
+    mergeWithHeader( infiles, outfile )
 
-            L.info( "chunk %i: finished nid=%s, neighbours=%i, progress=%i/%i (%5.1f%%)" % (chunk, str(nid), len(neighbours), iteration, len(nids), 100.0 * iteration / len(nids) ) )
-            
-            if options.test and iteration >= options.test:
-                break
+@files( buildMappingAllDomains, "all.families" )
+def buildMappingAllFamilies( infile, outfile ):
+    '''get family counts from a domains file.'''
+    
 
-        L.info( "chunk %i: running finish on modules: %s" % (chunk, ",".join(map(str, modules))) )
+    if type(infile) == type(list()):
+        infile = infile[0]
 
-        for module in modules:
-            module.finish()
+    counts = collections.defaultdict( int )
 
-        L.info( "chunk %i: finished  %i nids" % (chunk, len(nids)) )
-
-def run_on_file( argv ):
-
-    (filename, chunk, nchunks, options, order, map_module, config ) = argv
-
-    L.info( "starting chunk %i" % chunk )
-
-    fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
-
-    if "all" in options.steps: steps = order
-    else: steps = options.steps
-
-    modules = []
-    for step in order:
-        if step in steps:
-            if map_module[step]( options, 
-                                 config = config, 
-                                 fasta = fasta ).isComplete():
-                L.info( "%s complete" % step )
-                continue
-
-            module = map_module[step]( options, 
-                                       config = config, 
-                                       fasta = fasta,
-                                       num_chunks = nchunks,
-                                       chunk = chunk )
-
-            if not module.isComplete():
-                modules.append( module )
-            else:
-                L.info( "%s complete" % step )
-
-    if len(modules) == 0: 
-        L.info( "nothing to be done" )
-        return
-
-    L.info( "opening file %s at chunk %i" % (filename, chunk) )
-
-    iterator = FileSlice.Iterator( filename, 
-                                   nchunks,
-                                   chunk,
-                                   FileSlice.iterator )
-
-    for module in modules: module.startUp()
-
-    L.info( "working with modules: %s" % (",".join(map(str, modules))) )
-
-    for line in iterator:
+    for line in open(infile):
+        if line.startswith("id"): continue
         if line.startswith("#"): continue
+        data = line[:-1].split("\t")
+        counts[data[3]] += 1
 
-        for module in modules:
-            module.run( line )
+    outf = open(outfile,"w")
+    outf.write("family\tcounts\n" )
+    for family, c in counts.iteritems():
+        outf.write( "\t".join( (family,str(c)))+"\n")
+    outf.close()
 
-    for module in modules:
-        module.finish()
+@merge( (buildMappingAllDomains, collectSequenceLengths), "all.coverage" )
+def buildMappingCoverage( infiles, outfile ):
+    '''compute coverage of target sequences with ADDA domains.'''
+    
+    filename_domains, filename_lengths = infiles
 
-    L.info( "running finish on modules: %s" % (",".join(map(str, modules))) )
+    statement = '''
+    python %(scriptsdir)s/adda2coverage.py 
+		--log=%(outfile)s.log \
+		--filename-lengths=%(filename_lengths)s \
+	< %(filename_domains)s > %(outfile)s
+    '''
+    P.run()
 
-    for module in modules:
-        module.finish()
-
-    L.info( "finished chunk %i on %s" % (chunk, filename) )
-
-def getChunks( options, config ):
-    """find out which chunks to compute from command line options."""
-    nchunks = config.get( "adda", "num_slices", 10 )
-
-    # set up the arguments for chunks to run
-    if options.chunks == "all":
-        chunks = range(nchunks) 
-    else:
-        ranges = options.chunks.split(",")
-        chunks = []
-        for r in ranges:
-            s = r.split("-")
-            if len(s) == 1: chunks.append( int(s[0]) )
-            elif len(s) == 2: chunks.extend( list( range(int(s[0]), int(s[1]) ) ) )
-            else: raise ValueError("can not parse range `%s`" % r )
-
-        chunks = sorted(list(set(chunks)))
-        if chunks[-1] >= nchunks: raise ValueError( "chunk `%i` out of range, maximum is " % (chunks[-1], nchunks-1 ) )
-
-    return nchunks, chunks
+@merge( (PARAMS["map_filename_domains"], 
+         PARAMS["map_filename_adda_sequences"],
+         PARAMS["map_filename_target_sequences"],
+         collectTargetSequences,
+         buildMappedDomains,
+         buildDirectDomains,
+         buildIndirectDomains,
+         buildMappingAllDomains,
+         buildMappingAllFamilies ), "mapping.summary" )
+def buildMappingSummary( infiles, outfile ):
+    '''build summary with mapping stats
+    '''
         
-def runParallel( runner, filename, options, order, map_module, config ):
-    """process filename in paralell."""
+    (adda_domains, 
+     adda_sequences, 
+     target_sequences,
+     new_sequences,
+     mapped_domains,
+     direct_domains,
+     indirect_domains,
+     all_domains,
+     all_families) = infiles
 
-    if options.num_jobs:
-        njobs = options.num_jobs 
-    else:
-        njobs = cpu_count()
+    outf = open( outfile, "w")
+
+    nadda_sequences = len( list(FastaIterator.FastaIterator( gzip.open( adda_sequences))))
+    ntarget_sequences = len( list(FastaIterator.FastaIterator( gzip.open( target_sequences))))
+
+    outf.write( "set\tdomains\tsequences\tfamilies\n")
+    outf.write( "%s\tna\t%i\tna\n" % \
+                    (adda_sequences, nadda_sequences ))
+    outf.write( "%s\tna\t%i\tna\n" % \
+                    (target_sequences, ntarget_sequences) )
     
-    nchunks, chunks = getChunks( options, config )
+    def _countDomains( infile ):
+        Counts = collections.namedtuple('Counts', 'ndomains, nsequences, nfamilies')
 
-    L.info( "running %i chunks in %i parallel jobs" % (len(chunks), njobs ))
-    
-    args = [ (filename, chunk, nchunks, options, order, map_module, config ) for chunk in chunks ]
+        sequences, ndomains, families = set(), 0, set()
+        for line in open(infile):
+            if line.startswith("#"): continue
+            if line.startswith("id"): continue
+            if line.startswith("nid"): continue
+            data = line[:-1].split("\t")
+            sequences.add( data[0] )
+            ndomains += 1
+            families.add( data[3] )
 
-    logging.info('starting parallel jobs')
+        return Counts._make( (ndomains, len(sequences), len(families) ) )
 
-    pool = Pool( njobs )
-
-    errors = pool.map( runner, args )
-    pool.close()
-    pool.join()
-
-    errors = [ e for e in errors if e ]
-
-    if errors:
-        print "adda caught %i exceptions" % (len(errors))
-        print "## start of exceptions"
-        for exception_name, exception_value, exception_stack in errors:
-            print exception_stack,
-        print "## end of exceptions"
-        sys.exit(1)
-
-    L.info( "all jobs finished" )
-
-def runSequentially( runner, filename, options, order, map_module, config ):
-    """process filename sequentially."""
-
-    nchunks, chunks = getChunks( options, config )
-    
-    L.info( "running %i chunks sequentially" % (len(chunks) ))
-
-    args = [ (filename, chunk, nchunks, options, order, map_module, config ) for chunk in chunks ]
-
-    for (job, argv) in enumerate(args):
-        L.info( "job %i started" % job )
-        error = runner( argv )
-
-        if error:
-            print "adda caught an exceptions"
-            exception_name, exception_value, exception_stack = error
-            print exception_stack,
-            print "## end of exceptions"
-            sys.exit(1)
-
-        L.info( "job %i finished" % job )
-
-    L.info( "all jobs finished" )
-
-def oldrunSequentially( runner, filename, options, order, map_module, config ):
-    """process filename sequentially."""
-
-    nchunks, chunks = getChunks( options, config )
-    
-    L.info( "running %i chunks sequentially" % (len(chunks) ))
-
-    args = [ (filename, options, order, map_module, config, chunk, nchunks ) for chunk in chunks ]
-
-    for (chunk, argv) in enumerate(args):
-        L.info( "job %i started" % chunk )
-        error = runner( argv )
-
-        if error:
-            print "adda caught an exceptions"
-            exception_name, exception_value, exception_stack = error
-            print exception_stack,
-            print "## end of exceptions"
-            sys.exit(1)
-
-        L.info( "job %i finished" % chunk )
-
-
-    L.info( "all jobs finished" )
-    
-def main():
-    global L
-    
-    parser = optparse.OptionParser( version = "%prog version: $Id$", usage = USAGE )
-
-    parser.add_option( "--config", dest="filename_config", type="string",
-                      help="configuration file [default=%default].")
-
-    parser.add_option( "--force", dest="force", action="store_true",
-                      help="overwrite existing files [default=%default].")
-
-    parser.add_option( "--continue", dest="append", action="store_true",
-                      help="continue from an aborted run and append to existing files [default=%default].")
-
-    parser.add_option( "--test", dest="test", type="int",
-                      help="run a test with first # sequences [default=%default]")
-
-    parser.add_option( "--num-jobs", dest="num_jobs", type="int",
-                      help="use # processes. If not set, the number of CPUs/cores is taken [default=%default]")
-    
-    parser.add_option( "--alignment-format", dest="alignment_format", type="choice",
-                       choices=("pairsdb", "pairsdb-old", "simap", "pairsdb-realign"),
-                       help = "input format of graph. pairsdb-old: input graph is in old 1-based coordinates [default=%default]." )
-
-    parser.add_option( "--chunks", dest="chunks", type="string",
-                       help = "work on one or more chunks only. Provide a comma-separated list. [default=%default]" )
-
-    parser.add_option( "--steps", dest="steps", type="choice", action="append",
-                       choices=("all", 
-                                "sequences",
-                                "blast",
-                                "fit", 
-                                "graph",
-                                "index",
-                                "check-index",
-                                "profiles",
-                                "segment", 
-                                "optimise",
-                                "convert",
-                                "mst", 
-                                "mst-components", 
-                                "align",
-                                "cluster", 
-                                "realign",
-                                "families", 
-                                "stats",
-                                "summary"),
-                       help="perform this step [default=%default]" )
-
-    parser.add_option( "--start-at", dest="start_at", type="string",
-                      help="start at sequence [default=%default]")
-
-    parser.add_option( "--stop-at", dest="stop_at", type="string",
-                      help="stop at sequenec [default=%default]")
-
-    parser.set_defaults( 
-                        filename_config = "adda.ini",
-                        steps = [],
-                        start_at = None,
-                        stop_at = None,
-                        alignment_format = "pairsdb",
-                        force = False,
-                        append = False,
-                        test = None,
-                        num_jobs = None,
-                        temporary_directory = ".",
-                        chunks = "all",
-                        )
-    
-    (options, args) = E.Start( parser )
-
-    # setup logging
-    if options.loglevel == 0:
-        lvl = logging.ERROR
-    elif options.loglevel == 1:
-        lvl = logging.INFO
-    else:
-        lvl = logging.DEBUG
-
-    logQueue = multiprocessing.Queue(100)
-    handler = Logger.MultiProcessingLogHandler(logging.FileHandler( "adda.log", "a"), logQueue)
-    handler.setFormatter( 
-        logging.Formatter( '%(asctime)s pid=%(process)-8d %(name)-12s %(levelname)-8s %(message)s',
-                           datefmt='%m-%d %H:%M' ) )
-    logging.getLogger('adda').addHandler(handler)
-    logging.getLogger('adda').setLevel( lvl )
-
-    E.setLogger( logging.getLogger( "adda" ) )
-    L = logging.getLogger( "adda" ) 
-
-    config = AddaIO.ConfigParser()
-    config.read( os.path.expanduser( options.filename_config ) )
-
-    if args: options.steps = args
+    for x,f in (
+            ("adda", adda_domains), 
+            ("mapped", mapped_domains), 
+            ("direct", direct_domains), 
+            ("indirect", indirect_domains),
+            ("all", all_domains)):
+        c = _countDomains(f)
+        outf.write( "%s\t%i\t%i\t%i\n" % (x, c.ndomains, c.nsequences, c.nfamilies))
         
-    ## collect modules and initialise them         
-    map_module = { 'fit' : AddaFit.AddaFit,
-                   'segment' : AddaSegment.AddaSegment,
-                   'blast' : AddaBlast.AddaBlast,
-                   'graph' : AddaGraph.AddaGraph,
-                   'stats' : AddaStats.AddaStats,
-                   'profiles' : AddaProfiles.AddaProfiles, 
-                   'realign' : AddaRealignment.AddaRealignment,
-                   'index' : AddaIndex.AddaIndexBuild,
-                   'check-index' : AddaIndex.AddaIndexCheck,
-                   'optimise' : AddaOptimise.AddaOptimise,  
-                   'sequences' : AddaSequences.AddaSequences,
-                   'convert' : AddaConvert.AddaConvert,
-                   'mst' : AddaMst.AddaMst, 
-                   'mst-components' : AddaComponentsMst.AddaComponentsMst, 
-                   'align' : AddaAlign.AddaAlign, 
-                   'cluster' : AddaCluster.AddaCluster,
-                   'families' : AddaFamilies.AddaFamilies,
-                   'summary' : AddaSummary.AddaSummary,
-                   }
+    outf.close()
+
+@follows(
+    collectTargetSequences,
+    collectADDASequences,
+    buildBlatIndex,
+    splitSequenceFile,
+    runBlat,
+    mapDomains,
+    buildMappingAllDomains,
+    buildMappingAllFamilies,
+    buildMappingCoverage,
+    buildMappingSummary,
+    )
+def map(): pass
 
 
+@follows( summary )
+def adda(): pass
 
-    # modules and their hierarchy
-    run( options, 
-         order = ( "sequences", ), 
-         map_module = map_module,
-         config = config )
-
-    # build the adda graph
-    run( options,
-         order = ( "index", ),
-         map_module = map_module,
-         config = config )
-
-    fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
-
-    run( options,
-         order = ("stats", ),
-         map_module = map_module,
-         config = config,
-         fasta = fasta )
-
-    if options.num_jobs == 1: 
-        run_parallel = runSequentially
-    else:
-        run_parallel = runParallel
-
-    run_on_graph = RunOnGraph( config, options.steps )
-
-    if "realign" in options.steps:
-        raise NotImplementError("broken")
-        run_parallel( 
-            run_on_graph,
-            filename = config.get( "files", "input_graph", "adda.graph" ),
-            options = options, 
-            order = ("realign", ),
-            map_module = map_module,
-            config = config )
-
-    run_parallel( 
-        run_on_graph,
-        filename = config.get( "files", "input_graph", "adda.graph" ),
-        options = options, 
-        order = ("fit", "segment" ),
-        map_module = map_module,
-        config = config )
-
-    if not merge( options,
-                  order = ("fit", "segment" ),
-                  map_module = map_module,
-                  config = config,
-                  fasta = fasta ):
-        L.info( "graph pre-processing incomplete - will not continue." )
-        E.Stop()
-        return
-
-    run( options, 
-         order = ( "optimise", ),
-         map_module = map_module,
-         config = config,
-         fasta = fasta)
-
-    L.info( "building domain graph" )
-
-    run( options, 
-         order = ( "convert", ),
-         map_module = map_module,
-         config = config,
-         fasta = fasta)
-
-    L.info( "computing minimum spanning tree" )
-
-    run( options, 
-         order = ( "mst", ),
-         map_module = map_module,
-         config = config,
-         fasta = fasta)
-
-    L.info( "computing connected components" )
-    run( options,
-         order = ( "mst-components", ),
-         map_module = map_module,
-         config = config,
-         fasta = fasta)
-         
-    L.info( "alignment of domains" )
-
-    run_parallel( 
-        run_on_file,
-        filename = config.get( "files", "output_mst", "adda.mst" ),
-        options = options, 
-        order = ( "align", ),
-        map_module = map_module,
-        config = config )
-
-    merge( options,
-           order = ("align", ),
-           map_module = map_module,
-           config = config,
-           fasta = fasta )
-
-    run( options, 
-         order = ( "cluster", ),
-         map_module = map_module,
-         config = config,
-         fasta = fasta)
-
-    run( options, 
-         order = ( "families", ),
-         map_module = map_module,
-         config = config,
-         fasta = fasta)
-
-    run( options, 
-         order = ( "summary", ),
-         map_module = map_module,
-         config = config,
-         fasta = fasta)
-
-    E.Stop()
-    
-                
-if __name__ == "__main__":    
-    sys.exit(main())
-
-
-
-
-
+if __name__ == "__main__":
+    P.checkExecutables( ("blat", "gunzip", ))
+    sys.exit(P.main())
 
 
 

@@ -45,7 +45,7 @@ PARAM_DATABASE_PAIRSDB?=pairsdb
 
 ################################
 ## Database to store adda results
-PARAM_DATABASE_ADDA?=adda_helsinki
+PARAM_DATABASE_ADDA?=adda_helsinki_new
 
 #########################################################################
 #########################################################################
@@ -167,7 +167,7 @@ all: load-primary modules annotation
 ## prepare targets
 #####################################################
 create-database:
-	@$(CMD_SQL_CREATE) \
+	-@$(CMD_SQL_CREATE) \
 	"CREATE database $(PARAM_DATABASE_ADDA)"
 
 #####################################################

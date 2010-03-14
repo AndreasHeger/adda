@@ -616,7 +616,9 @@ cdef class IndexedNeighbours:
         fclose( index_f)
 
         self.mFile = fopen( filename_graph, "rb" )
-        
+
+        if nnids == 0:
+            raise ValueError("graph is empty")
         self.mNids = nnids
 
     def getNeighbours( self, nid ):

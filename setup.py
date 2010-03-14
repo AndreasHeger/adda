@@ -44,8 +44,11 @@ setup(name='Adda',
       url='http://wwwfgu.anat.ox.ac.uk/~andreas',
       packages = ["Adda",],
       package_dir = {'Adda': 'lib'},
-      package_data = { "Adda" : [ 'adda_blast_parser.pl',] },
-      scripts=['scripts/adda.py' ],
+      package_data = { "Adda" : [ 'adda_blast_parser.pl',
+	                          'split_fasta.pl' ] },
+      scripts=['scripts/adda.py',
+               'scripts/adda_view_graph.py',
+               ],
       ext_modules=[cadda, Components ],
       cmdclass = {'build_ext': build_ext}
      )
