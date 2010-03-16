@@ -73,6 +73,7 @@ def GetFooter():
             global_id)
 
 def Start( parser = None,
+           argv = sys.argv,
            quiet = False,
            add_csv_options = False,
            add_mysql_options = False,
@@ -204,7 +205,7 @@ def Start( parser = None,
                              password = "",
                              database = "" )
 
-    (global_options, global_args) = parser.parse_args()
+    (global_options, global_args) = parser.parse_args( argv[1:] )
 
     if add_pipe_options:
         if global_options.stdout != sys.stdout: 
