@@ -31,26 +31,31 @@ Requirements
 
 ADDA requires the following software:
 
-  * python (2.6) http://www.python.org
-  * alignlib (install from subversion) http://sourceforge.net/projects/alignlib
-  * matplotlib (0.98 or higher) http://matplotlib.sourceforge.net
-  * numpy (1.3.0 or higher) http://numpy.scipy.org
-  * cython (0.11.1 or higher) http://www.cython.org
+  * python_ (2.6) 
+  * alignlib (install from subversion) 
+  * matplotlib_ (0.98 or higher) 
+  * numpy_ (1.3.0 or higher) 
+  * cython_ (0.11.1 or higher) 
+  * ruffus_ (2.0.8 or higher) 
 
 Notes:
 
   * Python 3 will not work as boost.python support is not there yet
   * Python 2.6 is required for the :mod:`multiprocessing` module. If python 2.5
       is used, install it separately.
+  * The python extensions are available on pypi_ and can be installed using::
 
-Compilation
------------
+     easy_install numpy matplotlib cython ruffus
 
-Compilation works in the usual pythonic way::
 
-   python setup.py build
+Installation
+------------
+
+The following command installs |ADDA|::
+
    python setup.py install
 
+This will install the script :file:`adda.py` and the |ADDA| python libraries.
 
 Citing ADDA
 -----------
@@ -60,3 +65,14 @@ If you ADDA it in your work, please cite
    Heger A, Holm L. (2003) Exhaustive enumeration of protein domain families.
    J Mol Biol. 2003 May 2;328(3):749-67.
    PMID: `12706730 <http://www.ncbi.nlm.nih.gov/pubmed/12706730>`_ 
+
+
+.. _python: http://www.python.org
+.. _matplotlib: http://matplotlib.sourceforge.net
+.. _numpy: http://numpy.scipy.org
+.. _cython: http://www.cython.org
+.. _ruffus: http://code.google.com/p/ruffus
+.. _alignlib: http://sourceforge.net/projects/alignlib
+.. _pypi: http://pypi.python.org/pypi
+.. _ADDA: http://wwwfgu.anat.ox.ac.uk/~andreas/adda/html
+.. _PFAM: http://pfam.sanger.ac.uk
