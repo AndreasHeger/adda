@@ -64,7 +64,7 @@ def main( argv = None ):
     # setup command line parser
     parser = optparse.OptionParser( version = "%prog version: $Id: adda2coverage.py 2781 2009-09-10 11:33:14Z andreas $", usage = globals()["__doc__"] )
 
-    parser.add_option("-f", "--filename-lengths", dest="filename_lengths", type="string",
+    parser.add_option("-l", "--filename-lengths", dest="filename_lengths", type="string",
                       help="filename with length information [default=%default]."  )
 
     parser.add_option("-n", "--no-plot", dest="plot", action="store_false",
@@ -152,19 +152,33 @@ def main( argv = None ):
     coverages_counts, coverages_bin_edges = numpy.histogram( coverages, bins=numpy.arange(0,102,1), )
     domains_counts, domains_bin_edges = numpy.histogram( domain_counts, bins=numpy.arange(0,max(domain_counts)+1,1))
 
-    pylab.subplot( 211 )
-    pylab.bar( coverages_bin_edges[:-1], coverages_counts )
-    pylab.xlabel( "residue coverage" )
-    pylab.ylabel( "counts / sequences" )
-    
-    pylab.subplot( 212 )
-    pylab.bar( domains_bin_edges[:-1], domains_counts )
-    pylab.xlabel( "sequence coverage" )
-    pylab.ylabel( "counts / domains per sequence" )
+    if options.plot:
+        pylab.subplot( 211 )
+        pylab.bar( coverages_bin_edges[:-1], coverages_counts )
+        pylab.xlabel( "residue coverage" )
+        pylab.ylabel( "counts / sequences" )
 
-    matplotlib.pyplot.subplots_adjust( wspace = 0.4 )
+        pylab.subplot( 212 )
+        pylab.bar( domains_bin_edges[:-1], domains_counts )
+        pylab.xlabel( "sequence coverage" )
+        pylab.ylabel( "counts / domains per sequence" )
 
-    pylab.savefig( os.path.expanduser(options.output_filename_pattern % "coverage" + ".png" ) )
+        matplotlib.pyplot.subplots_adjust( wspace = 0.4 )
+
+        pylab.savefig( os.path.expanduser(options.output_filename_pattern % "coverage" + ".png" ) )
+
+    def _outputHistogram( counts, bins, section ):
+        outf = E.openOutputFile( "%s.table" % section )
+        outf.write("%s\tcounts\tfrequency\tcumulative\n" % section )
+        t, cc = sum( counts ), 0
+        for bin, c in zip(bins[:-1], counts):
+            cc += c
+            outf.write( "\t".join( (str(bin), str(c), 
+                                   "%6.4f" % (100.0 * c / t ), 
+                                   "%6.4f" % (100.0 * cc / t ) ) ) + "\n" )
+
+    _outputHistogram( coverages_counts, coverages_bin_edges, "residuecoverage")
+    _outputHistogram( domains_counts, domains_bin_edges, "sequencecoverage")
 
     ## write footer and output benchmark information.
     E.Stop()
