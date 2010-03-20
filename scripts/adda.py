@@ -368,7 +368,7 @@ def buildMappingAllFamilies( infile, outfile ):
         outf.write( "\t".join( (family,str(c)))+"\n")
     outf.close()
 
-@merge( (buildMappingAllDomains, collectSequenceLengths), "all.coverage" )
+@merge( (buildMappingAllDomains, collectSequenceLengths), "mapping.coverage" )
 def buildMappingCoverage( infiles, outfile ):
     '''compute coverage of target sequences with ADDA domains.'''
     
@@ -378,7 +378,7 @@ def buildMappingCoverage( infiles, outfile ):
     python %(scriptsdir)s/adda2coverage.py 
 		--log=%(outfile)s.log 
 		--filename-lengths=%(filename_lengths)s 
-                --output-filename-pattern="adda_%%s"
+                --output-filename-pattern="%(outfile)s_%%s"
     < %(filename_domains)s 
     > %(outfile)s
     '''
@@ -463,7 +463,7 @@ def map(): pass
 def adda(): pass
 
 if __name__ == "__main__":
-    P.checkExecutables( ("blat", "gunzip", ))
+    # P.checkExecutables( ("blat", "gunzip", ))
     sys.exit(P.main())
 
 

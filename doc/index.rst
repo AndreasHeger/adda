@@ -20,7 +20,9 @@ Contents
 
    Introduction.rst
    Usage.rst
+   Updating.rst
    Mapping.rst
+   Glossary.rst
    Developers.rst
 
 Indices and tables
