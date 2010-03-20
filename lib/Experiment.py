@@ -472,3 +472,44 @@ def critical( message):
 
 def getLogLevel():
     return global_options.loglevel
+
+def openOutputFile( section, mode = "w" ):
+    """open file for writing substituting section in the
+    output_pattern (if defined)."""
+
+    try:
+        if global_options.output_filename_pattern == "-":
+            return global_options.stdout
+        else:
+            fn = re.sub( "%s", section, global_options.output_filename_pattern )
+            if not global_options.output_force and os.path.exists( fn ):
+                raise OSError( "file %s already exists, use --force to overwrite existing files." % fn )
+            return open( fn, mode )
+    except AttributeError:        
+        return global_options.stdout
+
+
+class Counter(object):
+    '''a lightwight counter. Instantiate and use like this::
+
+       c = Counter()
+       c.input += 1
+       c.output += 2
+       print str(c)
+    '''
+
+    __slots__=["_counts"]
+    def __init__(self):
+        """Store data returned by function."""
+        object.__setattr__( self, "_counts", collections.defaultdict( int ) )
+
+    def __setitem__(self, key, value ):
+        self._counts[key] = value
+    def __getitem__(self, key):
+        return self._counts[key]
+    def __getattr__(self, name):
+        return self._counts[name]
+    def __setattr__(self, name, value):
+        self._counts[name] = value
+    def __str__(self):
+        return ", ".join( "%s=%i" % x for x in self._counts.iteritems() )
