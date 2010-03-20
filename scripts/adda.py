@@ -378,7 +378,7 @@ def buildMappingCoverage( infiles, outfile ):
     python %(scriptsdir)s/adda2coverage.py 
 		--log=%(outfile)s.log 
 		--filename-lengths=%(filename_lengths)s 
-                --filename-output-pattern="adda_%%s"
+                --output-filename-pattern="adda_%%s"
     < %(filename_domains)s 
     > %(outfile)s
     '''
