@@ -69,6 +69,12 @@ The mapping pipeline is run via the command::
 
     adda.py make map
 
+.. note::
+
+   The current implementation sends jobs to the cluster assuming
+   that sge_ and drmaapython_ are installed. Cluster options like
+   queue and priority can be supplied as command line options.
+
 Results
 =======
 
@@ -112,10 +118,12 @@ The map command creates the following files in the working directory:
       Distribution of sequence coverages. The sequence coverage describes the number
       of domains that map to a sequence in :term:`filename_target_sequences`.
 
-   mapping.coverage.png
+   mapping.coverage_coverage.png
       A plot showing the distribution in :term:`mapping.coverage_residuecoverage.table`
       and :term:`mapping.coverage_sequencecoverage.table`.
 
 .. _ADDA update server: http://genserv.anat.ox.ac.uk/downloads/adda/current
 .. _BLAT: http://genome-test.cse.ucsc.edu/~kent/exe
 .. _PFAM: http://pfam.sanger.ac.uk
+.. _sge: http://gridengine.sunsource.net
+.. _drmaapython: http://code.google.com/p/drmaa-python

@@ -255,15 +255,15 @@ def mapDomains( infile, outfile ):
     '''collect blat matching stats.'''
 
     to_cluster= True
-    statement = '''
-        gunzip < %(infile)s |
-	python %(scriptsdir)s/map_blat2adda.py 
-		--filename-domains=%(map_filename_domains)s
+    statement = '''gunzip 
+        < %(infile)s 
+	| python %(scriptsdir)s/map_blat2adda.py 
+		--filename-domains=<( gunzip < %(map_filename_domains)s)
 		--output-filename-pattern="%(outfile)s.%%s" 
 		--log=%(outfile)s.log 
 		--verbose=2 
-       > %(outfile)s
-    '''
+        > %(outfile)s
+        '''
     P.run()
 
 def mergeWithHeader( infiles, outfile ):
@@ -307,13 +307,14 @@ def buildDirectDomains( infiles, outfile ):
     
     x, filename_domains = infiles
 
-    statement = '''
-	python %(scriptsdir)s/substitute_tokens.py \
-		--apply=target.new2old.map \
-		--invert \
-		--column=1 \
-		--filter \
-	< %(filename_domains)s > %(outfile)s
+    statement = '''gunzip
+        < %(filename_domains)s 
+	| python %(scriptsdir)s/substitute_tokens.py 
+		--apply=target.new2old.map 
+		--invert 
+		--column=1 
+		--filter 
+	> %(outfile)s
     '''
     P.run()
 
@@ -422,7 +423,12 @@ def buildMappingSummary( infiles, outfile ):
         Counts = collections.namedtuple('Counts', 'ndomains, nsequences, nfamilies')
 
         sequences, ndomains, families = set(), 0, set()
-        for line in open(infile):
+        if infile.endswith(".gz"):
+            inf = gzip.open(infile)
+        else: 
+            inf = open(infile)
+
+        for line in inf:
             if line.startswith("#"): continue
             if line.startswith("id"): continue
             if line.startswith("nid"): continue
