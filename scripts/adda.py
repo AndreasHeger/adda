@@ -31,6 +31,7 @@
 Purpose
 -------
 
+The main controlling script for the ADDA domain clustering method.
 
 Usage
 -----
@@ -375,9 +376,11 @@ def buildMappingCoverage( infiles, outfile ):
 
     statement = '''
     python %(scriptsdir)s/adda2coverage.py 
-		--log=%(outfile)s.log \
-		--filename-lengths=%(filename_lengths)s \
-	< %(filename_domains)s > %(outfile)s
+		--log=%(outfile)s.log 
+		--filename-lengths=%(filename_lengths)s 
+                --filename-output-pattern="adda_%%s"
+    < %(filename_domains)s 
+    > %(outfile)s
     '''
     P.run()
 

@@ -30,9 +30,7 @@
 Purpose
 -------
 
-.. todo::
-   
-   describe purpose of the script.
+Calculate coverage of a sequence set with ADDA domains.
 
 Usage
 -----
@@ -52,6 +50,9 @@ import os, sys, re, optparse
 
 import Experiment as E
 
+import matplotlib, pylab
+import numpy
+
 def main( argv = None ):
     """script main.
 
@@ -66,28 +67,34 @@ def main( argv = None ):
     parser.add_option("-f", "--filename-lengths", dest="filename_lengths", type="string",
                       help="filename with length information [default=%default]."  )
 
+    parser.add_option("-n", "--no-plot", dest="plot", action="store_false",
+                      help="do not plot data [default=%default]."  )
+
     parser.set_defaults(
         filename_lengths = "test",
+        plot = True,
         )
 
     ## add common options (-h/--help, ...) and parse command line 
-    (options, args) = E.Start( parser, argv = argv )
+    (options, args) = E.Start( parser, argv = argv, add_output_options = True )
 
-    map_id2length = {}
+    map_pid2length = {}
     
     for line in open(options.filename_lengths, "r"):
         if line.startswith("#"): continue
         if line.startswith("id\t"): continue
         if line.startswith("nid\t"): continue
-        id, length = line[:-1].split()[:2]
-        map_id2length[bytes(id)] = int(length)
+        pid, length = line[:-1].split()[:2]
+        assert int(length) > 0, "received sequence of length 0: %s" % pid
+        map_pid2length[bytes(pid)] = int(length)
 
-    E.info("read sequence length information for %i sequences" % len(map_id2length) )
+    E.info("read sequence length information for %i sequences" % len(map_pid2length) )
 
     ## do sth
     ninput, nskipped, noutput = 0, 0, 0
 
     def iterator_domains( infile ):
+        '''group-by iterator over domains.'''
         last = None
         for line in infile:
             if line.startswith("#"): continue
@@ -100,22 +107,64 @@ def main( argv = None ):
             domains.append( (bytes(id), int(start), int(end), bytes(family) ) )
         yield domains
 
-    options.stdout.write( "id\tcoverage\n" )
+    options.stdout.write( "id\tlength\tndomains\tnfamilies\tcoverage\n" )
         
+    found = set()
+    coverages, domain_counts = [], []
     for domains in iterator_domains( options.stdin ):
         ninput += 1
-        id = domains[0][0]
-        if id not in map_id2length:
+        pid = domains[0][0]
+        if pid not in map_pid2length:
             nskipped += 1
-            E.warn( "length for sequence %s not known" % id )
+            E.warn( "length for sequence %s not known" % pid )
             continue
 
         t = sum( [ x[2] - x[1] for x in domains ] )
-        options.stdout.write( "%s\t%5.2f\n" % (id, 100.0 * t / map_id2length[id] ) )
-            
+        families = set( [x[3] for x in domains])
+        coverage = 100.0 * t / map_pid2length[pid]
+        length = map_pid2length[pid]
+        options.stdout.write( "%s\t%i\t%i\t%i\t%i\t%5.2f\n" % (pid, length, 
+                                                               len(domains), len(families), 
+                                                               t,
+                                                               coverage ))
+        found.add(pid)
+        coverages.append(  coverage )
+        domain_counts.append( len(domains) )
         noutput += 1
 
-    E.info( "ninput=%i, noutput=%i, nskipped=%i" % (ninput, noutput,nskipped) )
+    notfound = set( set(map_pid2length.keys()).difference( found ) )
+    # output sequences without domains
+    for pid in notfound:
+        coverages.append(  0 )
+        domain_counts.append( 0 )
+        options.stdout.write( "%s\t%i\t%i\t%i\t%i\t%5.2f\n" % (pid, map_pid2length[pid], 
+                                                               0, 0, 0, 0 ))
+        
+    E.info( "ninput=%i, noutput=%i, nskipped=%i, withlength=%i, withdomains=%i" %\
+            (ninput, 
+             noutput, 
+             nskipped, 
+             len(map_pid2length),
+             len(found),
+             ) )
+
+
+    coverages_counts, coverages_bin_edges = numpy.histogram( coverages, bins=numpy.arange(0,102,1), )
+    domains_counts, domains_bin_edges = numpy.histogram( domain_counts, bins=numpy.arange(0,max(domain_counts)+1,1))
+
+    pylab.subplot( 211 )
+    pylab.bar( coverages_bin_edges[:-1], coverages_counts )
+    pylab.xlabel( "residue coverage" )
+    pylab.ylabel( "counts / sequences" )
+    
+    pylab.subplot( 212 )
+    pylab.bar( domains_bin_edges[:-1], domains_counts )
+    pylab.xlabel( "sequence coverage" )
+    pylab.ylabel( "counts / domains per sequence" )
+
+    matplotlib.pyplot.subplots_adjust( wspace = 0.4 )
+
+    pylab.savefig( os.path.expanduser(options.output_filename_pattern % "coverage" + ".png" ) )
 
     ## write footer and output benchmark information.
     E.Stop()
