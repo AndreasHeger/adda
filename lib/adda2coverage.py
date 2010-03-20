@@ -52,6 +52,7 @@ import Experiment as E
 
 import matplotlib, pylab
 import numpy
+import Adda.Stats
 
 def main( argv = None ):
     """script main.
@@ -148,7 +149,6 @@ def main( argv = None ):
              len(found),
              ) )
 
-
     coverages_counts, coverages_bin_edges = numpy.histogram( coverages, bins=numpy.arange(0,102,1), )
     domains_counts, domains_bin_edges = numpy.histogram( domain_counts, bins=numpy.arange(0,max(domain_counts)+1,1))
 
@@ -179,6 +179,12 @@ def main( argv = None ):
 
     _outputHistogram( coverages_counts, coverages_bin_edges, "residuecoverage")
     _outputHistogram( domains_counts, domains_bin_edges, "sequencecoverage")
+
+    outf = E.openOutputFile( "stats"  )
+    outf.write("section\t%s\n" % Adda.Stats.Summary().getHeader())
+    outf.write("residue\t%s\n" % str(Adda.Stats.Summary( coverages )))
+    outf.write("sequence\t%s\n" % str(Adda.Stats.Summary( domain_counts )))
+    outf.close()
 
     ## write footer and output benchmark information.
     E.Stop()

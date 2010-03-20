@@ -15,6 +15,7 @@ __all__ = [
            "AddaOptimise",
            "AddaProfiles",
            "AddaSegment",
+           "Stats",
            "CorrespondenceAnalysis",
            "Experiment",
            "Pipeline",
@@ -36,19 +37,4 @@ __all__ = [
            "AddaComponentsMst",
            ]
 
-
-
-#import MatlabTools
-#from IndexedFasta import IndexedFasta
-
-#from AddaModule import *
-#from AddaSegment import *
-#from AddaFit import * 
-#from AddaGraph import *
-#from AddaProfiles import * 
-#from AddaIndex import *
-#from AddaOptimise import *
-#from AddaConvert import *
-#from AddaMst import *
-#from AddaAlign import *
 
