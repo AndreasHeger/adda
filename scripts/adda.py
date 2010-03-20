@@ -255,6 +255,7 @@ def mapDomains( infile, outfile ):
     '''collect blat matching stats.'''
 
     to_cluster= True
+    job_options = "-l mem_free=4000M"
     statement = '''gunzip 
         < %(infile)s 
 	| python %(scriptsdir)s/map_blat2adda.py 
