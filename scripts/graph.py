@@ -1,15 +1,68 @@
-#!/usr/bin/env python
+#! /bin/env python
+################################################################################
+#
+#   MRC FGU Computational Genomics Group
+#
+#   $Id: pipeline_kamilah.py 2869 2010-03-03 10:20:13Z andreas $
+#
+#   Copyright (C) 2009 Andreas Heger
+#
+#   This program is free software; you can redistribute it and/or
+#   modify it under the terms of the GNU General Public License
+#   as published by the Free Software Foundation; either version 2
+#   of the License, or (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program; if not, write to the Free Software
+#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+#################################################################################
+"""
 
-USAGE="""adda.py [OPTIONS] cmds
+:Author: Andreas Heger
+:Release: $Id$
+:Date: |today|
+:Tags: Python
 
-interface to compute adda
+Purpose
+-------
+
+Query the pairwise alignment graph. The pairwise alignment graph
+uses internal sequence identifiers.
+
+Methods available:
+
+shortest-path
++++++++++++++
+
+add-family
+++++++++++
+
+add a family for both query and sbjct to the graph.
+
+
+Usage
+-----
+
+Type::
+
+   python <script_name>.py --help
+
+for command line help.
+
+Code
+----
 """
 
 import sys, os, re, time, math, copy, glob, optparse, logging, traceback, shelve
 
 import networkx as nx
 import Adda.Experiment as E
-import Adda.AddaIO
+import Adda.AddaIO as AddaIO
 
 def readAlignmentGraph( infile ):
 
@@ -32,16 +85,16 @@ def readAlignmentGraph( infile ):
         
     return G
 
-def main():
-    
-    parser = optparse.OptionParser( version = "%prog version: $Id$", usage = USAGE )
+def main( argv = sys.argv ):
 
-    parser.add_option( "-f", "--format", dest="graph-format", type="choice",
+    parser = optparse.OptionParser( version = "%prog version: $Id$", usage = globals()["__doc__"] )
+
+    parser.add_option( "-o", "--format", dest="graph-format", type="choice",
                        choices=("alignments",),
                        help="graph format [default=%default].")
 
     parser.add_option( "-m", "--method", dest="method", type="choice",
-                       choices=("shortest-path", "translate", "components" ),
+                       choices=("shortest-path", "translate", "components", "add-family" ),
                        help="methods to apply [default=%default].")
 
     parser.add_option( "-a", "--filename-map", dest="filename_map", type="string",
@@ -53,6 +106,10 @@ def main():
     parser.add_option( "-2", "--node2", dest="node2", type="string",
                        help="second node for path calculation [default=%default].")
 
+    parser.add_option( "-f", "--filename-families", dest="filename_families", type="string",
+                       help="filename with domain families [default=%default].")
+
+
 
     parser.set_defaults( 
         method = None,
@@ -60,16 +117,28 @@ def main():
         filename_map = None,
         node1 = None,
         node2 = None,
+        filename_families = None,
         )
-    
-    (options, args) = E.Start( parser )
-    
+
+    (options, args) = E.Start( parser, 
+                               argv = argv )
             
+    if options.filename_families != None:
+        E.info( "reading families from %s" % options.filename_families )
+        map_domain2family = {}
+        for line in open( options.filename_families, "r"):
+            if line[0] == "#": continue
+            if line.startswith( "nid"): continue
+            nid, start, end, family = line[:-1].split("\t")
+            pid = bytes("%s_%s_%s" % (nid,start,end))
+            map_domain2family[pid] = bytes(family)
+        E.info( "read %i domains" % len(map_domain2family))
+
     if options.method == "translate":
         
         if options.filename_map:
             E.info("reading map from %s" % options.filename_map)
-            map_id2nid = Adda.AddaIO.readMapId2Nid( open( options.filename_map, "r") )
+            map_id2nid = AddaIO.readMapId2Nid( open( options.filename_map, "r") )
             map_nid2id = dict([[v,k] for k,v in map_id2nid.iteritems()])
 
         def translate_alignments( line ):        
@@ -102,6 +171,17 @@ def main():
         E.Stop()
         return
 
+    elif options.method == "add-family":
+        options.stdout.write( "%s\tqfamily\tsfamily\n" % ("\t".join( AddaIO.TestedLink._fields)))
+        for link in AddaIO.iterate_tested_links( options.stdin ):
+            qfamily = map_domain2family.get(link.qdomain,"na")
+            sfamily = map_domain2family.get(link.sdomain,"na")
+            options.stdout.write( "%s\t%s\t%s\n" % ("\t".join(map(str,link)), 
+                                                    qfamily,
+                                                    sfamily))
+        E.Stop()
+        return
+
     t = time.time()
     if options.graph_format == "alignments":
         G = readAlignmentGraph( options.stdin )
@@ -121,7 +201,7 @@ def main():
         for id, component in enumerate(nx.connected_components( G )):
             for c in component:
                 print "%i\t%s" % (id,c)
-                
+
     E.info( "%s: %i seconds" % (options.method, time.time() - t ))
     E.Stop()
 

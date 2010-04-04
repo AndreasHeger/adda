@@ -28,8 +28,14 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
     def __init__(self, dbhandle):
 
         self.mShortOptions += "D:a:d:m:"
-        self.mLongOptions += ["mode=", "max_family=", "min_overlap=", "map_taxonomy=", "subset=", "file_subset=",
-                              "file_taxonomy_classes=" ]
+        self.mLongOptions += ["mode=", 
+                              "max_family=",
+                              "min_overlap=", 
+                              "map_taxonomy=", 
+                              "subset=", 
+                              "file_subset=",
+                              "file_taxonomy_classes=",
+                              "full-table"]
 
         self.mTableNameFamilies = None
         self.mTableNameDomains = None
@@ -50,6 +56,8 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
         self.mTableNameSubset = None
         self.mFileNameSubset = None
         self.mSubset = None
+
+        self.mFullTable = False
 
         self.mStructuresMinOverlap = 10
 
@@ -77,6 +85,7 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
         if self.mSubset:
             self.mSubsetWhere += " AND a.family IN ('%s') " % (string.join( self.mSubset, "','"))
 
+
             
     ##------------------------------------------------------------------------------------        
     def ProcessOptions( self, optlist ):
@@ -89,6 +98,8 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
                 self.mTableNameReferenceDomains = a
             elif o == "--ref_families" :
                 self.mTableNameReferenceFamilies = a
+            elif o == "--full-table" :
+                self.mFullTable = True
             elif o == "--subset" :
                 self.mTableNameSubset = a
             elif o == "--map_taxonomy":
@@ -263,8 +274,9 @@ family\tnunits\tnseqs\tlength\taunits\taseqs\trunits\ttunits\trseqs\ttseqs\tsel\
                                        "%5.2f" % (float(inter)/float(union)),
                                        key, description )))
                 
-                adda_family, adda_nunits, adda_nsequences, adda_length =\
-                    [""] * 4
+                if not self.mFullTable:
+                    adda_family, adda_nunits, adda_nsequences, adda_length =\
+                        [""] * 4
 
     #-------------------------------------------------------------------------------------
     def ReferenceMatches( self ):

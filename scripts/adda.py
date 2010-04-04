@@ -57,86 +57,90 @@ from Adda import IndexedFasta, FastaIterator, IOTools
 
 PARAMS = P.getParameters( "adda.ini" )
 
-ADDA_STATEMENT="adda.py %(cmd)s"
+ADDA_STATEMENT="adda_build.py %(cmd)s"
 
-def sequences(infile, outfile ):
+@files( PARAMS["input_fasta"], PARAMS["output_nids"] )
+def indexSequences(infile, outfile ):
+    '''index sequence database and map to internal identifiers.
+    '''
     cmd = "sequences"
     statement = ADDA_STATEMENT
     P.run()
 
-@files( PARAMS["input_graph"], PARAMS["output_graph"])
-def graph(infile, outfile):
-    cmd = "graph"
+@files( (indexSequences, PARAMS["input_graph"]), PARAMS["output_graph"])
+def indexGraph(infile, outfile):
+    '''index graph and store in compressed format.'''
+    cmd = "index"
     statement = ADDA_STATEMENT
     P.run()
 
-@files( PARAMS["output_graph"], PARAMS["output_fit"])
-def fit(infile, outfile ):
+@files( indexGraph, PARAMS["output_fit"])
+def computeParameters(infile, outfile ):
+    '''pre-process graph.'''
     cmd = "fit"
     statement = ADDA_STATEMENT
     P.run()
 
-@files( PARAMS["output_graph"], PARAMS["output_segments"])
-def segment(infile, outfile):
+@files( indexGraph, PARAMS["output_segments"])
+def segmentSequences(infile, outfile):
     cmd = "segment"
     statement = ADDA_STATEMENT
     P.run()
 
-@files( PARAMS["output_graph"], PARAMS["output_stats"])
-def stats(infile, outfile):
+@files( indexGraph, PARAMS["output_stats"])
+def buildGraphStats(infile, outfile):
     cmd = "stats"
     statement = ADDA_STATEMENT
     P.run()
 
-@files( (PARAMS["output_fit"], PARAMS["output_segments"]), 
+@files( (computeParameters, segmentSequences), 
         PARAMS["output_domains"])
-def optimise(infile, outfile):
+def optimiseSegments(infile, outfile):
     cmd = "optimise"
     statement = ADDA_STATEMENT
     P.run()
 
-@files( PARAMS["output_domains"], PARAMS["output_domaingraph"])
-def convert(infile, outfile):
+@files( optimiseSegments, PARAMS["output_domaingraph"])
+def convertToDomainGraph(infile, outfile):
     cmd = "convert"
     statement = ADDA_STATEMENT
     P.run()
 
-@files( PARAMS["output_domaingraph"], PARAMS["output_mst"])
-def mst(infile, outfile):
+@files( convertToDomainGraph, PARAMS["output_mst"])
+def buildMST(infile, outfile):
     cmd = "mst"
     statement = ADDA_STATEMENT
     P.run()
 
-@files( PARAMS["output_mst"], PARAMS["output_mst"] + ".components")
-def mst_components(infile, outfile):
+@files( buildMST, PARAMS["output_mst"] + ".components")
+def computeMSTComponents(infile, outfile):
     cmd = "mst-components"
     statement = ADDA_STATEMENT
     P.run()
 
-@files( PARAMS["output_mst"], PARAMS["output_align"])
-def align(infile, outfile):
+@files( computeMSTComponents, PARAMS["output_align"])
+def alignDomains(infile, outfile):
     cmd = "align"
     statement = ADDA_STATEMENT
     P.run()
 
-@files( PARAMS["output_align"], PARAMS["output_cluster"])
-def cluster(infile, outfile):
+@files( alignDomains, PARAMS["output_cluster"])
+def clusterDomains(infile, outfile):
     cmd = "cluster"
     statement = ADDA_STATEMENT
     P.run()
 
-@files( PARAMS["output_cluster"], PARAMS["output_families"])
-def families(infile, outfile):
+@files( clusterDomains, PARAMS["output_families"])
+def buildFamilies(infile, outfile):
     cmd = "families"
     statement = ADDA_STATEMENT
     P.run()
 
-@files( PARAMS["output_families"], PARAMS["output_summary"])
-def summary(infile, outfile):
+@files( buildFamilies, PARAMS["output_summary"])
+def buildAddaSummary(infile, outfile):
     cmd = "summary"
     statement = ADDA_STATEMENT
     P.run()
-
 
 #########################################################################
 #########################################################################
@@ -466,7 +470,7 @@ def buildMappingSummary( infiles, outfile ):
 def map(): pass
 
 
-@follows( summary )
+@follows( buildAddaSummary )
 def adda(): pass
 
 if __name__ == "__main__":

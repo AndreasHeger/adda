@@ -159,7 +159,10 @@ load-primary:	\
 	$(PARAM_REFERENCES:%=reference_%.load) \
 	adda_domains.load 
 
+benchmark-domains: $(PARAM_REFERENCES:%=%.eval_parts)
+
 all: load-primary modules annotation
+	benchmark-domains
 
 #####################################################
 #####################################################
@@ -411,11 +414,11 @@ TABLES_SUMMARY=summary_modules
 
 ## flags for domain boundary evaluation
 ## --quality removed
-FLAGS_EVALUATION_TREES=--switch --skip_repeats --quality --no_full_length --bin_size=10
-FLAGS_EVALUATION_PARTS=--switch --skip_repeats --bin_size=10
-FLAGS_EVALUATION_NOFULL=--switch --skip_repeats --quality --no_full_length --bin_size=10
-FLAGS_EVALUATION_FULL=--switch --skip_repeats --quality --only_full_length --bin_size=10
-FLAGS_EVALUATION=--switch --skip_repeats --quality
+FLAGS_EVALUATION_TREES=--switch --skip-repeats --quality --no-full-length --bin-size=1
+FLAGS_EVALUATION_PARTS=--switch --skip-repeats --bin-size=1
+FLAGS_EVALUATION_NOFULL=--switch --skip-repeats --quality --no-full-length --bin-size=1
+FLAGS_EVALUATION_FULL=--switch --skip-repeats --quality --only-full-length --bin-size=1
+FLAGS_EVALUATION=--switch --skip-repeats --quality
 
 EXPORT=lhist.png fhist.png struc.html $(EXPORTS)
 
@@ -503,6 +506,18 @@ fhist.png: fhist
 ##########################################################################
 ## calculate and load annotations for sensitivity/selectivity (all families)
 ##########################################################################
+%.pretty_annotations: reference_%.load
+	$(PROLOG)
+	@$(CMD_STATISTICS) \
+		--domains=$(PARAM_TABLE_DOMAINS) \
+		--families=$(PARAM_TABLE_FAMILIES) \
+		--max_family=$(PARAM_MAX_FAMILY) \
+		--min_evidence=2 --min_units=2 \
+		--ref_domains=$(PARAM_TABLE_DOMAINS_REFERENCE) \
+		--ref_families=$(PARAM_TABLE_FAMILIES_REFERENCE) \
+		Annotation > $@
+	$(EPILOG)
+
 %.annotations: reference_%.load
 	$(PROLOG)
 	@$(CMD_STATISTICS) \
@@ -512,6 +527,7 @@ fhist.png: fhist
 		--min_evidence=2 --min_units=2 \
 		--ref_domains=$(PARAM_TABLE_DOMAINS_REFERENCE) \
 		--ref_families=$(PARAM_TABLE_FAMILIES_REFERENCE) \
+	        --full-table \
 		Annotation > $@
 	$(EPILOG)
 
@@ -1314,9 +1330,10 @@ parts_cumulative.png: $(QUALITY_CONTROL)
 %.eval_parts:
 	$(PROLOG)
 	@python $(DIR_SCRIPTS)evaluate_domain_boundaries.py \
-		--Database=$(PARAM_DATABASE_PAIRSDB) \
+		--database=$(PARAM_DATABASE_PAIRSDB) \
 		--reference=$(PARAM_TABLE_DOMAINS_REFERENCE) \
 		--parts=$(PARAM_TABLE_DOMAINS) \
+		--output-filename-pattern=$@.%s \
 		$(FLAGS_EVALUATION_PARTS) > $@
 	$(EPILOG)
 

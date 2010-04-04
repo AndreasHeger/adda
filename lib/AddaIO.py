@@ -1,4 +1,4 @@
-import sys, os, re, time, types, gzip, shelve
+import sys, os, re, time, types, gzip, shelve, collections
 import alignlib
 from ConfigParser import ConfigParser as PyConfigParser
 import Experiment as E
@@ -363,8 +363,39 @@ def readMapId2Nid( infile, storage = "memory" ):
         return None
 
     return m
+
+def readMapPid2Nid( infile, storage = "memory" ):
+    """read map from adda.nids file.
+
+    If storage is not ``memory``, file based storage is assumed
+    with the argument giving the filename. If the file does not
+    exist, it is created and the dictionary filled and None is 
+    returned.
+    """
+
+    m = createDict( storage )
+
+    if m != None:
+        for line in infile:
+            if line.startswith("#"): continue
+            if line.startswith("nid"): continue
+            data = line[:-1].split("\t")[:2]
+            # convert types to bytes/int to save memory
+            m[int(data[0])] = bytes( data[1] )
+
+        if storage != "memory":
+            m.close()
     
-def readMapNid2Domains( infile, map_id2nid, rx_include, storage = "memory" ):
+    if storage != "memory":
+        return None
+
+    return m
+    
+    
+def readMapNid2Domains( infile, 
+                        map_id2nid = None, 
+                        rx_include = None, 
+                        storage = "memory" ):
     """read reference domain file.
     
     Only include families matching the regulare expression rx_include.
@@ -377,8 +408,8 @@ def readMapNid2Domains( infile, map_id2nid, rx_include, storage = "memory" ):
 
     domain_boundaries = {}
 
-    rx_include = re.compile( rx_include )
-
+    if rx_include: rx_include = re.compile( rx_include )
+    
     ninput, nskipped_nid, nskipped_family, ndomains = 0, 0, 0, 0
 
     # build dict in memory and then save to disc
@@ -386,16 +417,23 @@ def readMapNid2Domains( infile, map_id2nid, rx_include, storage = "memory" ):
 
         for line in infile:
             if line[0] == "#": continue
+            if line.startswith("nid"): continue
+            if line.startswith("id"): continue
+            if line.startswith("pid"): continue
+
             ninput += 1
             token, start, end, family = line[:-1].split( "\t" )[:4]
 
-            try:
-                token = bytes(map_id2nid[token])
-            except KeyError:
-                nskipped_nid += 1
-                continue
+            if map_id2nid:
+                try:
+                    token = bytes(map_id2nid[token])
+                except KeyError:
+                    nskipped_nid += 1
+                    continue
+            else:
+                token = bytes(token)
 
-            if not rx_include.search( family): 
+            if rx_include and not rx_include.search( family): 
                 nskipped_family += 1
                 continue
 
@@ -424,3 +462,32 @@ def readMapNid2Domains( infile, map_id2nid, rx_include, storage = "memory" ):
         return None
     else:
         return domain_boundaries
+
+
+TestedLink = collections.namedtuple( "TestedLinks", 
+                                     """passed,  qdomain, sdomain,
+      weight,
+      qstart, qend, qali,    
+      sstart, send, sali, score,
+      naligned, ngaps, zscore""" )
+
+def iterate_tested_links( infile ):
+    '''iterate over aligned links in mst.'''
+                                     
+    for line in infile:
+        if line.startswith("#"): continue
+        if line.startswith("passed"): continue
+        data = line[:-1].split("\t")
+        try:
+            yield TestedLink._make( data )
+        except ValueError:
+            raise ValueError("parsing error in line `%s`" % data)
+
+
+def toTuple( domain ):
+    '''convert string to a domain tuple'''
+    return map(int, domain.split("_"))
+
+def toDomain( tple ):
+    '''convert a domain tuple to a string.'''
+    return "%s_%s_%s" % tpl

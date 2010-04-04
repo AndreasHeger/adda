@@ -109,6 +109,7 @@ class AddaAlign( AddaModuleRecord ):
 
         self.mChecker = self.checkLinkZScore
         self.mHeader = ("passed",
+                        "weight",
                         "qdomain",
                         "sdomain",
                         "evalue",

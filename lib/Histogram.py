@@ -259,7 +259,6 @@ def Write( outfile, h, intervalls = None, format = 0, nonull = None, format_valu
                 1 = print histogram on single line
     """
 
-    lines = []
     
     if len(h) == 0: return
 

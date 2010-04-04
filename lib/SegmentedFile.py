@@ -117,7 +117,8 @@ def checkTailForToken( filename, token ):
 
 #--------------------------------------------------------------------------
 def getParts( filename ):
-    filenames = [ x for x in glob.glob( "%s*" % filename ) if x != filename ]
+    basename, extension = os.path.splitext( filename )
+    filenames = [ x for x in glob.glob( "%s.*.%s" % (basename, extension) ) if x != filename ]
     filenames.sort()
     return filenames
 

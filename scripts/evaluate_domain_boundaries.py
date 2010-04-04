@@ -1,142 +1,181 @@
-USAGE = """python evaluate_domain_boundaries.py [OPTIONS]
-
-Evaluate trees of domain partitions (or alternatively, parts or other benchmarking domains)
-
--s, --switch            switch between coverage of reference and size ratio if coverage is 1
--m,--skip_tms=          discard domains which contain transmembrane regions
--p, --parts=            table name of parts
--t, --trees=            table name of trees
--b, --bench=            table of domain table to be benchmarked (for example: nrdb40_domo_domains_nr)
--r, --reference=        table of reference table (for example: nrdb40_scop_domains_nr)
--o, --resolution=       resolution for scaling of domains
--q, --quality           take only sequences which are curated
---check_if_comparable   perform comparable check according to Islam95 (default level 85%)
---subset=               use only a subset of nids
+#! /bin/env python
+################################################################################
+#
+#   MRC FGU Computational Genomics Group
+#
+#   $Id: pipeline_kamilah.py 2869 2010-03-03 10:20:13Z andreas $
+#
+#   Copyright (C) 2009 Andreas Heger
+#
+#   This program is free software; you can redistribute it and/or
+#   modify it under the terms of the GNU General Public License
+#   as published by the Free Software Foundation; either version 2
+#   of the License, or (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program; if not, write to the Free Software
+#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+#################################################################################
 """
 
-import string, getopt, sys, os, re, time, math, glob
+:Author: Andreas Heger
+:Release: $Id: pipeline_kamilah.py 2869 2010-03-03 10:20:13Z andreas $
+:Date: |today|
+:Tags: Python
 
-import Adda.Experiment as Experiment
+Purpose
+-------
+
+Evaluate domain partitions against a reference set.
+
+The script collects all overlapping domains between the ``test set`` and 
+``reference set``. For each overlap, it collects the number of overlapping 
+bases, the coverage of the ``test`` domain and the coverage of the ``reference``
+domain. 
+
+It outputs the following files:
+
+overlaps.histogram
+   histogram of relative coverage between ``test`` and ``reference`` domains
+   (intersection/union).
+
+domain_coverage.histogram
+   distribution of coverage of ``test`` domains by ``reference`` domains.
+
+reference_coverage.histogram
+   distribution of coverage of ``reference`` domains by ``test`` domains.
+
+For a good covering, both the coverage of ``reference`` domains by ``test``
+domains and the coverage of ``test`` with ``reference`` domains should be
+as close to 100% as possible.
+
+Usage
+-----
+
+Type::
+
+   python <script_name>.py --help
+
+for command line help.
+
+Code
+----
+"""
+
+import string, getopt, sys, os, re, time, math, glob, optparse
+
+import Adda.Experiment as E
 import Adda.Histogram as Histogram
+import Adda.Stats as Stats
 
 from Adda.Pairsdb import *
 # from Table_nrdb90_masks import Table_nrdb90_masks
 from Adda.Table_nrdb import Table_nrdb
 from Adda.TableDomains import TableDomains
 
-param_database = "pairsdb"
-param_table_name_reference = None
-param_table_name_trees = None
-param_table_name_parts = None
-param_table_name_bench = None
-param_resolution = None
-param_loglevel = 1
-param_min_overlap = 1
-param_switch = 0
-param_combine_repeats = 1
-param_skip_repeats = 0
-param_skip_tms = 0
-param_discard_full_length = 0
-param_check_selection = 0
-param_selection_threshold = 0.9
-param_quality = None
-param_no_full_length = None
-param_only_full_length = None
+def main( argv = sys.argv ):
 
-## a full length domain should cover at least 90% of a sequence
-param_min_length_ratio = 0.9
+    parser = optparse.OptionParser( version = "%prog version: $Id$", usage = globals()["__doc__"] )
 
-param_check_comparable = None
-param_check_comparable_level = 0.85
+    parser.add_option("-D", "--database", dest="database", type="string",          
+                      help="tablename to use [default=%default]."  )
 
-param_bin_size = 1
-param_subset = None
+    parser.add_option("-t", "--trees", dest="table_name_trees", type="string",          
+                      help="tablename with trees [default=%default]."  )
 
-def BuildDomainArray( dbhandle, nid, length, table_name):
-    
-    statement = "SELECT domain_id, rep_from, rep_to FROM %s WHERE rep_nid = %i"\
-                % (table_name, nid)
-    
-    domains = dbhandle.Execute(statement).fetchall()
-    a = [0] * length
+    parser.add_option("-r", "--parts", dest="table_name_parts", type="string",          
+                      help="tablename with trees [default=%default]."  )
 
-    max_domain = 0
-    for domain_id,rep_from, rep_to in domains:
-        a[rep_from-1:rep_to] = [domain_id] * (rep_to - rep_from + 1)
-        max_domain = max(domain_id, max_domain)
+    parser.add_option("-b", "--bench", dest="table_name_bench", type="string",          
+                      help="domain table to be benchmarked (for example: nrdb40_domo_domains_nr) [default=%default]."  )
 
-    return a, max_domain
+    parser.add_option("-f", "--reference", dest="table_name_reference", type="string",          
+                      help="table of reference table (for example: nrdb40_scop_domains_nr) [default=%default]."  )
 
-if __name__ == "__main__":
+    parser.add_option( "--bin-size", dest="bin_size", type="int",          
+                      help="bin size [default=%default]."  )
 
-    try:
-        optlist, args = getopt.getopt(sys.argv[1:],
-                                      "D:t:r::V:skb:meo:q:",
-                                      ["Database=", "trees=", "reference=",
-                                       "Verbose=", "switch", "parts=", "skip_repeats", "subset=",
-                                       "bench=", "skip_tms", "check_selection", "resolution=", "quality",
-                                       "no_full_length", "only_full_length", "check_if_comparable",
-                                       "bin_size="])
+    parser.add_option( "-o", "--resolution", dest="resolution", type="float",          
+                      help="resolution for scaling of domains [default=%default]."  )
 
-    except getopt.error, msg:
-        print USAGE
-        print msg
-        sys.exit(2)
+    parser.add_option("-s", "--switch", dest="switch", action = "store_true",
+                      help="switch between coverage of reference and size ratio if coverage is 1 [default=%default]."  )
 
-    for o,a in optlist:
-        if o in ( "-t", "--trees" ):
-            param_table_name_trees = a
-        elif o in ("-D", "--Database"):
-            param_database = a
-        elif o in ("-r", "--parts"):
-            param_table_name_parts = a
-        elif o in ("-b", "--bench"):
-            param_table_name_bench = a
-        elif o in ("-r", "--reference"):
-           param_table_name_reference = a
-        elif o in ("-s", "--switch"):
-            param_switch = 1
-        elif o in ("-k", "--skip_repeats"):
-            param_skip_repeats = 1
-        elif o in ("-m", "--skip_tms"):
-            param_skip_tms = 1
-        elif o in ("e", "--check_selection"):
-            param_check_selection = 1
-        elif o in ("o", "--resolution"):
-            param_resolution = string.atof(a)
-        elif o in ("q", "--quality"):
-            param_quality = 1
-        elif o in ("-V", "--Verbose"):
-            param_loglevel = string.atoi(a)
-        elif o == "--no_full_length":
-            param_no_full_length = 1
-        elif o == "--only_full_length":
-            param_only_full_length = 1
-        elif o == "--check_if_comparable":
-            param_check_comparable = 1
-        elif o == "--bin_size":
-            param_bin_size = string.atoi(a)
-            
-            
+    parser.add_option("-k", "--skip-repeats", dest="skip_repeats", action = "store_true",
+                      help="[default=%default]."  )
+
+    parser.add_option("-m", "--skip-tms", dest="skip_tms", action = "store_true",
+                      help="discard domains which contain transmembrane regions [default=%default]."  )
+
+    parser.add_option("-e", "--check-selection", dest="check_selection", action = "store_true",
+                      help="[default=%default]."  )
+
+    parser.add_option("-q", "--quality", dest="quality", action = "store_true",
+                      help="take only sequences which are curated [default=%default]."  )
+
+    parser.add_option( "--no-full-length", dest="no_full_length", action = "store_true",
+                      help="[default=%default]."  )
+
+    parser.add_option( "--only-full-length", dest="only_full_length", action = "store_true",
+                      help="[default=%default]."  )
+
+    parser.add_option( "--check-if-comparable", dest="check_if_comparable", action = "store_true",
+                      help="perform comparable check according to Islam95 (default level 85%) [default=%default]."  )
+
+    parser.add_option( "--subset", dest="subset", type = "string",
+                       help = "use only a subset of nids [default=%default]" )
+
+    parser.set_defaults( 
+        database = "pairsdb",
+        table_name_reference = None,
+        table_name_trees = None,
+        table_name_parts = None,
+        table_name_bench = None,
+        resolution = None,
+        loglevel = 1,
+        min_overlap = 1,
+        switch = 0,
+        combine_repeats = 1,
+        skip_repeats = 0,
+        skip_tms = 0,
+        discard_full_length = 0,
+        check_selection = 0,
+        selection_threshold = 0.9,
+        quality = None,
+        no_full_length = None,
+        only_full_length = None,
+        ## a full length domain should cover at least 90% of a sequence
+        min_length_ratio = 0.9,
+        check_comparable = None,
+        check_comparable_level = 0.85,
+        bin_size = 1,
+        subset = None )
+
+    (options, args) = E.Start( parser, 
+                               argv = argv, 
+                               add_output_options = True )
+
     dbhandle = Pairsdb()
     dbhandle.Connect()
-    dbhandle.UseDatabase( param_database )
-
-    print Experiment.GetHeader()
-    print Experiment.GetParams()
-
+    dbhandle.UseDatabase( options.database )
+    
     tbl_reference = TableDomains(dbhandle, "generic")
-    tbl_reference.SetName(param_table_name_reference)
+    tbl_reference.SetName(options.table_name_reference)
     
     # tbl_masks = Table_nrdb90_masks(dbhandle)
     tbl_nrdb = Table_nrdb(dbhandle)
 
-    if param_table_name_trees:
+    if options.table_name_trees:
 
         nids_statement = "SELECT DISTINCT s.nid FROM %s AS s, %s AS t %%s WHERE t.rep_nid = s.nid %%s" %\
-                         (param_table_name_trees, param_table_name_reference)
+                         (options.table_name_trees, options.table_name_reference)
 
-        if param_quality:
+        if options.quality:
             nids_statement = nids_statement % (", nrdb_quality AS q", "AND q.nid = s.rep_nid AND q.is_curated = 'T'")
         else:
             nids_statement = nids_statement % ("","")
@@ -152,22 +191,22 @@ if __name__ == "__main__":
         AND (LEAST(t.xto, %%i) - GREATEST(t.xfrom, %%i) > %%i)
         ORDER BY ovl DESC
         LIMIT 1
-        """ % (param_table_name_trees)
+        """ % (options.table_name_trees)
         
-    elif param_table_name_parts or param_table_name_bench:
+    elif options.table_name_parts or options.table_name_bench:
 
-        if param_table_name_parts:
-            table_name = param_table_name_parts
+        if options.table_name_parts:
+            table_name = options.table_name_parts
         else:
-            table_name = param_table_name_bench
+            table_name = options.table_name_bench
 
-        if param_subset:
-            nids_statement = "SELECT DISTINCT s.nid FROM %s AS s, %s AS t WHERE t.rep_nid = s.nid" % (param_subset, table_name)
+        if options.subset:
+            nids_statement = "SELECT DISTINCT s.nid FROM %s AS s, %s AS t WHERE t.rep_nid = s.nid" % (options.subset, table_name)
         else:
             nids_statement = "SELECT DISTINCT s.rep_nid FROM %s AS s, %s AS t %%s WHERE t.rep_nid = s.rep_nid %%s" %\
-                             (table_name, param_table_name_reference)
+                             (table_name, options.table_name_reference)
 
-            if param_quality:
+            if options.quality:
                 nids_statement = nids_statement % (", nrdb_quality AS q", "AND q.nid = s.rep_nid AND q.is_curated = 'T'")
             else:
                 nids_statement = nids_statement % ("","")
@@ -188,7 +227,7 @@ if __name__ == "__main__":
         print "what shall I compare?"
         sys.exit(1)
 
-    if param_check_selection:
+    if options.check_selection:
         selection_statement = """
         SELECT t.domain_from, t.domain_to,
         ((LEAST(t.domain_to, %%i) - GREATEST(t.domain_from, %%i)) / (GREATEST( t.domain_to, %%i) - LEAST( t.domain_from, %%i))) AS ovl,
@@ -200,8 +239,8 @@ if __name__ == "__main__":
         AND (LEAST(t.domain_to, %%i) - GREATEST(t.domain_from, %%i) > %%i)
         ORDER BY ovl DESC
         LIMIT 1
-        """ % (param_table_name_parts)
-        param_table_name_parts = None
+        """ % (options.table_name_parts)
+        options.table_name_parts = None
         
         parts_same_as_trees, parts_larger_than_trees, parts_smaller_than_trees, parts_much_smaller_than_trees =  0,0,0,0
 
@@ -213,15 +252,12 @@ if __name__ == "__main__":
     cov_refs = []
     touched  = {}
 
-    if param_check_selection:
-        print "# NID\tDNODE\tDPARENT\tDLEVEL\tDFROM\tDTO\tRID\tRFROM\tRTO\tOVL\tDCOV\tRCOV\tRRCOV\tMRCOV"
+    if options.check_selection:
+        options.stdout.write( "NID\tDNODE\tDPARENT\tDLEVEL\tDFROM\tDTO\tRID\tRFROM\tRTO\tOVL\tDCOV\tRCOV\tRRCOV\tMRCOV\n" )
     else:
-        print "# NID\tDNODE\tDPARENT\tDLEVEL\tDFROM\tDTO\tRID\tRFROM\tRTO\tOVL\tDCOV\tRCOV\tRRCOV\tMRCOV"
+        options.stdout.write( "NID\tDNODE\tDPARENT\tDLEVEL\tDFROM\tDTO\tRID\tRFROM\tRTO\tOVL\tDCOV\tRCOV\tRRCOV\tMRCOV\n" )
 
-    
-    if param_loglevel >= 1:
-        print "# --> processing %i nids" % len(nids)
-        sys.stdout.flush()
+    E.info( "--> processing %i nids" % len(nids) )
 
     nskipped_no_assignments = 0
     nskipped_no_overlap = 0
@@ -232,11 +268,8 @@ if __name__ == "__main__":
     for nid in nids:
 
         it += 1
-        # if it > 1000: break
 
-        if param_loglevel >= 2:
-            print "# --> processing %i" % nid
-            sys.stdout.flush()
+        E.debug( "--> processing %i" % nid )
 
         domains = tbl_reference.GetDomainBoundariesForNid( nid )
 
@@ -246,17 +279,17 @@ if __name__ == "__main__":
             nskipped_no_assignments +=1
             continue
 
-        if param_no_full_length and len(domains) == 1:
+        if options.no_full_length and len(domains) == 1:
             ## check if domain is actually full length, otherwise keep
             id, domain_from, domain_to = domains[0]
-            if float(domain_to-domain_from+1) / float(length) >= param_min_length_ratio:
+            if float(domain_to-domain_from+1) / float(length) >= options.min_length_ratio:
                 nskipped_wrong_domaintype += 1
                 continue
             
-        if param_only_full_length:
+        if options.only_full_length:
             if len(domains) == 1:
                 id, domain_from, domain_to = domains[0]
-                if float(domain_to-domain_from+1) / float(length) <= param_min_length_ratio:
+                if float(domain_to-domain_from+1) / float(length) <= options.min_length_ratio:
                     nskipped_wrong_domaintype += 1
                     continue
             else:
@@ -279,37 +312,33 @@ if __name__ == "__main__":
                 x += 1
                 is_repeat += 1
 
-            if param_skip_repeats and is_repeat:
+            if options.skip_repeats and is_repeat:
                 continue
 
-            # if param_skip_tms and tbl_masks.HasMask( nid, 2, domain_from, domain_to):
+            # if options.skip_tms and tbl_masks.HasMask( nid, 2, domain_from, domain_to):
             #    continue
 
-            if param_resolution:
-                xdomain_from = int(float(domain_from-1)/param_resolution)
-                xdomain_to   = int(float(domain_to-1)/param_resolution) + 1
+            if options.resolution:
+                xdomain_from = int(float(domain_from-1)/options.resolution)
+                xdomain_to   = int(float(domain_to-1)/options.resolution) + 1
             else:
                 xdomain_from = domain_from
                 xdomain_to   = domain_to
 
-            if param_loglevel >= 2:
-                print "--> processing domain %s (%i-%i) (%i-%i)" % ( id, domain_from, domain_to, xdomain_from, xdomain_to)
-                sys.stdout.flush()
+            E.debug( "processing domain %s (%i-%i) (%i-%i)" % ( id, domain_from, domain_to, xdomain_from, xdomain_to))
 
             s = statement % (xdomain_to, xdomain_from, xdomain_to, xdomain_from,
                              xdomain_to, xdomain_from,
                              xdomain_to, xdomain_from, xdomain_to, xdomain_from,
                              xdomain_to, xdomain_from,
                              nid,
-                             xdomain_to, xdomain_from, param_min_overlap)
+                             xdomain_to, xdomain_from, options.min_overlap)
 
-            if param_loglevel >= 4:
-                print s
+            if options.loglevel >= 4: print s
                 
             result = dbhandle.Execute(s).fetchone()
 
-            if not result:
-                continue
+            if not result: continue
 
             node, parent, level, xfrom, xto, overlap, cov_dom, cov_ref, rat_ref = result
 
@@ -320,19 +349,19 @@ if __name__ == "__main__":
                 touched[key] = 1
 
             # discard full length domains
-            if param_discard_full_length:
-                if param_table_name_trees:            
+            if options.discard_full_length:
+                if options.table_name_trees:            
                     if node == 0: continue
                 else:
                     if length == xto - xfrom + 1: continue
             
-            if param_switch and cov_ref == 1.0:
+            if options.switch and cov_ref == 1.0:
                 xcov_ref = rat_ref
             else:
                 xcov_ref = cov_ref
                 
             # check, if selection did take a domain lower or further up
-            if param_check_selection:
+            if options.check_selection:
                 yfrom = (xfrom * 10) + 1
                 yto   = min(xto * 10 + 1, length)
                 s = selection_statement % (yto, yfrom, yto, yfrom,
@@ -340,7 +369,7 @@ if __name__ == "__main__":
                                            yto, yfrom, yto, yfrom,
                                            yto, yfrom,
                                            nid,
-                                           yto, yfrom, param_min_overlap)
+                                           yto, yfrom, options.min_overlap)
                 
                 result = dbhandle.Execute(s).fetchone()
                 if result:
@@ -356,63 +385,82 @@ if __name__ == "__main__":
                     else:
                         parts_smaller_than_trees += 1
                         token = "<"
-                        if rat_parts < param_selection_threshold:
+                        if rat_parts < options.selection_threshold:
                             parts_much_smaller_than_trees += 1
 
-                    sys.stdout.write(string.join(map(str, (nid,
-                                                id, domain_from, domain_to,
-                                                level,
-                                                yfrom, yto,
-                                                parts_from, parts_to,
-                                                overlap, cov_dom, cov_ref, rat_ref, xcov_ref,
-                                                ovl_parts, cov_parts, cov_tree, rat_parts,
-                                                token)), "\t") + "\n")
-                        
+                    options.stdout.write(string.join(map(str, (nid,
+                                                               id, domain_from, domain_to,
+                                                               level,
+                                                               yfrom, yto,
+                                                               parts_from, parts_to,
+                                                               overlap, cov_dom, cov_ref, rat_ref, xcov_ref,
+                                                               ovl_parts, cov_parts, cov_tree, rat_parts,
+                                                               token)), "\t") + "\n")
+                    
             else:
-            # this is actually the default
-                sys.stdout.write(string.join(map(str, (nid, node, parent, level, xfrom, xto,
-                                            id,
-                                            xdomain_from, xdomain_to,
-                                            overlap, cov_dom, cov_ref, rat_ref, xcov_ref)), "\t") + "\n")
-            
+                options.stdout.write(string.join(map(str, (nid, node, parent, level, xfrom, xto,
+                                                           id,
+                                                           xdomain_from, xdomain_to,
+                                                           overlap, cov_dom, cov_ref, rat_ref, xcov_ref)), "\t") + "\n")
+                
                 overlaps.append( int(overlap * 100) )
-                cov_doms.append( int(cov_dom * 100))
-                cov_refs.append( int(xcov_ref * 100))            
+                cov_doms.append( int(cov_dom * 100) )
+                cov_refs.append( int(xcov_ref * 100) )            
 
+
+    E.info( "skipped nids because of no overlap with reference: %i" % nskipped_no_overlap )
+    E.info( "skipped nids because of no assignments: %i" % nskipped_no_assignments )
+    E.info( "skipped nids because of wrong domain type: %i" % nskipped_wrong_domaintype)
+    E.info( "nids in comparison: %i" % nfound)
         
-    if param_loglevel >= 1:
-        print "## skipped nids because of no overlap with reference: %i" % nskipped_no_overlap
-        print "## skipped nids because of no assignments: %i" % nskipped_no_assignments
-        print "## skipped nids because of wrong domain type: %i" % nskipped_wrong_domaintype
-        print "## nids in comparison: %i" % nfound
-        
-    if param_check_selection:
-        print "## parts larger than trees=", parts_larger_than_trees
-        print "## parts like trees=", parts_same_as_trees
-        print "## parts smaller than trees=", parts_smaller_than_trees                
-        print "## parts much smaller than trees (<%f)=" % param_selection_threshold, parts_much_smaller_than_trees
+    if options.check_selection:
+        E.info( " parts larger than trees=", parts_larger_than_trees )
+        E.info( " parts like trees=", parts_same_as_trees )
+        E.info( " parts smaller than trees=", parts_smaller_than_trees )
+        E.info( " parts much smaller than trees (<%f)=" % options.selection_threshold, parts_much_smaller_than_trees )
         
     else:
-        print "## histogram over overlaps"
-        Histogram.Print(Histogram.Calculate( overlaps, min_value=0, increment=10, no_empty_bins = 1))
+        outfile_stats = E.openOutputFile( "stats" )
+        outfile_stats.write("section\t%s\n" % Stats.Summary().getHeader())
+        outfile_stats.write("overlaps\t%s\n" % str( Stats.Summary( overlaps ) ) )
+        outfile_stats.write("domain_coverage\t%s\n" % str( Stats.Summary( cov_doms ) ) )
+        outfile_stats.write("reference_coverage\t%s\n" % str( Stats.Summary( cov_refs ) ) )
+        outfile_stats.close()
 
-        average = float(reduce(lambda x,y: x+y, overlaps))/float(len(overlaps))
-        print "min=%i\tmax=%i\tave=%f" % (min(overlaps), max(overlaps), average)
+        outfile = E.openOutputFile( "overlaps.histogram" )
+        outfile.write( "bin\tcounts\n")
+        Histogram.Write(outfile, 
+                        Histogram.Calculate( overlaps, 
+                                             min_value=0, 
+                                             increment=1, 
+                                             no_empty_bins = True))
+        outfile.close()
 
-        print "## histogram over domain coverage"
-        Histogram.Print(Histogram.Calculate( cov_doms, min_value=0, increment=10, no_empty_bins = 1))
+        outfile = E.openOutputFile( "domain_coverage.histogram" )
+        outfile.write( "bin\tcounts\tfreq\tcumul_counts\tcumul_freq\treverse_counts\treverse_freq\n" )
+        Histogram.Write(outfile,
+                        Histogram.AddRelativeAndCumulativeDistributions(
+                        Histogram.Calculate( cov_doms, 
+                                             min_value=0, 
+                                             increment=options.bin_size, 
+                                             no_empty_bins = True)))
+        outfile.close()
 
-        average = float(reduce(lambda x,y: x+y, cov_doms))/float(len(cov_doms))
-        print "min=%i\tmax=%i\tave=%f" % (min(cov_doms), max(cov_doms), average)
-
-        print "## histogram over reference coverage"
-        Histogram.Print(Histogram.AddRelativeAndCumulativeDistributions(Histogram.Calculate( cov_refs, min_value=0, increment=param_bin_size, no_empty_bins = 1)))
-
-        average = float(reduce(lambda x,y: x+y, cov_refs))/float(len(cov_refs))
-        print "min=%i\tmax=%i\tave=%f" % (min(cov_refs), max(cov_refs), average)
-
+        outfile = E.openOutputFile( "reference_coverage.histogram" )
+        outfile.write( "bin\tcounts\tfreq\tcumul_counts\tcumul_freq\treverse_counts\treverse_freq\n" )
+        Histogram.Write(outfile,
+                        Histogram.AddRelativeAndCumulativeDistributions(
+                    Histogram.Calculate( cov_refs, 
+                                         min_value=0, 
+                                         increment=options.bin_size, 
+                                         no_empty_bins = True)))
+                        
+        outfile.close()
     
+    E.Stop()
 
+if __name__ == "__main__":                                                                                                                                                                                     
+    sys.exit( main( sys.argv) )  
 
 
 

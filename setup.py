@@ -47,6 +47,8 @@ setup(name='Adda',
       package_data = { "Adda" : [ 'adda_blast_parser.pl',
 	                          'split_fasta.pl' ] },
       scripts=['scripts/adda.py',
+               'scripts/adda_build.py',
+               'scripts/adda_annotate.py',
                ],
       ext_modules=[cadda, Components ],
       cmdclass = {'build_ext': build_ext}
