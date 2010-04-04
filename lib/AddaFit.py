@@ -112,7 +112,9 @@ class AddaFit( AddaModuleRecord ):
         self.mFilenameNids = self.mConfig.get( "files", "output_nids", "adda.nids" )
         self.mMaxSequenceLength = self.mConfig.get( "segment", "max_sequence_length", 10000 )
 
-        self.mFilenames = (self.mFilenameFit, self.mFilenameTransfer, self.mFilenameOverhang)
+        self.mFilenames = (self.mFilenameFit, 
+                           self.mFilenameTransfer, 
+                           self.mFilenameOverhang)
 
         self.mOutfileDetails = None
         self.mOutfileData = None
@@ -125,8 +127,11 @@ class AddaFit( AddaModuleRecord ):
         if AddaModuleRecord.isComplete( self ):
             return True
         
-        # if the data files is complete, re-compute fit, transfer and overhang
+        # If all the data files are complete, re-compute fit, transfer and overhang
         # only and then return as complete
+        if SegmentedFile.isComplete( SegmentedFile.mangle( self.mFilenameData, self.getSlice()) ):
+            return True
+
         if SegmentedFile.isComplete( self.mFilenameData ):
             return self.merge()
         
@@ -596,7 +601,6 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
             if not AddaModuleRecord.merge( self, (self.mFilenameDetails, ) ): return False
 
         if not AddaModuleRecord.merge( self, (self.mFilenameData, ) ): return False
-
         self.mNumChunks = 1
         self.readPreviousData( self.mFilenameData )
         self.finish()

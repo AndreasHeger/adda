@@ -112,7 +112,7 @@ class AddaModule:
     def isComplete( self ):
         """return if this step is complete."""
         for f in self.mFilenames:
-            if not SegmentedFile.isComplete( f + self.getSlice() ):
+            if not SegmentedFile.isComplete( SegmentedFile.mangle( f, self.getSlice()) ):
                 return False
         return True
 
@@ -149,7 +149,9 @@ class AddaModule:
             # check if all parts have finished and are present
             if self.mNumChunks > 1:
                 for chunk in range( self.mNumChunks ):
-                    if not SegmentedFile.isComplete( f + self.getSlice( chunk ) ):
+                    fn = SegmentedFile.mangle(f, self.getSlice( chunk ) ) 
+                    if not SegmentedFile.isComplete( fn ):
+                        self.info( "file %s is incomplete - merging aborted" % fn )
                         return False
 
             self.info( "all files complete" )

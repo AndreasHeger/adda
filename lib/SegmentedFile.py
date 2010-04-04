@@ -118,7 +118,7 @@ def checkTailForToken( filename, token ):
 #--------------------------------------------------------------------------
 def getParts( filename ):
     basename, extension = os.path.splitext( filename )
-    filenames = [ x for x in glob.glob( "%s.*.%s" % (basename, extension) ) if x != filename ]
+    filenames = [ x for x in glob.glob( "%s.*%s" % (basename, extension) ) if x != filename ]
     filenames.sort()
     return filenames
 
@@ -146,9 +146,9 @@ def openfile( filename, mode = "r", slice = None, force = None, has_header = Tru
     basename, extension = os.path.splitext( filename )
     
     if mode[0] == "r":
-        if isComplete(filename):
-            return SegmentedFile( filename, mode )
+        if isComplete(filename): return SegmentedFile( filename, mode )
         filenames = getParts( filename )
+        assert len(filenames) > 0
         for filename in filenames:
             if not checkTailForToken( filename, TOKEN ):
                 raise ValueError( "incomplete file %s" % filename )
@@ -168,6 +168,12 @@ def openfile( filename, mode = "r", slice = None, force = None, has_header = Tru
         raise ValueError("unknown file mode '%s'" % mode )
 
 #--------------------------------------------------------------------------
+def mangle( filename, slice ):
+    '''mangle together filename and slice.'''
+    basename, extension = os.path.splitext( filename )
+    return filename + slice + extension
+
+#--------------------------------------------------------------------------
 def isComplete( filename ):
     """returns true if file exists and is complete."""
     return os.path.exists( filename ) and checkTailForToken(filename, TOKEN)
@@ -177,8 +183,7 @@ def merge( filename, has_header = True, openhook = None ):
     """return False if file is already merged.
     """
     # do nothing if result exists and is complete
-    if isComplete(filename):
-        return False
+    if isComplete(filename): return False
 
     infile = openfile( filename, "r", has_header = has_header, openhook = openhook )
     outfile = SegmentedFile( filename, "w", openhook = openhook )

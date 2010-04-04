@@ -493,7 +493,6 @@ def main():
                    'summary' : AddaSummary.AddaSummary,
                    }
 
-    
     # modules and their hierarchy
     run( options, 
          order = ( "sequences", ), 

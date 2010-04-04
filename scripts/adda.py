@@ -469,9 +469,8 @@ def buildMappingSummary( infiles, outfile ):
     )
 def map(): pass
 
-
 @follows( buildAddaSummary )
-def adda(): pass
+def build(): pass
 
 if __name__ == "__main__":
     # P.checkExecutables( ("blat", "gunzip", ))

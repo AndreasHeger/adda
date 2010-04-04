@@ -25,7 +25,7 @@ class AddaSummary( AddaModuleBlock ):
         self.mFilenameTransfers = self.mConfig.get( "files", "output_fit_transfer", "adda.fit.transfer" )
         self.mFilenameDomains = self.mConfig.get( "files", "output_domains", "adda.domains" )
         self.mFilenameSummary = self.mConfig.get( "files", "output_summary", "adda.summary" )
-        self.mFilenameDomainGraph = self.mConfig.get( "files", "output_domain_graph", "adda.domain_graph" )
+        self.mFilenameDomainGraph = self.mConfig.get( "files", "output_domain_graph", "adda.domaingraph.gz" )
         self.mFilenameMst = self.mConfig.get( "files", "output_mst", "adda.mst" )
         self.mFilenameResult = self.mConfig.get( "files", "output_result", "adda.result" )
         self.mFilenameAlignments = self.mConfig.get("files","output_align", "adda.align" )
