@@ -57,7 +57,7 @@ from Adda import IndexedFasta, FastaIterator, IOTools
 
 PARAMS = P.getParameters( "adda.ini" )
 
-ADDA_STATEMENT="adda_build.py %(cmd)s"
+ADDA_STATEMENT="adda_build.py %(cmd)s > cmd_%(cmd)s.log"
 
 @files( PARAMS["input_fasta"], PARAMS["output_nids"] )
 def indexSequences(infile, outfile ):
@@ -65,6 +65,19 @@ def indexSequences(infile, outfile ):
     '''
     cmd = "sequences"
     statement = ADDA_STATEMENT
+    P.run()
+
+@files(  PARAMS["output_nids"], PARAMS["output_fasta"] + ".fasta" )
+def reindexSequences( infile, outfile ):
+    '''rebuild the adda sequence database from adda.nids.'''
+
+    database = outfile[:-len(".fasta")]
+    statement = '''
+    awk '!/^nid/ { printf(">%%s\\n%%s\\n", $1, $5)};' 
+    < %(infile)s
+    | python %(scriptsdir)s/IndexedFasta.py %(database)s -
+    > %(outfile)s.log'''
+
     P.run()
 
 @files( (indexSequences, PARAMS["input_graph"]), PARAMS["output_graph"])

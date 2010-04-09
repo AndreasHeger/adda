@@ -46,6 +46,8 @@ class AddaIndex( AddaModuleBlock ):
         else:
             raise ValueError ("unknown record type %s" % self.mAlignmentFormat)
 
+        self.info("indexing graph in format %s" % (self.mAlignmentFormat, ))
+        
     def startUp( self ):
         pass
 
@@ -56,7 +58,7 @@ class AddaIndexBuild( AddaIndex ):
     
     def __init__(self, *args, **kwargs ):
         AddaIndex.__init__( self, *args, **kwargs )
-        
+
     def isComplete( self ):
         return os.path.exists( self.mFilenameOutputIndex ) and os.path.exists( self.mFilenameOutputGraph)
 
@@ -73,7 +75,12 @@ class AddaIndexBuild( AddaIndex ):
     
         infile = AddaIO.openStream( self.mFilenameInputGraph )
         iterator = self.mIterator( infile, map_id2nid )
-        cadda.indexGraph( iterator, len(map_id2nid), self.mFilenameOutputGraph, self.mFilenameOutputIndex, self.mLogger )
+
+        cadda.indexGraph( iterator, 
+                          len(map_id2nid), 
+                          self.mFilenameOutputGraph, 
+                          self.mFilenameOutputIndex, 
+                          self.mLogger )
 
         del map_id2nid
 

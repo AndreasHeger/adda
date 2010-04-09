@@ -187,17 +187,17 @@ class NeighbourRecordPairsdbOld(NeighbourRecordPairsdb):
 class NeighbourIterator:
 
     def _iterate( self, infile, record = NeighbourRecordPairsdb ):
-    
+
         for line in infile:
 
             if line[0] == "#": continue
             if not line.strip(): continue
-            yield record ( line )
+            yield record( line )
         
         raise StopIteration
 
     def __init__(self, f, *args, **kwargs):
-        self.mIterator = self._iterate(f)
+        self.mIterator = self._iterate(f, *args, **kwargs )
 
     def __iter__(self):
         return self
@@ -225,9 +225,10 @@ class NeighboursIterator:
         self.mMapId2Nid = map_id2nid
 
     def _iterate( self, infile ):
-    
+
         last_nid = None
-        iterator = NeighbourIterator( infile, self.mRecord )
+
+        iterator = NeighbourIterator( infile, record = self.mRecord )
         last_token = None
 
         while 1:
@@ -267,6 +268,10 @@ class NeighboursIterator:
 class NeighboursIteratorPairsdb( NeighboursIterator ):
     """iterate over Pairsdb formatted file."""
     mRecord = NeighbourRecordPairsdb
+
+class NeighboursIteratorPairsdbOld( NeighboursIterator ):
+    """iterate over Pairsdb formatted file."""
+    mRecord = NeighbourRecordPairsdbOld
 
 class NeighboursIteratorSimap(  NeighboursIterator ):
     """iterate over SIMAP formatted file."""

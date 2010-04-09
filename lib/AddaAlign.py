@@ -51,7 +51,7 @@ class AddaAlign( AddaModuleRecord ):
         self.mMinOverlapResidues = self.mConfig.get( "align", "min_overlap_residues", 20 )
         self.mMinCoverage = self.mConfig.get( "align", "min_coverage", 0.2 )
         self.mMinOverlap = self.mConfig.get( "align", "min_overlap", 0.2 )
-        self.mMask = self.mConfig.get( "align", "mask", True )
+        self.mMask = self.mConfig.get( "align", "mask", False )
         self.mMethodsMask = map(int, self.mConfig.get( "align", "masks", "3,4" ).split(","))
         
         self.mUseCache = self.mConfig.get( "align", "use_cache", True )
@@ -80,6 +80,9 @@ class AddaAlign( AddaModuleRecord ):
         self.mFilenames = (self.mFilenameAlignments, )
         
         self.mProfileBuilder = AddaProfiles.AddaProfiles( *args, **kwargs )
+
+        # the cache to store alignandum objects
+        self.mCache = {}        
 
     #--------------------------------------------------------------------------------
     def startUp( self ):
@@ -148,6 +151,7 @@ class AddaAlign( AddaModuleRecord ):
         """mask a sequence or profile with nid.
         (do not mask membrane regions)
         """
+        raise NotImplementedError( "AddaAlign.mask needs to be re-written" )
 
         masks = self.mTableMasks.GetMasks( nid, self.mMethodsMask )
         for first_res, last_res, info, method in masks:

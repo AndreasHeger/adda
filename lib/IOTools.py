@@ -512,15 +512,37 @@ def which(program):
     return None
 
 def convertValue( value ):
-    '''convert a value to int, float or str.'''
+    '''convert a value to int, float or str.
+    
+    If value contains ``,``, a tuple of values is returned
+    '''
     rx_int = re.compile("^\s*[+-]*[0-9]+\s*$")
     rx_float = re.compile("^\s*[+-]*[0-9.]+[.+\-eE][+-]*[0-9.]*\s*$")
 
     if value == None: return value
-    
-    if rx_int.match( value ):
-        return int(value)
-    elif rx_float.match( value ):
-        return float(value)
-    return value
+    if "," in value:
+        values = value.split( "," )
+        r = []
+        for value in values:
+            if rx_int.match( value ):
+                r.append(int(value))
+            elif rx_float.match( value ):
+                r.append(float(value))
+            else:
+                r.append( value )
+        return tuple(r)
+    else:
+        if rx_int.match( value ):
+            return int(value)
+        elif rx_float.match( value ):
+            return float(value)
+        return value
 
+def stripComments( infile ):
+    '''strip comments from infile.
+
+    Commented lines begin with the character ``#``.
+    '''
+    for line in infile:
+        if line.startswith("#"): continue
+        yield line

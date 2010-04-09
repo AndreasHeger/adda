@@ -98,6 +98,10 @@ Andreeva A, Howorth D, Chandonia JM, Brenner SE, Hubbard TJ, Chothia C, Murzin A
 (2008) Data growth and its impact on the SCOP database: new developments.
 Nucleic Acids Res. Jan;36(Database issue):D419-25. Epub 2007 Nov 13.
 
+TODO
+
+1. auto-calibrate the alignment score threshold 
+2. speed up the initial graph parsing using cython
 
 
 

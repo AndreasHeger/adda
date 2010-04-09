@@ -49,9 +49,13 @@ Code
 colors=( "red", "blue", "green", "yellow", "cyan", "magenta",
          "lightblue", "lightred", "lightgreen", "orange")
 
+shapes=("circle", "triangle", "box", "rhomb", "ellipse", 
+        "trapeze","uptrapeze", "hexagon", "lparallelogram", 
+        "rparallelogram")
+
 increment_colors= ("lightgrey", "darkgrey")        
 
-import os, sys, string, re, getopt, optparse
+import os, sys, string, re, getopt, optparse, itertools, random
 
 import Adda.Experiment as E
 
@@ -65,55 +69,105 @@ if __name__ == "__main__":
     parser.add_option("-l", "--legend", dest="legend", action="store_true",
                       help="add legend to color list [default=%default]." )
 
+    parser.add_option("-a", "--attribute", dest="attributes", action="append", type="choice",
+                      choices=( "color", "shape" ),
+                      help="which attributes to include [default=%default]." )
+
     parser.add_option( "-1", "--label1", dest="label1", type=int,
                        help = "column to use for first label [default=%default]" )
 
     parser.add_option( "-2", "--label2", dest="label2", type=int,
                        help = "column to use for first label [default=%default]" )
 
+    parser.add_option( "-b", "--label", dest="label", type="choice",
+                       choices=("label", "info1", "info2", "info3" ),
+                       help = "store label in field [default=%default]" )
+    
+    parser.add_option( "-f", "--format", dest="format", type="choice",
+                       choices=("graph", "nodelist" ),
+                       help = "input format [default=%default]" )
+
     parser.set_defaults( 
         multi_labels = None,
         legend = None,
         label1 = 3,
         label2 = 4,
+        attributes = [],
+        format="graph",
+        label = "info1",
         )
 
     (options, args) = E.Start( parser )
     
+    take = ( 0, 1, options.label1 - 1, options.label2 -1 )
+    
+    if len(options.attributes) == 0:
+        raise ValueError("please provide at least one attribute" )
+    
+    options.stdout.write( "node\t%s\t%s\n" % ("\t".join( options.attributes), options.label ))
+
+    # build attributes
+    attributes, default = [], []
+    for attribute in options.attributes:
+        if attribute in ("colour", "color"): 
+            attributes.append( colors )
+            default.append( "white" ) 
+        elif attribute == "shape": 
+            attributes.append( shapes )
+            default.append( "circle" )
+            
+    labels = { "na" : default }
+        
+    attributes = list(itertools.product( *attributes) )
+
+    random.shuffle(attributes)
+    max_attributes = len(attributes)
+
     current_color = 0
 
-    labels = { "na" : "white" }
-
-    take = ( 0, 1, options.label1 - 1, options.label2 -1 )
-
-    options.stdout.write( "node\tcolour\tlabel\n" )
-
-    for line in sys.stdin:
-
-        if line.startswith("#"): continue
+    def iterate_graph( infile ):
         
-        data = line[:-1].split("\t")
-        node1, node2, label1, label2 = [ data[x] for x in take ]
-
-        for node, label in ( (node1,  label1), 
-                             (node2, label2 ) ):
-
-            color = None
-
-            if node in labels: continue
+        for line in infile:
+            if line.startswith("#"): continue
+            data = line[:-1].split("\t")
+            node1, node2, label1, label2 = [ data[x] for x in take ]
+        
+            for node, label in ( (node1, label1), 
+                                 (node2, label2 ) ):
+                yield node, label
+    
+    def iterate_list( infile ):
+        for line in infile:
+            if line.startswith("#"): continue
+            data = line[:-1].split("\t")
+            yield data[0], data[1]
             
-            n = label.count(",")
+    if options.format == "graph":
+        iterator = iterate_graph( options.stdin )
+    elif options.format == "nodelist":
+        iterator = iterate_list( options.stdin )
+        
+    for node, label in iterator:
+        color = None
 
-            if not labels.has_key(label):            
+        if node in labels: continue
+        if label == "": label = "na"
 
-                if n and options.multi_labels:
-                    n = n % len(increment_colors)
-                    labels[label] = increment_colors[n]
-                else:
-                    labels[label] = colors[current_color]
-                    current_color = (current_color + 1) % len(colors)
-                    
-            options.stdout.write("%s\t%s\t%s\n" % (node, labels[label], label))
+        n = label.count(",")
+
+        if not labels.has_key(label):            
+
+            if n and options.multi_labels:
+                n = n % len(increment_colors)
+                labels[label] = increment_colors[n]
+            else:
+                current_color = (current_color + 1) % max_attributes
+                labels[label] = attributes[current_color]
+
+        attr = labels[label]
+        options.stdout.write("%s\t%s\t%s\n" % (node, 
+                                               "\t".join(attr),
+                                               label))
 
     if options.legend:
         options.stdout.write("# legend:")

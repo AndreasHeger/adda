@@ -2,7 +2,13 @@ import types
 import math
 import numpy
 import scipy
-import scipy.stats
+# scipy.stats fails if lapack/blas is
+# not installed correctly.
+try:
+    import scipy.stats
+except ImportError:
+    pass
+
 import collections
 try:
     from rpy import r as R

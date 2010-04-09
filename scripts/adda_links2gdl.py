@@ -28,9 +28,10 @@ colour schemes
 
 """
 
-import os, sys, string, re, getopt, optparse
+import os, sys, string, re, getopt, optparse, csv, collections
 
 import Adda.Experiment as E
+import Adda.IOTools as IOTools
 import matplotlib
 import numpy
 
@@ -84,7 +85,7 @@ FORMAT_NODE_BIPARTITE = """
         node.bordercolor:  black
 """
 
-def PrintNodes( nodes, labels, colours):
+def PrintNodes( nodes, labels, attributes ):
     
     for id in nodes.keys():
 
@@ -99,11 +100,18 @@ def PrintNodes( nodes, labels, colours):
             colour = None
             
         if colour:
-            print '\tnode: { label: "%s" title: "%s" info1: "%s" info2: "%s" color: %s}' % (id,id,label,id,colour)
+            if len(colour) == 2:
+                print '\tnode: { label: "%s" title: "%s" info1: "%s" info2: "%s" color: %s shape: %s}' % (id,id,label,id,colour[0], colour[1])
+            else:
+                print '\tnode: { label: "%s" title: "%s" info1: "%s" info2: "%s" color: %s}' % (id,id,label,id,colour)
         else:
             print '\tnode: { label: "%s" title: "%s" info1: "%s" info2: "%s" }' % (id,id,label,id)            
             
+
+def printNodes( nodes, attributes ):
     
+    for id in nodes.keys():
+        print '\tnode: { title: "%s" %s}' % (id, attributes[id])
 
 ##---------------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
@@ -118,6 +126,10 @@ if __name__ == "__main__":
                       help="restrict output to component." )
     parser.add_option("-s", "--filename-node-colours", dest="filename_node_colours", type="string",
                       help="filename with node colours." )
+    parser.add_option("-a", "--filename-node-attributes", dest="filename_node_attributes", type="string", action="append",
+                      help="filename with node attributes - tab-separated file. First column is node, further columns are aisee attributes [default=%default]." )
+    parser.add_option( "--with-shapes", dest="with_shapes", action="store_true",
+                      help="filename with node colours has also shape information [default=%default]." )
     parser.add_option("-l", "--filename-node-labels", dest="filename_node_labels", type="string",
                       help="filename with node labels." )
     parser.add_option("-w", "--weights", dest="weights", action="store_true",
@@ -144,6 +156,8 @@ if __name__ == "__main__":
         num_colours = 100,
         min_colour = 16,
         filename_components = None,
+        filename_node_attributes = [],
+        with_shapes = False,
         component = None,
         filename_subset = None,
         colours = None,
@@ -184,28 +198,21 @@ if __name__ == "__main__":
             id = string.split(line[:-1], "\t")[0]
             subset[id] = 1
         
-    colours = {}            
-    if options.filename_node_colours:
-        infile = open(options.filename_node_colours, "r")
-        for line in infile:
-            if line.startswith( "#" ): continue
-            id, colour = string.split(line[:-1], "\t")[:2]
-            colours[id] = colour
-        infile.close()
-    
-    labels = {}
-    if options.filename_labels:
-        infile = open(options.filename_labels, "r")
-        for line in infile:
-            if line.startswith( "#" ): continue            
-            id, label = string.split(line[:-1], "\t")[:2]
-            if labels.has_key(id):
-                labels[id] += "," + label
-            else:
-                labels[id] = label
-                
-        infile.close()
-
+    attributes = collections.defaultdict( str )
+    if options.filename_node_attributes:
+        for filename in options.filename_node_attributes:
+            infile = IOTools.stripComments( open(filename, "r"))
+            reader = csv.DictReader( infile, dialect = "excel-tab" )
+            for row in reader:
+                pairs = []
+                for key, value in [x for x in row.iteritems() if x[0] != "node"]:
+                    if key in ("label", "title", "info1", "info2", "info3" ):
+                        pairs.append( (key, '"%s"' % value) )                    
+                    else:
+                        pairs.append( (key, value) )
+                attributes[row["node"]] += " " + " ".join([ '%s: %s' % x for x in pairs ] )
+            infile.close()
+        
     if options.weight_range == "auto":
         lines = sys.stdin.readlines()
         mi, ma = None, None
@@ -374,7 +381,7 @@ if __name__ == "__main__":
     else:
         options.stdout.write( FORMAT_NODE )
 
-    PrintNodes( left_nodes, labels, colours)
+    printNodes( left_nodes, attributes )
 
     if options.filename_format_bipartite:
         if options.format_bipartite == "default":
@@ -382,7 +389,7 @@ if __name__ == "__main__":
         else:
             options.stdout.write( "".join(open(options.filename_format_bipartite, "r").readlines()))
             
-        PrintNodes( right_nodes, labels, colours)
+        printNodes( right_nodes, attributes )
             
     options.stdout.write ("}\n" )
     

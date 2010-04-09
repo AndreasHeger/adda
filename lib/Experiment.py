@@ -245,17 +245,15 @@ def Start( parser = None,
     # logging.basicConfig will create extra logger
     # not necessary here
     if global_options.stdout == global_options.stdlog:
-        pass
-        # logging.basicConfig(
-        #    level=lvl,
-        #    format='# %(asctime)s %(name)s %(levelname)s %(message)s',
-        #    stream = global_options.stdlog )
+        logging.basicConfig(
+           level=lvl,
+           format='# %(asctime)s %(name)s %(levelname)s %(message)s',
+           stream = global_options.stdlog )
     else:
-        pass
-        #logging.basicConfig(
-        #     level=lvl,
-        #     format='%(asctime)s %(name)s %(levelname)s %(message)s',
-        #    stream = global_options.stdlog )
+        logging.basicConfig(
+            level=lvl,
+            format='%(asctime)s %(name)s %(levelname)s %(message)s',
+           stream = global_options.stdlog )
         
     global_logger = logging.getLogger("")
 

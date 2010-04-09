@@ -49,6 +49,7 @@ setup(name='Adda',
       scripts=['scripts/adda.py',
                'scripts/adda_build.py',
                'scripts/adda_annotate.py',
+               'scripts/adda_view_graph.py',
                ],
       ext_modules=[cadda, Components ],
       cmdclass = {'build_ext': build_ext}

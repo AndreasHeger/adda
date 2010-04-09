@@ -229,7 +229,9 @@ def createDatabase( db,
     
     for filename in filenames:
 
-        if filename[-3:] == ".gz":
+        if filename == "-": 
+            infile = sys.stdin
+        elif filename[-3:] == ".gz":
             infile = gzip.open( filename, "r" )
         else:
             infile = open( filename, "r")

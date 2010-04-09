@@ -54,15 +54,15 @@ class AddaModule:
         else:
             lvl = logging.DEBUG
 
-        self.mLogger = logging.getLogger( 'adda.%s' % self.mName )
+        # self.mLogger = logging.getLogger( 'adda.%s' % self.mName )
+        self.mLogger = logging
 
-        #h = logging.FileHandler( filename='adda.log', mode='a')        
-        #h.setFormatter(  
+        # h = logging.FileHandler( filename='adda.log', mode='a')        
+        # h.setFormatter(  
         #    logging.Formatter( '%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
         #                           datefmt='%m-%d %H:%M' ) )
-        #self.mLogger.addHandler( h )
-        #self.mLogger.setLevel( lvl )
-
+        # self.mLogger.addHandler( h )
+        # self.mLogger.setLevel( lvl )
 
         ## if slice is given, use it to mangle the filename.
         self.mNumChunks = num_chunks
@@ -103,7 +103,7 @@ class AddaModule:
         ## loglevel
         self.mLogLevel = options.loglevel
 
-        self.mTemporaryDirectory = options.temporary_directory
+        self.mTemporaryDirectory = self.mConfig.get( "adda", "tempdir", "." )
 
         self.mMapId2Nid = kwargs.get( "map_id2nid", None )
         self.mMapNid2Domains = kwargs.get( "map_nid2domains", None )

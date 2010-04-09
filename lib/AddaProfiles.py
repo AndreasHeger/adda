@@ -29,6 +29,8 @@ class AddaProfiles( AddaModuleRecord ):
         self.mFilenameProfile = self.mConfig.get( "files", "output_profiles", "adda.profiles" )
         self.mScaleFactor  = self.mConfig.get( "profiles", "scale_factor", 0.3 )
         self.mMaxNumNeighbours = self.mConfig.get( "profiles", "max_neighbours", 1000)
+        self.mMaxEvalue = self.mConfig.get( "profiles", "max_evalue", 0.0)
+        
         self.mPrepareProfile = self.mConfig.get( "profiles", "prepare_profile", False ) 
 
     def isComplete( self ):
@@ -76,6 +78,9 @@ class AddaProfiles( AddaModuleRecord ):
         for n in neighbours[:self.mMaxNumNeighbours]:
 
             if n.mSbjctToken == query_nid: continue
+            if n.mEvalue > self.mMaxEvalue: 
+                nskipped += 1
+                continue
             sequence = self.mFasta.getSequence( n.mSbjctToken )
 
             E.debug( "adding %s" % str(n) )
@@ -176,7 +181,7 @@ class AddaProfiles( AddaModuleRecord ):
         self.mProfileLibrary.add( query_nid, profile )
         
         self.debug( "saved profile for %s with %i neighbours" % (query_nid, len(neighbours.mMatches) ) )
-
+        
     #------------------------------------------------------------------
     def finish( self ):
         """finish processing.

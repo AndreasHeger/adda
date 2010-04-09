@@ -183,7 +183,7 @@ class AddaOptimise( AddaModuleBlock ):
 
             if rel_improvement < self.mMinRelImprovement:
                 self.info( "optimisation stopped because relative improvement less than %f" %\
-                           (self.mMinResImprovement) )            
+                           (self.mMinRelImprovement) )            
                 break
         else:
             self.info( "optimisation stopped because maximum iteration %i reached" %\

@@ -397,10 +397,6 @@ def main():
     parser.add_option( "--num-jobs", dest="num_jobs", type="int",
                       help="use # processes. If not set, the number of CPUs/cores is taken [default=%default]")
     
-    parser.add_option( "--alignment-format", dest="alignment_format", type="choice",
-                       choices=("pairsdb", "pairsdb-old", "simap", "pairsdb-realign"),
-                       help = "input format of graph. pairsdb-old: input graph is in old 1-based coordinates [default=%default]." )
-
     parser.add_option( "--chunks", dest="chunks", type="string",
                        help = "work on one or more chunks only. Provide a comma-separated list. [default=%default]" )
 
@@ -437,12 +433,10 @@ def main():
                         steps = [],
                         start_at = None,
                         stop_at = None,
-                        alignment_format = "pairsdb",
                         force = False,
                         append = False,
                         test = None,
                         num_jobs = None,
-                        temporary_directory = ".",
                         chunks = "all",
                         )
     

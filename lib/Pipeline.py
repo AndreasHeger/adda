@@ -284,7 +284,7 @@ def run( **kwargs ):
 
         if process.returncode != 0:
             raise PipelineError( "Child was terminated by signal %i: \nThe stderr was: \n%s\n%s\n" % (-process.returncode, stderr, statement ))
-
+        
 def main( args = sys.argv ):
 
     parser = optparse.OptionParser( version = "%prog version: $Id: Pipeline.py 2799 2009-10-22 13:40:13Z andreas $")
