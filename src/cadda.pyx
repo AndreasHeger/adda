@@ -237,7 +237,7 @@ cdef extern from "adda.h":
     ctypedef int Length
     ctypedef int uResidue
 
-## todo: convert to class
+## todo: convert to a class
 ctypedef struct Neighbour:
     Nid sbjct_nid
     float evalue
@@ -257,27 +257,48 @@ cdef void init_neighbour( Neighbour * n):
 cdef destroy_neighbour( Neighbour * n):
     if n.query_ali != NULL: free( n.query_ali)
     if n.sbjct_ali != NULL: free( n.sbjct_ali)
-    
-cdef fromNeighbour( Neighbour * n, neighbour ):
+
+cdef class PairsDBNeighbourRecord
+cdef fromPairsDBNeighbour( Neighbour * dest, 
+                           Nid sbjct_nid,
+                           PairsDBNeighbourRecord src ):
     '''load data from neighbour.'''
-    if n.query_ali != NULL: free( n.query_ali)
-    if n.sbjct_ali != NULL: free( n.sbjct_ali)
-    n.sbjct_nid = neighbour.mSbjctToken
-    n.query_start = neighbour.mQueryFrom
-    n.query_end = neighbour.mQueryTo
-    n.sbjct_start = neighbour.mSbjctFrom
-    n.sbjct_end = neighbour.mSbjctTo
-    n.evalue = neighbour.mEvalue
-    n.query_alen = len( neighbour.mQueryAli )
-    n.sbjct_alen = len( neighbour.mSbjctAli )
+    if dest.query_ali != NULL: free( dest.query_ali)
+    if dest.sbjct_ali != NULL: free( dest.sbjct_ali)
+    dest.sbjct_nid = sbjct_nid
+    dest.query_start = src.query_start
+    dest.query_end = src.query_end
+    dest.sbjct_start = src.sbjct_start
+    dest.sbjct_end = src.sbjct_end
+    dest.evalue = src.evalue
+    dest.query_alen = strlen( src.query_ali )
+    dest.sbjct_alen = strlen( src.sbjct_ali )
+    # copy string explicitely, as lifetime of python object neighbours
+    # is no guaranteed.
+    dest.query_ali = <char*>calloc( dest.query_alen + 1, sizeof(char) )
+    dest.sbjct_ali = <char*>calloc( dest.sbjct_alen + 1, sizeof(char) )
+
+    strncpy( dest.query_ali, src.query_ali, dest.query_alen + 1)
+    strncpy( dest.sbjct_ali, src.sbjct_ali, dest.sbjct_alen + 1)
+
+cdef fromPairsDBNeighbourUnsafe( Neighbour * n, Nid sbjct_nid, PairsDBNeighbourRecord neighbour ):
+    '''load data from neighbour.
+    
+    This method ties the lifetime of the two objects together.
+    '''
+    n.sbjct_nid = sbjct_nid
+    n.query_start = neighbour.query_start
+    n.query_end = neighbour.query_end
+    n.sbjct_start = neighbour.sbjct_start
+    n.sbjct_end = neighbour.sbjct_end
+    n.evalue = neighbour.evalue
+    n.query_alen = strlen( neighbour.query_ali )
+    n.sbjct_alen = strlen( neighbour.sbjct_ali )
 
     # copy string explicitely, as lifetime of python object neighbours
     # is no guaranteed.
-    n.query_ali = <char*>calloc( n.query_alen + 1, sizeof(char) )
-    n.sbjct_ali = <char*>calloc( n.sbjct_alen + 1, sizeof(char) )
-
-    strncpy( n.query_ali, neighbour.mQueryAli, n.query_alen + 1)
-    strncpy( n.sbjct_ali, neighbour.mSbjctAli, n.sbjct_alen + 1)
+    n.query_ali = neighbour.query_ali
+    n.sbjct_ali = neighbour.sbjct_ali
 
 class NeighbourRecord(object):
 
@@ -296,7 +317,6 @@ class NeighbourRecord(object):
         f.mColFrom, f.mColTo, f.mColAlignment = self.mSbjctFrom, self.mSbjctTo, self.mSbjctAli     
         f.copy( r )
         return r   
-
 
 cdef toNeighbour( Nid query_nid, Neighbour * n ):
     '''load data from neighbour.'''
@@ -514,13 +534,15 @@ def indexGraph( graph_iterator, num_nids, output_filename_graph, output_filename
     # iterate over graph
     cdef Nid query_nid
     cdef FileIndex pos
-    cdef Neighbour neighbour
-    init_neighbour( &neighbour )
+    cdef Neighbour * neighbour
+    # init_neighbour( &neighbour )
     cdef size_t nneighbours
     cdef unsigned char * buffer
     buffer = <unsigned char *>calloc( MAX_BUFFER_SIZE, sizeof(unsigned char) )
     cdef unsigned char * p1 
     cdef size_t used
+    cdef int x
+    cdef NeighbourProxy g
 
     # write empty entry with nid 0. This is a place-holder
     # for entries without neighbours
@@ -535,46 +557,47 @@ def indexGraph( graph_iterator, num_nids, output_filename_graph, output_filename
     report_step = nnids / 1000
 
     for neighbours in graph_iterator:
-        
+
         if neighbours == None: break
-        
         iteration += 1
         if iteration % report_step == 0:
             logger.info( "indexing progress: %i/%i = %5.1f" % (iteration, nnids, 100.0 * iteration/nnids) )
 
-        query_nid = neighbours.mQueryToken
-
+        query_nid = neighbours.query_nid
         # save index position
         fgetpos( output_f, &pos )
         index[query_nid] = pos
 
         # convert neighbours
-        nneighbours = len(neighbours.mMatches)
+        nneighbours = len(neighbours.matches)
         
         # write record to file
         fwrite( &query_nid, sizeof( Nid ), 1, output_f )
         fwrite( &nneighbours, sizeof( size_t), 1, output_f )
 
         p1 = buffer
-        for n in neighbours.mMatches:
-            fromNeighbour( &neighbour, n )
-            p1 = toBuffer( &neighbour, p1 )
+        
+        for x from 0 <= x < nneighbours:
+            g = <NeighbourProxy>neighbours.matches[x]
+            neighbour = g.neighbour
+            p1 = toBuffer( neighbour, p1 )
+            # print query_nid, nneighbours, neighbour.sbjct_nid, neighbour.sbjct_ali
+
+            # destroy_neighbour( neighbour )
             used = p1 - buffer
             if used > MAX_BUFFER_SIZE:
-                destroy_neighbour( &neighbour )
                 free(index)
                 free(buffer)
                 raise MemoryError( "memory overflow in indexing: nid=%i, neighbours=%i, used=%i, allocated=%i" % (query_nid, nneighbours, used, MAX_BUFFER_SIZE) )
-
+            
         err = toCompressedFile( buffer, used, output_f )
         if err: 
-            destroy_neighbour( &neighbour )
             free(index)
             free(buffer)
             raise ValueError( "error %i while writing compressed buffer to file for nid %i (%i neighbours)" % (err, query_nid, nneighbours) )
 
     # clean up part 1
-    destroy_neighbour( &neighbour )
+    # destroy_neighbour( &neighbour )
     free(buffer)
     fclose( output_f )
 
@@ -672,4 +695,204 @@ cdef class IndexedNeighbours:
 
         free( buffer )
         return result
+
+###############################################################################
+###############################################################################
+###############################################################################
+## methods for parsing PairsDB input graph
+###############################################################################
+cdef class PairsDBNeighbourRecord:
+    """a pairwise alignment.
+
+    The alignment is parsed from the input line.
+
+    The input format is tab-separated columns:
+
+    ``query_token`` the query
+    ``sbjct_token`` the sbjct
+    ``evalue`` : the E-Value
+    ``query_from``: the first aligned residue in query
+    ``query_to``: the last aligned residue + 1 in query
+    ``query_ali``: the aligned query in compressed form
+    ``sbjct_from``: the first aligned residue in sbjct
+    ``sbjct_to``: the last aligned residue + 1 in sbjct
+    ``sbjct_ali``: the aligned sbjct in compressed form
+
+    Additional columns are ignored.
+    """
+
+    cdef:
+       char* query_token
+       char* sbjct_token
+       float evalue
+       uResidue query_start
+       uResidue query_end
+       uResidue sbjct_start
+       uResidue sbjct_end
+       char * query_ali  
+       char * sbjct_ali
+
+    def __init__(self, line ): 
+        
+        cdef int n, l
+        l = len(line)
+        self.query_token = <char*>calloc(l,1)
+        self.sbjct_token = <char*>calloc(l,1)
+        self.query_ali = <char*>calloc(l,1)
+        self.sbjct_ali = <char*>calloc(l,1)
+
+        n = sscanf( line,
+                    "%s\t%s\t%f\t%i\t%i\t%s\t%i\t%i\t%s",
+                    self.query_token,
+                    self.sbjct_token,
+                    &self.evalue,
+                    &self.query_start,
+                    &self.query_end,
+                    self.query_ali,
+                    &self.sbjct_start,
+                    &self.sbjct_end,
+                    self.sbjct_ali )
+
+        if n != 9:
+            raise ValueError("parsing error (%i) in line `%s`" % (n,line))
+
+    def __str__( self ):
+
+        return "\t".join( map(str, (
+                    self.query_token, self.sbjct_token, self.evalue,
+                    self.query_start, self.query_end, self.query_ali,
+                    self.sbjct_start, self.sbjct_end, self.sbjct_ali)))
+
+    def __dealloc__(self):
+        free( self.query_token )
+        free( self.sbjct_token )
+        free( self.query_ali )
+        free( self.sbjct_ali )
+    
+    def getAlignment(self ):
+        """parse alignment into a AlignmentVector object."""
+        r = alignlib.makeAlignmentVector()
+        f = alignlib.AlignmentFormatEmissions()
+        f.mRowFrom, f.mRowTo, f.mRowAlignment = self.mQueryFrom, self.mQueryTo, self.mQueryAli
+        f.mColFrom, f.mColTo, f.mColAlignment = self.mSbjctFrom, self.mSbjctTo, self.mSbjctAli     
+        f.copy( r )
+        return r   
+
+cdef class PairsDBNeighbourRecordOldFormat(PairsDBNeighbourRecord):
+    """a pairwise alignment in old pairsdb format.
+
+    The old pairsdb format used one-based coordinates.
+    """
+    def __init__(self, line ): 
+        PairsDBNeighbourRecord.__init__( self, line )
+        self.query_start -= 1
+        self.sbjct_start -= 1
+
+cdef class NeighbourProxy:
+    '''wrapper for passing around a neighbour.'''
+    cdef Nid query_nid
+    cdef Neighbour * neighbour
+    
+    def __init__(self):
+        self.neighbour = <Neighbour*>calloc( sizeof( Neighbour ), 1 )
+        init_neighbour( self.neighbour )
+            
+    def __dealloc__(self):
+        if self.neighbour != NULL: 
+            destroy_neighbour( self.neighbour )
+
+class PairsDBNeighbourIterator:
+    '''iterate over neighbours in input graph and translate
+    identifiers to nids
+
+    Identifiers not in filter are ignored.
+
+    The iterator returns query_nid and an object of type :class:`Neighbour`
+    for each iteration. The caller takes ownership of the object.
+    '''
+
+    def __init__(self, infile, mapId2Nid ):
+        self.infile = infile
+        self.mapId2Nid = mapId2Nid
+        self.record_factory = PairsDBNeighbourRecord
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+
+        cdef PairsDBNeighbourRecord r
+        cdef Neighbour * n
+        cdef Nid sbjct_nid
+        cdef Nid query_nid
+        cdef NeighbourProxy p
+
+        while 1:
+            line = self.infile.readline()
+            if not line: raise StopIteration
+            if line.startswith("#"): continue
+            r = self.record_factory( line )
+            
+            if r.query_token not in self.mapId2Nid or \
+                    r.sbjct_token not in self.mapId2Nid:
+                continue 
+                
+            query_nid = self.mapId2Nid[r.query_token]
+            sbjct_nid = self.mapId2Nid[r.sbjct_token]
+
+            p = NeighbourProxy()
+            p.query_nid = query_nid
+            fromPairsDBNeighbour( p.neighbour, sbjct_nid, r )
+            return p
+        
+        raise StopIteration                
+
+class PairsDBNeighbourIteratorOldFormat(PairsDBNeighbourIterator):
+    def __init__(self, *args, **kwargs ):
+        PairsDBNeighbourIterator.__init__( self, *args, **kwargs )
+        self.record_factory = PairsDBNeighbourRecordOldFormat
+
+class PairsDBNeighboursRecord:
+    def __init__(self, Nid nid, matches):
+        self.query_nid = nid
+        self.matches = matches
+
+class PairsDBNeighboursIterator:
+
+    def __init__(self, iterator ):
+        """
+        f: the input file object.
+        tokens: a collection of tokens to filter with.
+        """
+
+        self.iterator = iterator
+        self.last = self.iterator.next()
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+
+        cdef NeighbourProxy r
+        cdef Nid query_nid
+
+        if self.last == None: raise StopIteration
+        
+        self.matches = [self.last]
+        r = <NeighbourProxy>self.last
+        query_nid = r.query_nid
+
+        while 1:
+            try:
+                r = self.iterator.next()
+            except StopIteration:
+                self.last = None
+                return PairsDBNeighboursRecord( query_nid, self.matches )
+
+            self.last = r 
+
+            if r.query_nid != query_nid:
+                return PairsDBNeighboursRecord( query_nid, self.matches )
+            
+            self.matches.append( r )
 

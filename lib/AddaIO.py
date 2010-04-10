@@ -3,6 +3,7 @@ import alignlib
 from ConfigParser import ConfigParser as PyConfigParser
 import Experiment as E
 import fileinput
+import cadda
 
 class ConfigParser( PyConfigParser ):
     """config parser with defaults."""
@@ -46,51 +47,51 @@ def openStream( filename ):
     else:
         return open( filename, "r" )
 
-class NeighbourRecordPairsdb:
-    """a pairwise alignment.
+# class NeighbourRecordPairsdb:
+#     """a pairwise alignment.
 
-    The alignment is parsed from the input line.
+#     The alignment is parsed from the input line.
 
-    The input format is tab-separated columns:
+#     The input format is tab-separated columns:
 
-    ``query_token`` the query
-    ``sbjct_token`` the sbjct
-    ``evalue`` : the E-Value
-    ``query_from``: the first aligned residue in query
-    ``query_to``: the last aligned residue + 1 in query
-    ``query_ali``: the aligned query in compressed form
-    ``sbjct_from``: the first aligned residue in sbjct
-    ``sbjct_to``: the last aligned residue + 1 in sbjct
-    ``sbjct_ali``: the aligned sbjct in compressed form
+#     ``query_token`` the query
+#     ``sbjct_token`` the sbjct
+#     ``evalue`` : the E-Value
+#     ``query_from``: the first aligned residue in query
+#     ``query_to``: the last aligned residue + 1 in query
+#     ``query_ali``: the aligned query in compressed form
+#     ``sbjct_from``: the first aligned residue in sbjct
+#     ``sbjct_to``: the last aligned residue + 1 in sbjct
+#     ``sbjct_ali``: the aligned sbjct in compressed form
 
-    Additional columns are ignored.
-    """
+#     Additional columns are ignored.
+#     """
 
-    def __init__(self, line ): 
-        (self.mQueryToken, self.mSbjctToken, self.mEvalue,
-         self.mQueryFrom, self.mQueryTo, self.mQueryAli,
-         self.mSbjctFrom, self.mSbjctTo, self.mSbjctAli) = line[:-1].split("\t")[:9]
+#     def __init__(self, line ): 
+#         (self.mQueryToken, self.mSbjctToken, self.mEvalue,
+#          self.mQueryFrom, self.mQueryTo, self.mQueryAli,
+#          self.mSbjctFrom, self.mSbjctTo, self.mSbjctAli) = line[:-1].split("\t")[:9]
 
-        (self.mQueryFrom, self.mQueryTo, self.mSbjctFrom, self.mSbjctTo) = map(
-            int, (self.mQueryFrom, self.mQueryTo, self.mSbjctFrom, self.mSbjctTo))
+#         (self.mQueryFrom, self.mQueryTo, self.mSbjctFrom, self.mSbjctTo) = map(
+#             int, (self.mQueryFrom, self.mQueryTo, self.mSbjctFrom, self.mSbjctTo))
 
-        self.mEvalue = float(self.mEvalue)
+#         self.mEvalue = float(self.mEvalue)
 
-    def __str__( self ):
+#     def __str__( self ):
 
-        return "\t".join( map(str, (
-            self.mQueryToken, self.mSbjctToken, self.mEvalue,
-            self.mQueryFrom, self.mQueryTo, self.mQueryAli,
-            self.mSbjctFrom, self.mSbjctTo, self.mSbjctAli)))
+#         return "\t".join( map(str, (
+#             self.mQueryToken, self.mSbjctToken, self.mEvalue,
+#             self.mQueryFrom, self.mQueryTo, self.mQueryAli,
+#             self.mSbjctFrom, self.mSbjctTo, self.mSbjctAli)))
     
-    def getAlignment(self ):
-        """parse alignment into a AlignmentVector object."""
-        r = alignlib.makeAlignmentVector()
-        f = alignlib.AlignmentFormatEmissions()
-        f.mRowFrom, f.mRowTo, f.mRowAlignment = self.mQueryFrom, self.mQueryTo, self.mQueryAli
-        f.mColFrom, f.mColTo, f.mColAlignment = self.mSbjctFrom, self.mSbjctTo, self.mSbjctAli     
-        f.copy( r )
-        return r   
+#     def getAlignment(self ):
+#         """parse alignment into a AlignmentVector object."""
+#         r = alignlib.makeAlignmentVector()
+#         f = alignlib.AlignmentFormatEmissions()
+#         f.mRowFrom, f.mRowTo, f.mRowAlignment = self.mQueryFrom, self.mQueryTo, self.mQueryAli
+#         f.mColFrom, f.mColTo, f.mColAlignment = self.mSbjctFrom, self.mSbjctTo, self.mSbjctAli     
+#         f.copy( r )
+#         return r   
 
 class NeighbourRecordPairsdbRealign:
     """a pairwise alignment.
@@ -174,152 +175,152 @@ class NeighbourRecordSimap:
         """parse alignment into a AlignmentVector object."""
         return None
 
-class NeighbourRecordPairsdbOld(NeighbourRecordPairsdb):
-    """a pairwise alignment in old pairsdb format.
+# class NeighbourRecordPairsdbOld(NeighbourRecordPairsdb):
+#     """a pairwise alignment in old pairsdb format.
 
-    The old pairsdb format used one-based coordinates.
-    """
-    def __init__(self, line ): 
-        NeighbourRecordPairsdb.__init__( self, line )
-        self.mQueryFrom -= 1
-        self.mSbjctFrom -= 1
+#     The old pairsdb format used one-based coordinates.
+#     """
+#     def __init__(self, line ): 
+#         NeighbourRecordPairsdb.__init__( self, line )
+#         self.mQueryFrom -= 1
+#         self.mSbjctFrom -= 1
 
-class NeighbourIterator:
+# class NeighbourIterator:
 
-    def _iterate( self, infile, record = NeighbourRecordPairsdb ):
+#     def _iterate( self, infile, record = cadda.NeighbourRecordPairsdb ):
 
-        for line in infile:
+#         for line in infile:
 
-            if line[0] == "#": continue
-            if not line.strip(): continue
-            yield record( line )
+#             if line[0] == "#": continue
+#             if not line.strip(): continue
+#             yield record( line )
         
-        raise StopIteration
+#         raise StopIteration
 
-    def __init__(self, f, *args, **kwargs):
-        self.mIterator = self._iterate(f, *args, **kwargs )
+#     def __init__(self, f, *args, **kwargs):
+#         self.mIterator = self._iterate(f, *args, **kwargs )
 
-    def __iter__(self):
-        return self
+#     def __iter__(self):
+#         return self
 
-    def next(self):
-        try:
-            return self.mIterator.next()
-        except StopIteration:
-            return None
+#     def next(self):
+#         try:
+#             return self.mIterator.next()
+#         except StopIteration:
+#             return None
 
-class NeighboursRecord:
-    def __init__(self, token, matches):
-        self.mQueryToken = token
-        self.mMatches = matches
+# class NeighboursRecord:
+#     def __init__(self, token, matches):
+#         self.mQueryToken = token
+#         self.mMatches = matches
 
-class NeighboursIterator:
+# class NeighboursIterator:
 
-    def __init__(self, f, map_id2nid = None, *args, **kwargs):
-        """
-        f: the input file object.
-        tokens: a collection of tokens to filter with.
-        """
+#     def __init__(self, f, map_id2nid = None, *args, **kwargs):
+#         """
+#         f: the input file object.
+#         tokens: a collection of tokens to filter with.
+#         """
         
-        self.mIterator = self._iterate(f)
-        self.mMapId2Nid = map_id2nid
+#         self.mIterator = self._iterate(f)
+#         self.mMapId2Nid = map_id2nid
 
-    def _iterate( self, infile ):
+#     def _iterate( self, infile ):
 
-        last_nid = None
+#         last_nid = None
 
-        iterator = NeighbourIterator( infile, record = self.mRecord )
-        last_token = None
+#         iterator = NeighbourIterator( infile, record = self.mRecord )
+#         last_token = None
 
-        while 1:
+#         while 1:
             
-            r = iterator.next()
-            if not r: break
-            if self.mMapId2Nid:
-                if (r.mQueryToken not in self.mMapId2Nid or \
-                        r.mSbjctToken not in self.mMapId2Nid ):
-                    continue 
+#             r = iterator.next()
+#             if not r: break
+#             if self.mMapId2Nid:
+#                 if (r.query_token not in self.mMapId2Nid or \
+#                         r.sbjct_token not in self.mMapId2Nid ):
+#                     continue 
 
-                r.mQueryToken = self.mMapId2Nid[r.mQueryToken]
-                r.mSbjctToken = self.mMapId2Nid[r.mSbjctToken]
+#                 r.mQueryToken = self.mMapId2Nid[r.query_token]
+#                 r.mSbjctToken = self.mMapId2Nid[r.sbjct_token]
                 
-            if r.mQueryToken != last_token:
-                if last_token:
-                    yield NeighboursRecord( last_token, matches )
-                matches = []
-                last_token = r.mQueryToken
+#             if r.query_token != last_token:
+#                 if last_token:
+#                     yield NeighboursRecord( last_token, matches )
+#                 matches = []
+#                 last_token = r.mQueryToken
                 
-            matches.append( r )
+#             matches.append( r )
             
-        if last_token:
-            yield NeighboursRecord( last_token, matches )
+#         if last_token:
+#             yield NeighboursRecord( last_token, matches )
 
-        raise StopIteration
+#         raise StopIteration
 
-    def __iter__(self):
-        return self
+#     def __iter__(self):
+#         return self
 
-    def next(self):
-        try:
-            return self.mIterator.next()
-        except StopIteration:
-            return None
+#     def next(self):
+#         try:
+#             return self.mIterator.next()
+#         except StopIteration:
+#             return None
 
-class NeighboursIteratorPairsdb( NeighboursIterator ):
-    """iterate over Pairsdb formatted file."""
-    mRecord = NeighbourRecordPairsdb
+# class NeighboursIteratorPairsdb( NeighboursIterator ):
+#     """iterate over Pairsdb formatted file."""
+#     mRecord = cadda.NeighbourRecordPairsdb
 
-class NeighboursIteratorPairsdbOld( NeighboursIterator ):
-    """iterate over Pairsdb formatted file."""
-    mRecord = NeighbourRecordPairsdbOld
+# class NeighboursIteratorPairsdbOld( NeighboursIterator ):
+#     """iterate over Pairsdb formatted file."""
+#     mRecord = cadda.NeighbourRecordPairsdbOld
 
-class NeighboursIteratorSimap(  NeighboursIterator ):
-    """iterate over SIMAP formatted file."""
-    mRecord = NeighbourRecordSimap
+# class NeighboursIteratorSimap(  NeighboursIterator ):
+#     """iterate over SIMAP formatted file."""
+#     mRecord = NeighbourRecordSimap
 
-    def _iterate( self, infile ):
+#     def _iterate( self, infile ):
     
-        last_nid = None
+#         last_nid = None
     
-        iterator = NeighbourIterator( infile, self.mRecord )
-        last_token = None
+#         iterator = NeighbourIterator( infile, self.mRecord )
+#         last_token = None
         
-        alignator = alignlib.makeAlignatorDPFull( alignment.ALIGNMENT_LOCAL, 
-                                                  -10, -2)
+#         alignator = alignlib.makeAlignatorDPFull( alignment.ALIGNMENT_LOCAL, 
+#                                                   -10, -2)
 
-        q,s = None, None
+#         q,s = None, None
 
-        while 1:
+#         while 1:
 
-            r = iterator.next()
-            if not r: break
-            if self.mMapId2Nid:
-                if (r.mQueryToken not in self.mMapId2Nid or \
-                        r.mSbjctToken not in self.mMapId2Nid ):
-                    continue 
-                r.mQueryToken = self.mMapId2Nid[r.mQueryToken]
-                r.mSbjctToken = self.mMapId2Nid[r.mSbjctToken]
+#             r = iterator.next()
+#             if not r: break
+#             if self.mMapId2Nid:
+#                 if (r.mQueryToken not in self.mMapId2Nid or \
+#                         r.mSbjctToken not in self.mMapId2Nid ):
+#                     continue 
+#                 r.mQueryToken = self.mMapId2Nid[r.mQueryToken]
+#                 r.mSbjctToken = self.mMapId2Nid[r.mSbjctToken]
 
-            if r.mQueryToken != last_token:
-                if last_token:
-                    yield NeighboursRecord( last_token, matches )
-                matches = []
-                last_token = r.mQueryToken
-                q = alignlib.makeSequence( fasta.getSequence( r.mQueryToken ) )
+#             if r.mQueryToken != last_token:
+#                 if last_token:
+#                     yield NeighboursRecord( last_token, matches )
+#                 matches = []
+#                 last_token = r.mQueryToken
+#                 q = alignlib.makeSequence( fasta.getSequence( r.mQueryToken ) )
 
-            # do a re-alignment
-            s = alignlib.makeSequence( fasta.getSequence( r.mSbjctToken ) )
-            q.useSegment( r.mQueryFrom, r.mQueryTo )
-            s.useSegment( r.mSbjctFrom, r.mSbjctTo )
-            ali = alignlib.makeAlignmentVector()
+#             # do a re-alignment
+#             s = alignlib.makeSequence( fasta.getSequence( r.mSbjctToken ) )
+#             q.useSegment( r.mQueryFrom, r.mQueryTo )
+#             s.useSegment( r.mSbjctFrom, r.mSbjctTo )
+#             ali = alignlib.makeAlignmentVector()
 
-            alignator.align( ali, q, s )
-            r.mAlignment = ali
-            matches.append( r )
+#             alignator.align( ali, q, s )
+#             r.mAlignment = ali
+#             matches.append( r )
             
-        if last_token:
-            yield NeighboursRecord( last_token, matches )
-        raise StopIteration
+#         if last_token:
+#             yield NeighboursRecord( last_token, matches )
+#         raise StopIteration
 
 def createDict( storage = "memory" ):
     """open a memory or disc based dictionary.

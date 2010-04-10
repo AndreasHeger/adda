@@ -36,13 +36,13 @@ class AddaIndex( AddaModuleBlock ):
         self.mAlignmentFormat = self.mConfig.get( "files", "graph_format", "pairsdb")
 
         if self.mAlignmentFormat == "pairsdb":
-            self.mIterator = AddaIO.NeighboursIteratorPairsdb
+            self.mGraphIterator = cadda.PairsDBNeighbourIterator
         elif self.mAlignmentFormat == "pairsdb-old":
-            self.mIterator = AddaIO.NeighboursIteratorPairsdbOld
+            self.mGraphIterator = cadda.PairsDBNeighbourIteratorOldFormat
         elif self.mAlignmentFormat == "simap":
-            self.mIterator = AddaIO.NeighboursIteratorSimap
+            self.mGraphIterator = AddaIO.NeighbourIteratorSimap
         elif self.mAlignmentFormat == "pairsdb-realign":
-            self.mIterator = AddaIO.NeighbourRecordPairsdbRealign
+            self.mGraphIterator = AddaIO.NeighbourRecordPairsdbRealign
         else:
             raise ValueError ("unknown record type %s" % self.mAlignmentFormat)
 
@@ -74,9 +74,9 @@ class AddaIndexBuild( AddaIndex ):
         infile.close()
     
         infile = AddaIO.openStream( self.mFilenameInputGraph )
-        iterator = self.mIterator( infile, map_id2nid )
 
-        cadda.indexGraph( iterator, 
+        cadda.indexGraph( cadda.PairsDBNeighboursIterator( 
+                self.mGraphIterator( infile, map_id2nid ) ),
                           len(map_id2nid), 
                           self.mFilenameOutputGraph, 
                           self.mFilenameOutputIndex, 
@@ -97,7 +97,6 @@ class AddaIndexCheck( AddaIndex ):
         """
 
         if os.path.exists( filename_graph ): pass
-
 
         self.info( "checking index %s agains %s: started" % (self.mFilenameIndex, self.mFilenameGraph ) )
         retval = cadda.check_index()
