@@ -19,60 +19,26 @@ from logging import warn, info, debug
 
 L = {}
 
-def run( options, order, map_module, config, fasta = None ):
-
-    if "all" in options.steps:
-        steps = order
-    else:
-        steps = options.steps
-
-    modules = []
-
-    for step in order:
-        if step in steps:
-            module = map_module[step]( options, config, fasta = fasta )
-            
-            if not module.isComplete():
-                modules.append( module )
-            else:
-                L.info( "%s complete" % step )
-
-    if len(modules) == 0: return
-
-    L.info( "working with modules: %s" % (",".join(map(str, modules))) )
-
-    for module in modules:
-        module.startUp()
-        module.run()
-        module.finish()
-
 def merge( options, 
-           order, 
-           map_module, 
+           module,
            config, 
            fasta ):
     """return True if all merging operations succeeded."""
 
-    if "all" in options.steps: steps = order
-    else: steps = options.steps
-
     nchunks = config.get( "adda", "num_slices", 10 )
 
-    modules = []
-    for step in order:
-        if step in steps:
-            modules.append( map_module[step]( options, 
-                                              config, 
-                                              fasta = fasta,
-                                              chunk = 0,
-                                              num_chunks = nchunks ) )
+    module = module( options, 
+                     config, 
+                     fasta = fasta,
+                     chunk = 0,
+                     num_chunks = nchunks )
 
-    L.info( "performing merge on modules: %s" % str(modules) )
+    L.info( "merging" )
 
-    for module in modules:
-        if not module.merge():
-            return False
-    return True
+    if not module.merge():
+        return False
+    else:
+        return True
 
 
 class Run(object):
@@ -80,7 +46,7 @@ class Run(object):
 
 class RunOnGraph(Run):
     
-    def __init__(self, config, steps ):
+    def __init__(self, config, command ):
 
         #from guppy import hpy
         #h = hpy()
@@ -93,7 +59,7 @@ class RunOnGraph(Run):
 
         #print h.heap()
 
-        if "all" in steps or "fit" in steps:
+        if command == "fit":
 
             L.info( "loading map_id2nid from %s" % config.get( "files", "output_nids", "adda.nids" ))
             infile = open( config.get( "files", "output_nids", "adda.nids" ) )
@@ -111,9 +77,11 @@ class RunOnGraph(Run):
                                                               storage = config.get( "files", "storage_domains", "memory" ) )
             infile.close()
             self.mMapId2Nid = None
+            self.mLoadMapNid2Domains = True
         else:
             self.mMapNid2Domains = None
             self.mMapId2Nid = None
+            self.mLoadMapNid2Domains = False
         #print h.heap()
 
         self.mFilenameGraph = config.get( "files", "output_graph", "adda.graph")
@@ -134,48 +102,36 @@ class RunOnGraph(Run):
 
     def apply( self, argv ):
 
-        (filename, chunk, nchunks, options, order, map_module, config ) = argv
+        (filename, chunk, nchunks, options, module, config ) = argv
 
         L.info( "chunk %i: setting up" % (chunk ))
 
-        if "all" in options.steps: steps = order
-        else: steps = options.steps
-
-        # load all maps that were not inherited from the parent process
-        if "all" in steps or "fit" in steps and self.mMapNid2Domains == None:
+        if self.mLoadMapNid2Domains and self.mMapNid2Domains == None:
+            # load all maps that were not inherited from the parent process
             L.info( "opening map_nid2domains from cache" )
             self.mMapNid2Domains = shelve.open( config.get( "files", "storage_domains", "memory" ), "r")
 
         # build the modules
-        modules = []
-        for step in order:
-            if step in steps:
-                if map_module[step]( options, 
-                                     config = config, 
-                                     fasta = self.mFasta ).isComplete():
-                    L.info( "chunk %i: step %s is complete" % (chunk, step ))
-                    continue
-
-                module = map_module[step]( options, 
-                                           config = config, 
-                                           fasta = self.mFasta,
-                                           num_chunks = nchunks,
-                                           chunk = chunk,
-                                           map_id2nid = self.mMapId2Nid,
-                                           map_nid2domains = self.mMapNid2Domains )
-
-                if not module.isComplete():
-                    modules.append( module )
-                else:
-                    L.info( "chunk %i: step %s is complete" % (chunk,step) )
-
-        if len(modules) == 0: 
-            L.info( "chunk %i: nothing to be done" % chunk )
+        if module( options, 
+                   config = config, 
+                   fasta = self.mFasta ).isComplete():
+            L.info( "chunk %i is complete" % (chunk ))
             return
 
-        for module in modules: module.startUp()
+        module = module( options, 
+                         config = config, 
+                         fasta = self.mFasta,
+                         num_chunks = nchunks,
+                         chunk = chunk,
+                         map_id2nid = self.mMapId2Nid,
+                         map_nid2domains = self.mMapNid2Domains )
+        
+        if module.isComplete():
+            L.info( "chunk %i is complete" % (chunk,) )
+            return
 
-        L.info( "chunk %i: starting work on modules: %s" % (chunk, ",".join(map(str, modules))) )
+        L.info( "chunk %i: starting" % (chunk,) )
+        module.startUp()
 
         # find out nids to work with
         nids = map(int, self.mFasta.keys())
@@ -196,54 +152,41 @@ class RunOnGraph(Run):
             L.info( "chunk %i: started nid=%s, neighbours=%i, progress=%i/%i (%5.1f%%)" % (chunk, str(nid), len(neighbours), iteration, len(nids), 100.0 * iteration / len(nids) ) )
 
             if neighbours:
-                for module in modules:
-                    module.run( AddaIO.NeighboursRecord( nid, neighbours ) )
+                module.run( AddaIO.NeighboursRecord( nid, neighbours ) )
 
             L.info( "chunk %i: finished nid=%s, neighbours=%i, progress=%i/%i (%5.1f%%)" % (chunk, str(nid), len(neighbours), iteration, len(nids), 100.0 * iteration / len(nids) ) )
             
             if options.test and iteration >= options.test:
                 break
 
-        L.info( "chunk %i: running finish on modules: %s" % (chunk, ",".join(map(str, modules))) )
+        L.info( "chunk %i: finished" % (chunk, ) )
 
-        for module in modules:
-            module.finish()
+        module.finish()
 
         L.info( "chunk %i: finished  %i nids" % (chunk, len(nids)) )
 
 def run_on_file( argv ):
 
-    (filename, chunk, nchunks, options, order, map_module, config ) = argv
+    (filename, chunk, nchunks, options, module, config ) = argv
 
-    L.info( "starting chunk %i" % chunk )
+    L.info( "setting up chunk %i" % chunk )
 
     fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
 
-    if "all" in options.steps: steps = order
-    else: steps = options.steps
+    if module( options, 
+               config = config, 
+               fasta = fasta ).isComplete():
+        L.info( "complete" )
+        return
 
-    modules = []
-    for step in order:
-        if step in steps:
-            if map_module[step]( options, 
-                                 config = config, 
-                                 fasta = fasta ).isComplete():
-                L.info( "%s complete" % step )
-                continue
+    module = module( options, 
+                     config = config, 
+                     fasta = fasta,
+                     num_chunks = nchunks,
+                     chunk = chunk )
 
-            module = map_module[step]( options, 
-                                       config = config, 
-                                       fasta = fasta,
-                                       num_chunks = nchunks,
-                                       chunk = chunk )
-
-            if not module.isComplete():
-                modules.append( module )
-            else:
-                L.info( "%s complete" % step )
-
-    if len(modules) == 0: 
-        L.info( "nothing to be done" )
+    if module.isComplete():
+        L.info( "chunk %i is complete" % (chunk,) )
         return
 
     L.info( "opening file %s at chunk %i" % (filename, chunk) )
@@ -253,23 +196,18 @@ def run_on_file( argv ):
                                    chunk,
                                    FileSlice.iterator )
 
-    for module in modules: module.startUp()
-
-    L.info( "working with modules: %s" % (",".join(map(str, modules))) )
+    L.debug( "module startup" )
+    module.startUp()
 
     for line in iterator:
         if line.startswith("#"): continue
+        module.run( line )
 
-        for module in modules:
-            module.run( line )
+    L.info( "module finish" )
+    module.finish()
 
-    for module in modules:
-        module.finish()
-
-    L.info( "running finish on modules: %s" % (",".join(map(str, modules))) )
-
-    for module in modules:
-        module.finish()
+    L.info( "module finish" )
+    module.finish()
 
     L.info( "finished chunk %i on %s" % (chunk, filename) )
 
@@ -294,7 +232,7 @@ def getChunks( options, config ):
 
     return nchunks, chunks
         
-def runParallel( runner, filename, options, order, map_module, config ):
+def runParallel( runner, filename, options, module, config ):
     """process filename in paralell."""
 
     if options.num_jobs:
@@ -306,7 +244,7 @@ def runParallel( runner, filename, options, order, map_module, config ):
 
     L.info( "running %i chunks in %i parallel jobs" % (len(chunks), njobs ))
     
-    args = [ (filename, chunk, nchunks, options, order, map_module, config ) for chunk in chunks ]
+    args = [ (filename, chunk, nchunks, options, module, config ) for chunk in chunks ]
 
     logging.info('starting parallel jobs')
 
@@ -328,14 +266,14 @@ def runParallel( runner, filename, options, order, map_module, config ):
 
     L.info( "all jobs finished" )
 
-def runSequentially( runner, filename, options, order, map_module, config ):
+def runSequentially( runner, filename, options, module, config ):
     """process filename sequentially."""
 
     nchunks, chunks = getChunks( options, config )
     
     L.info( "running %i chunks sequentially" % (len(chunks) ))
 
-    args = [ (filename, chunk, nchunks, options, order, map_module, config ) for chunk in chunks ]
+    args = [ (filename, chunk, nchunks, options, module, config ) for chunk in chunks ]
 
     for (job, argv) in enumerate(args):
         L.info( "job %i started" % job )
@@ -352,31 +290,6 @@ def runSequentially( runner, filename, options, order, map_module, config ):
 
     L.info( "all jobs finished" )
 
-def oldrunSequentially( runner, filename, options, order, map_module, config ):
-    """process filename sequentially."""
-
-    nchunks, chunks = getChunks( options, config )
-    
-    L.info( "running %i chunks sequentially" % (len(chunks) ))
-
-    args = [ (filename, options, order, map_module, config, chunk, nchunks ) for chunk in chunks ]
-
-    for (chunk, argv) in enumerate(args):
-        L.info( "job %i started" % chunk )
-        error = runner( argv )
-
-        if error:
-            print "adda caught an exceptions"
-            exception_name, exception_value, exception_stack = error
-            print exception_stack,
-            print "## end of exceptions"
-            sys.exit(1)
-
-        L.info( "job %i finished" % chunk )
-
-
-    L.info( "all jobs finished" )
-    
 def main():
     global L
     
@@ -400,8 +313,8 @@ def main():
     parser.add_option( "--chunks", dest="chunks", type="string",
                        help = "work on one or more chunks only. Provide a comma-separated list. [default=%default]" )
 
-    parser.add_option( "--steps", dest="steps", type="choice", action="append",
-                       choices=("all", 
+    parser.add_option( "--command", dest="command", type="choice",
+                       choices=(
                                 "sequences",
                                 "blast",
                                 "fit", 
@@ -420,7 +333,7 @@ def main():
                                 "families", 
                                 "stats",
                                 "summary"),
-                       help="perform this step [default=%default]" )
+                       help="perform a command [default=%default]" )
 
     parser.add_option( "--start-at", dest="start_at", type="string",
                       help="start at sequence [default=%default]")
@@ -430,7 +343,7 @@ def main():
 
     parser.set_defaults( 
                         filename_config = "adda.ini",
-                        steps = [],
+                        command = None,
                         start_at = None,
                         stop_at = None,
                         force = False,
@@ -463,9 +376,14 @@ def main():
 
     config = AddaIO.ConfigParser()
     config.read( os.path.expanduser( options.filename_config ) )
+    
+    if len(args) == 0:
+        if not options.command: raise ValueError("specify at least one command")
+    elif len(args) == 1:
+        options.command = args[0]
+    else: 
+        raise ValueError("one command line argument is sufficient.")        
 
-    if args: options.steps = args
-        
     ## collect modules and initialise them         
     map_module = { 'fit' : AddaFit.AddaFit,
                    'segment' : AddaSegment.AddaSegment,
@@ -473,7 +391,7 @@ def main():
                    'graph' : AddaGraph.AddaGraph,
                    'stats' : AddaStats.AddaStats,
                    'profiles' : AddaProfiles.AddaProfiles, 
-                   'realign' : AddaRealignment.AddaRealignment,
+                   'realign' : AddaAlign.AddaRealign,
                    'index' : AddaIndex.AddaIndexBuild,
                    'check-index' : AddaIndex.AddaIndexCheck,
                    'optimise' : AddaOptimise.AddaOptimise,  
@@ -487,124 +405,73 @@ def main():
                    'summary' : AddaSummary.AddaSummary,
                    }
 
-    # modules and their hierarchy
-    run( options, 
-         order = ( "sequences", ), 
-         map_module = map_module,
-         config = config )
-
-    # build the adda graph
-    run( options,
-         order = ( "index", ),
-         map_module = map_module,
-         config = config )
-
-    fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
-
-    run( options,
-         order = ("stats", ),
-         map_module = map_module,
-         config = config,
-         fasta = fasta )
-
+    try:
+        fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
+    except KeyError:
+        fasta = None
+    
     if options.num_jobs == 1: 
         run_parallel = runSequentially
     else:
         run_parallel = runParallel
 
-    run_on_graph = RunOnGraph( config, options.steps )
+    if options.command in ("sequences", "index", "stats", "optimise",
+                           "convert", 
+                           "mst", "mst-components", "cluster", "families",
+                           "summary" ):
+        module = map_module[options.command](options, config, fasta = fasta )
+        if module.isComplete():
+            E.info("output of command `%s` present and complete" % options.command )
+        else:
+            module.startUp()
+            module.run()
+            module.finish()
 
-    if "realign" in options.steps:
-        raise NotImplementError("broken")
+    elif options.command in ("fit", "segment"): 
+
+        run_on_graph = RunOnGraph( config, options.command )
+
         run_parallel( 
             run_on_graph,
             filename = config.get( "files", "input_graph", "adda.graph" ),
             options = options, 
-            order = ("realign", ),
-            map_module = map_module,
+            module = map_module[options.command],
+            config = config )
+        
+        if not merge( options,
+                      module = map_module[options.command],
+                      config = config,
+                      fasta = fasta ):
+            E.Stop()
+            return
+    elif options.command in ("align" ):
+
+        run_parallel( 
+            run_on_file,
+            filename = config.get( "files", "output_mst", "adda.mst" ),
+            options = options, 
+            module = map_module[options.command],
             config = config )
 
-    run_parallel( 
-        run_on_graph,
-        filename = config.get( "files", "input_graph", "adda.graph" ),
-        options = options, 
-        order = ("fit", "segment" ),
-        map_module = map_module,
-        config = config )
+        merge( options,
+               module = map_module[options.command],
+               config = config,
+               fasta = fasta )
 
-    if not merge( options,
-                  order = ("fit", "segment" ),
-                  map_module = map_module,
-                  config = config,
-                  fasta = fasta ):
-        L.info( "graph pre-processing incomplete - will not continue." )
-        E.Stop()
-        return
+    elif options.command in ("realign" ):
 
-    run( options, 
-         order = ( "optimise", ),
-         map_module = map_module,
-         config = config,
-         fasta = fasta)
+        run_parallel( 
+            run_on_file,
+            filename = config.get( "files", "output_align", "adda.align" ),
+            options = options, 
+            module = map_module[options.command],
+            config = config )
 
-    L.info( "building domain graph" )
+        merge( options,
+               module = map_module[options.command],
+               config = config,
+               fasta = fasta )
 
-    run( options, 
-         order = ( "convert", ),
-         map_module = map_module,
-         config = config,
-         fasta = fasta)
-
-    L.info( "computing minimum spanning tree" )
-
-    run( options, 
-         order = ( "mst", ),
-         map_module = map_module,
-         config = config,
-         fasta = fasta)
-
-    L.info( "computing connected components" )
-    run( options,
-         order = ( "mst-components", ),
-         map_module = map_module,
-         config = config,
-         fasta = fasta)
-         
-    L.info( "alignment of domains" )
-
-    run_parallel( 
-        run_on_file,
-        filename = config.get( "files", "output_mst", "adda.mst" ),
-        options = options, 
-        order = ( "align", ),
-        map_module = map_module,
-        config = config )
-
-    merge( options,
-           order = ("align", ),
-           map_module = map_module,
-           config = config,
-           fasta = fasta )
-
-    run( options, 
-         order = ( "cluster", ),
-         map_module = map_module,
-         config = config,
-         fasta = fasta)
-
-    run( options, 
-         order = ( "families", ),
-         map_module = map_module,
-         config = config,
-         fasta = fasta)
-
-    run( options, 
-         order = ( "summary", ),
-         map_module = map_module,
-         config = config,
-         fasta = fasta)
-
-    E.Stop()
     
                 
 if __name__ == "__main__":    

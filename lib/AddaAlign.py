@@ -4,6 +4,7 @@ import ProfileLibrary
 from AddaModule import AddaModuleRecord
 import SegmentedFile
 import AddaProfiles
+import AddaIO
 import cadda
 
 class AddaAlign( AddaModuleRecord ):
@@ -225,17 +226,17 @@ class AddaAlign( AddaModuleRecord ):
 
             
         self.mInput += 1
+
+        try:
+            (query_token, sbjct_token) = line[:-1].split("\t")[:2]
+        except ValueError:
+            raise ValueError( "parsing error in line %s" % line )
               
         if self.mContinueAt and (query_token,sbjct_token) == self.mContinueAt:
             self.mContinueAt = None
             self.mStartTime = time.time() 
             self.info("continuing processing after iteration %i" % self.mInput )
             return
-
-        try:
-            (query_token, sbjct_token) = line[:-1].split("\t")[:2]
-        except ValueError:
-            raise ValueError( "parsing error in line %s" % line )
 
         if self.mInput % self.mReportStep == 0:
             t = time.time() 
@@ -387,4 +388,81 @@ class AddaAlign( AddaModuleRecord ):
             return True, result, ( "%5.2f" % zscore,)
         else:
             return False, result, ( "%5.2f" % zscore,)
+
+class AddaRealign( AddaAlign ):
+    """performs the same actions as :class:`AddaAlign`, but 
+    will read aligned links instead of an mst and will only
+    re-align those that failed in previous run. Those
+    that had already passed will be simply echoed.
+
+    The output will be saved in ``output_align``.realign.gz
+    """
+    
+    mName = "Realign"
+    
+    def __init__(self, *args, **kwargs ):
+
+        AddaAlign.__init__( self, *args, **kwargs )
+
+        self.mFilenameMst = self.mFilenameAlignments
+        self.mFilenameAlignments += ".realign"
+
+        self.mFilenames = (self.mFilenameAlignments, )
+        
+        self.mNSkipped = 0
+
+    def applyMethod( self, line ):
+        """output the graph."""
+
+
+        # ignore header
+        if line.startswith("passed"): return
+
+        self.mInput += 1
+
+        link = AddaIO.TestedLink._make( line[:-1].split("\t") )
+        
+        if self.mInput % self.mReportStep == 0:
+            t = time.time() 
+            self.info( "iteration=%i, passed=%i, failed=%i, skipped=%i, notfound=%i, total time=%i, time per step=%f" %\
+                           (self.mInput, self.mNPassed, self.mNFailed, self.mNSkipped, self.mNNotFound,
+                            t - self.mStartTime,
+                            float(self.mReportStep * ( t - self.mStartTime )) / self.mInput, 
+                            ) )
+
+        if link.passed == "+":
+            self.mOutfile.write( line )
+            self.mNPassed += 1
+            self.mNSkipped += 1
+            self.mOutput += 1
+            return
+
+        query_nid, query_from, query_to = AddaIO.toTuple( link.qdomain )
+        sbjct_nid, sbjct_from, sbjct_to = AddaIO.toTuple( link.sdomain )
+
+        self.debug( "checking link between %i (%i-%i) and %i (%i-%i)" %\
+                    (query_nid, query_from, query_to,
+                     sbjct_nid, sbjct_from, sbjct_to) )
+
+        passed, alignment, extra_info = self.mChecker( query_nid, query_from, query_to,
+                                                       sbjct_nid, sbjct_from, sbjct_to)
+        
+        if passed: 
+            code = "+"
+            self.mNPassed += 1
+        else:
+            code = "-"
+            self.mNFailed += 1
+
+        self.mOutfile.write( "\t".join( ( code,
+                                          link.qdomain,
+                                          link.sdomain,
+                                          link.weight,
+                                          str(alignlib.AlignmentFormatEmissions( alignment )),
+                                          str(alignment.getScore()), 
+                                          str(alignment.getNumAligned()), 
+                                          str(alignment.getNumGaps())) + extra_info ) + "\n" )                    
+        self.mOutfile.flush()
+
+        self.mOutput += 1
 

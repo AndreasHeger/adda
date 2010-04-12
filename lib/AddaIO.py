@@ -209,10 +209,10 @@ class NeighbourRecordSimap:
 #         except StopIteration:
 #             return None
 
-# class NeighboursRecord:
-#     def __init__(self, token, matches):
-#         self.mQueryToken = token
-#         self.mMatches = matches
+class NeighboursRecord:
+    def __init__(self, token, matches):
+        self.mQueryToken = token
+        self.mMatches = matches
 
 # class NeighboursIterator:
 
@@ -471,11 +471,11 @@ def readMapNid2Domains( infile,
 
 
 TestedLink = collections.namedtuple( "TestedLinks", 
-                                     """passed,  qdomain, sdomain,
-      weight,
-      qstart, qend, qali,    
-      sstart, send, sali, score,
-      naligned, ngaps, zscore""" )
+      """passed,  qdomain, sdomain,
+         weight,
+         qstart, qend, qali,    
+         sstart, send, sali, score,
+         naligned, ngaps, zscore""" )
 
 def iterate_tested_links( infile ):
     '''iterate over aligned links in mst.'''
