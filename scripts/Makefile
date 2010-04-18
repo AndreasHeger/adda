@@ -181,10 +181,11 @@ create-database:
 #####################################################
 %_nids.load: $(PARAM_DIR_ADDA)%.nids
 	$(PROLOG)
-	@python $(DIR_SCRIPTS)csv2db.py \
+	@perl -p -e "s/nid/adda_nid/; s/pid/nid/" < $< |\
+	python $(DIR_SCRIPTS)csv2db.py \
 		$(PARAM_DB_CONNECTION) \
 		--table=$(PARAM_TABLE_NIDS) \
-		--index=nid < $< > $@
+		--index=nid > $@
 	$(EPILOG)
 
 #####################################################
