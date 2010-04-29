@@ -44,7 +44,7 @@ class AddaGraph( AddaModuleRecord ):
 
         self.mFilenameGraph = self.mConfig.get("files", "output_graph", "adda.graph" )
         self.mFilenames = (self.mFilenameGraph, )
-        self.mMergeRepeats = self.mConfig.get( "graph", "merge_repeats") == "True"
+        self.mMergeRepeats = self.mConfig.get( "graph", "merge_repeats", True )
         self.mMinDomainSize = int(self.mConfig.get('adda','min_domain_size'))
         self.mHeaders = ("query_nid","sbjct_nid","evalue","query_start","query_end","sbjct_start", "sbjct_end") 
         

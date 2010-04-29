@@ -28,14 +28,14 @@ class AddaOptimise( AddaModule ):
                                          
         if self.mBackend == "pg":
             import pgdb
-            self.mDbhandle = pgdb.connect( options.psql_connection )
+            self.dbhandle = pgdb.connect( options.psql_connection )
             self.mError = pgdb.DatabaseError
             self.mNull = "NULL"
             self.mStringValue = "'%s'"
             self.mInsertMany = False
         elif self.mBackend == "sqlite":
             import sqlite3
-            self.mDbhandle = sqlite3.connect( options.database )
+            self.dbhandle = sqlite3.connect( options.database )
             self.mError = sqlite3.OperationalError
             self.mNull = None # "NULL"
             self.mStringValue = "%s" # "'%s'"
@@ -68,7 +68,7 @@ class AddaOptimise( AddaModule ):
         
         infile = open(filename, "r")
         reader = CSV.DictReader( infile, dialect="excel-tab" )
-        dbhandle = self.mDbhandle
+        dbhandle = self.dbhandle
         
         rows = []
         for row in reader:

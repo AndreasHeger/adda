@@ -1,4 +1,4 @@
-import os, sys, re, subprocess, optparse, stat, tempfile, time, random, inspect
+import os, sys, re, subprocess, optparse, stat, tempfile, time, random, inspect, types
 import ConfigParser
 
 try:
@@ -166,6 +166,16 @@ def getCallerLocals(decorators=0):
     f = sys._getframe(2+decorators)
     args = inspect.getargvalues(f)
     return args[3]
+
+def asList( param ):
+    '''return a param as a list'''
+    if type(param) not in (types.ListType, types.TupleType):
+        return [param,]
+    else: return param
+
+def asDict( param ):
+    '''return a section of configuration file as a dictionary.'''
+    return dict(CONFIG.items(param))
 
 def run( **kwargs ):
     """run a statement.

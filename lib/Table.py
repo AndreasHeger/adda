@@ -30,7 +30,7 @@
 #
 #----------------------------------------------------------------
 
-import string, os, Pairsdb
+import string, os, Pairsdb, Experiment
 
 class Field:
     def __init__ ( self, name, type, modifier, value):
@@ -39,7 +39,6 @@ class Field:
 	self.modifier	= modifier	# modifier like NOT NULL
 	self.value      = value		# value for retrieval and insertion
     
-	
 #-------------------------------------------
 # Class:		Table
 # Superclasses:	none

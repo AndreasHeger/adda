@@ -27,6 +27,7 @@ cdef extern from "stdio.h":
         pass
     FILE *fopen(char *,char *)
     int fclose(FILE *)
+    int feof(FILE *)
     int sscanf(char *str,char *fmt,...)
     int sprintf(char *str,char *fmt,...)
     int fprintf(FILE *ifile,char *fmt,...)
@@ -281,25 +282,6 @@ cdef fromPairsDBNeighbour( Neighbour * dest,
     strncpy( dest.query_ali, src.query_ali, dest.query_alen + 1)
     strncpy( dest.sbjct_ali, src.sbjct_ali, dest.sbjct_alen + 1)
 
-cdef fromPairsDBNeighbourUnsafe( Neighbour * n, Nid sbjct_nid, PairsDBNeighbourRecord neighbour ):
-    '''load data from neighbour.
-    
-    This method ties the lifetime of the two objects together.
-    '''
-    n.sbjct_nid = sbjct_nid
-    n.query_start = neighbour.query_start
-    n.query_end = neighbour.query_end
-    n.sbjct_start = neighbour.sbjct_start
-    n.sbjct_end = neighbour.sbjct_end
-    n.evalue = neighbour.evalue
-    n.query_alen = strlen( neighbour.query_ali )
-    n.sbjct_alen = strlen( neighbour.sbjct_ali )
-
-    # copy string explicitely, as lifetime of python object neighbours
-    # is no guaranteed.
-    n.query_ali = neighbour.query_ali
-    n.sbjct_ali = neighbour.sbjct_ali
-
 class NeighbourRecord(object):
 
     def __str__( self ):
@@ -433,47 +415,6 @@ DEF Z_DATA_ERROR   = (-3)
 DEF Z_MEM_ERROR    = (-4)
 DEF Z_BUF_ERROR    = (-5)
 DEF Z_VERSION_ERROR = (-6)
-
-# cdef abcToCompressed( unsigned char * buffer, size_t size, FILE * output_f ):
-#     '''compress buffer of size.'''
-
-
-#     cdef z_stream strm
-#     cdef int level = 9
-#     cdef size_t have
-
-#     print "initing"
-#     ret = deflateInit(&strm, level);
-#     if ret != Z_OK: return ret
-                                                                                                                                                                                   
-#     cdef unsigned char * compressed
-#     cdef size_t max_compressed
-#     max_compressed = size * 2    
-#     print "allocaitng"
-    
-#     compressed = <unsigned char *>calloc( max_compressed, sizeof(unsigned char) )
-
-#     # compress in one go
-#     strm.next_in = <unsigned char*>buffer
-#     strm.avail_in = size
-#     strm.avail_out = max_compressed
-#     strm.next_out = compressed
-
-#     print "before deflating"
-#     ret = deflate(&strm, 1)
-    
-#     assert ret != Z_STREAM_ERROR, "compression error"
-
-#     have = max_compressed - strm.avail_out
-
-#     if (fwrite(compressed, 1, have, output_f) != have or ferror(output_f)):
-#         deflateEnd(&strm)
-#         free( compressed )
-#         return Z_ERRNO
-
-#     deflateEnd(&strm)
-#     free( compressed )
-#     return Z_OK
     
 def indexGraph( graph_iterator, num_nids, output_filename_graph, output_filename_index, logger ):
     """translate the pairsdb input graph into an ADDA formatted graph.
@@ -541,13 +482,14 @@ def indexGraph( graph_iterator, num_nids, output_filename_graph, output_filename
     buffer = <unsigned char *>calloc( MAX_BUFFER_SIZE, sizeof(unsigned char) )
     cdef unsigned char * p1 
     cdef size_t used
-    cdef int x
+    cdef int x, iteration, report_step
     cdef NeighbourProxy g
 
     # write empty entry with nid 0. This is a place-holder
     # for entries without neighbours
     nneighbours = 0
     query_nid = 0
+    nskipped = 0
     fgetpos( output_f, &pos )
     index[query_nid] = pos
     fwrite( &query_nid, sizeof( Nid ), 1, output_f )
@@ -581,6 +523,7 @@ def indexGraph( graph_iterator, num_nids, output_filename_graph, output_filename
             g = <NeighbourProxy>neighbours.matches[x]
             neighbour = g.neighbour
             p1 = toBuffer( neighbour, p1 )
+
             # print query_nid, nneighbours, neighbour.sbjct_nid, neighbour.sbjct_ali
 
             # destroy_neighbour( neighbour )
@@ -612,6 +555,74 @@ def indexGraph( graph_iterator, num_nids, output_filename_graph, output_filename
 
     # clean up part 2
     free(index)
+
+def reindexGraph( num_nids, input_filename_graph, output_filename_index, logger ):
+    '''reindex graph.'''
+
+    # open output file
+    cdef FILE * input_f, * output_f
+    
+    input_f = fopen( input_filename_graph, "rb" )
+    if input_f == NULL:
+        raise ValueError( "opening of file %s failed" % input_filename_graph )
+
+    # allocate index
+    cdef FileIndex * index
+    cdef Nid nnids 
+    # add 1 for nid=0
+    nnids = num_nids + 1
+    # sets file positions for unknown ids to 0.
+    index = <FileIndex*>calloc( nnids, sizeof( FileIndex ) )
+    if index == NULL:
+        raise ValueError( "memory allocation for index failed" )
+
+    cdef FileIndex pos
+    # set index for empty entry
+    fgetpos( input_f, &pos )
+    index[0] = pos
+    
+    # iterate over graph
+    cdef Nid query_nid
+    cdef size_t nneighbours
+    cdef unsigned char * buffer
+    cdef int iteration, retval, report_stop
+
+    iteration = 0
+    buffer = <unsigned char *>calloc( MAX_BUFFER_SIZE, sizeof(unsigned char) )
+    report_step = nnids / 1000
+
+    while not feof( input_f ):
+        
+        fgetpos( input_f, &pos )
+
+        n = fread( &query_nid, sizeof(Nid), 1, input_f )
+        n += fread( &nneighbours, sizeof(size_t), 1, input_f )
+        
+        if feof( input_f ): break
+
+        # skip place holder pos (there might be several in the file
+        # if it is the result of a merging operation)
+        if query_nid == 0: continue
+
+        iteration += 1
+        if iteration % report_step == 0:
+            logger.info( "indexing progress: %i/%i = %5.1f" % (iteration, nnids, 100.0 * iteration/nnids) )
+        
+        index[query_nid] = pos
+
+        retval = fromCompressedFile( buffer, MAX_BUFFER_SIZE, input_f )
+        if retval != 0: 
+            free(buffer)
+            raise ValueError("error while reading data for %i" % query_nid )
+        
+    # save index
+    output_f = fopen( output_filename_index, "wb" );
+    if output_f == NULL:
+        free(index)
+        raise ValueError( "opening of file %s failed" % output_filename_index )
+    fwrite( &nnids, sizeof( Nid ), 1, output_f )
+    fwrite( index, sizeof( FileIndex ), nnids, output_f )
+    fclose(output_f)
 
 cdef class IndexedNeighbours:
     """access to indexed ADDA graph."""
@@ -811,10 +822,11 @@ class PairsDBNeighbourIterator:
     for each iteration. The caller takes ownership of the object.
     '''
 
-    def __init__(self, infile, mapId2Nid ):
+    def __init__(self, infile, mapId2Nid, logger ):
         self.infile = infile
         self.mapId2Nid = mapId2Nid
         self.record_factory = PairsDBNeighbourRecord
+        self.logger = logger
 
     def __iter__(self):
         return self
@@ -832,7 +844,13 @@ class PairsDBNeighbourIterator:
             if not line: raise StopIteration
             if line.startswith("#"): continue
             r = self.record_factory( line )
-            
+
+            # check for empty or overflowed alignments
+            if r.query_start >= r.query_end or \
+                    r.sbjct_start >= r.sbjct_end:
+                self.logger.warn("ignoring invalid alignment: %s" % str(r))
+                continue
+
             if r.query_token not in self.mapId2Nid or \
                     r.sbjct_token not in self.mapId2Nid:
                 continue 
@@ -842,6 +860,7 @@ class PairsDBNeighbourIterator:
 
             p = NeighbourProxy()
             p.query_nid = query_nid
+
             fromPairsDBNeighbour( p.neighbour, sbjct_nid, r )
             return p
         
@@ -859,7 +878,7 @@ class PairsDBNeighboursRecord:
 
 class PairsDBNeighboursIterator:
 
-    def __init__(self, iterator ):
+    def __init__(self, iterator, logger ):
         """
         f: the input file object.
         tokens: a collection of tokens to filter with.
@@ -867,6 +886,7 @@ class PairsDBNeighboursIterator:
 
         self.iterator = iterator
         self.last = self.iterator.next()
+        self.logger = logger
 
     def __iter__(self):
         return self
@@ -888,7 +908,7 @@ class PairsDBNeighboursIterator:
             except StopIteration:
                 self.last = None
                 return PairsDBNeighboursRecord( query_nid, self.matches )
-
+            
             self.last = r 
 
             if r.query_nid != query_nid:

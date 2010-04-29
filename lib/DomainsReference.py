@@ -17,7 +17,7 @@ class DomainsReference(Domains):
     requirements        = ()                            ## modules that should have finished before
 
     #--------------------------------------------------------------------------------
-    def __init__ (self, dbhandle):
+    def __init__ ( self ):
         
         # log parameters
         self.mLogLevel = 3
@@ -25,10 +25,10 @@ class DomainsReference(Domains):
         self.mLongOptions.append( 'descriptions=' )
         self.mFileNameDescriptions = None
 
-	Domains.__init__( self, dbhandle )
+	Domains.__init__( self )
 
-        self.mTableFamilies = TableFamiliesReference( dbhandle, "adda" )
-        self.mTableDomains = TableDomainsReference( dbhandle, "adda" )
+        self.mTableFamilies = TableFamiliesReference( self.dbhandle, "adda" )
+        self.mTableDomains = TableDomainsReference( self.dbhandle, "adda" )
         
         self.mTableFamilies.SetName( self.mTableNameFamilies )        
         self.mTableDomains.SetName( self.mTableNameDomains  )
@@ -66,13 +66,8 @@ class DomainsReference(Domains):
 #--------------------------------------< end of class definition >-------------------------------
 
 if __name__ == '__main__':
-    dbhandle = Pairsdb()
-    if not dbhandle.Connect():
-	print "Connection failed" 
-	sys.exit(1)
 
-    x = DomainsReference( dbhandle )
-    
+    x = DomainsReference()
     x.Process()
 
                 

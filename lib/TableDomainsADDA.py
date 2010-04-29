@@ -44,14 +44,14 @@ class TableDomainsAdda( TableDomains ):
         Adds an offset to the domain family
         """
         if subset:
-            s = " INNER JOIN %s AS subset ON subset.nid = rep_nid " % subset
+            s = " INNER JOIN %s AS subset ON subset.nid = nid " % subset
         else:
             s = ""
             
         statement = """
         INSERT INTO %s
         SELECT
-        rep_nid, rep_from, rep_to, rep_ali,
+        nid, start, end, rep_ali,
         domain_id, domain_from, domain_to, domain_ali,
         family + %i
         %s

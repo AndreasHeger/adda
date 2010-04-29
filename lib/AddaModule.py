@@ -28,13 +28,14 @@ class AddaModule:
     mName = "Adda"
     
     def __init__(self, 
-                 options, 
                  config, 
                  num_chunks = 1,
                  chunk = None,
                  fasta = None,
                  slice = None,
                  merge = False,
+                 append = False,
+                 force = False,
                  **kwargs ): 
 
         """options: handle to command line options.
@@ -47,29 +48,19 @@ class AddaModule:
         self.mConfig = config
         self.mFasta = fasta
 
-        if options.loglevel == 0:
-            lvl = logging.ERROR
-        elif options.loglevel == 1:
-            lvl = logging.INFO
-        else:
-            lvl = logging.DEBUG
-
         # self.mLogger = logging.getLogger( 'adda.%s' % self.mName )
         self.mLogger = logging
 
-        # h = logging.FileHandler( filename='adda.log', mode='a')        
-        # h.setFormatter(  
-        #    logging.Formatter( '%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
-        #                           datefmt='%m-%d %H:%M' ) )
-        # self.mLogger.addHandler( h )
-        # self.mLogger.setLevel( lvl )
+        self.mLogLevel = kwargs.get( "loglevel", 1 )
 
         ## if slice is given, use it to mangle the filename.
         self.mNumChunks = num_chunks
         if self.mNumChunks > 1:
-            if chunk == None: raise ValueError( "chunk is None for num_chunks > 1" )
+            if chunk == None: raise ValueError( "chunk is `None` for num_chunks > 1" )
             self.mChunk = chunk
         elif self.mNumChunks == 1:
+            self.mChunk = None
+        elif self.mNumChunks in (0, None):
             self.mChunk = None
 
         self.mInput = 0
@@ -77,8 +68,8 @@ class AddaModule:
         self.mTime = 0
 
         ## whether or not to append to existing output
-        self.mAppend = options.append
-        self.mForce = options.force
+        self.mAppend = append
+        self.mForce = force
 
         ## setup the logging facility
         ## There is some cross-talk with the Experiment
@@ -99,9 +90,6 @@ class AddaModule:
         ## flag to record if output is already complete
         ## set in child constructors
         self.mIsComplete = False
-
-        ## loglevel
-        self.mLogLevel = options.loglevel
 
         self.mTemporaryDirectory = self.mConfig.get( "adda", "tempdir", "." )
 
@@ -343,6 +331,12 @@ class AddaModuleBlock( AddaModule ):
     def __init__(self, *args, **kwargs ):
         AddaModule.__init__(self, *args, **kwargs )
         
+    #--------------------------------------------------------------------------
+    def setFilename( self, filename ):
+        '''set this to force using a different file
+          (for multiple file processing).'''
+        raise NotImplementedError()
+
     #--------------------------------------------------------------------------
     def run(self ):
         """perform action."""

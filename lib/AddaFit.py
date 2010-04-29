@@ -203,7 +203,10 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
     def processValues(self, values):
         """process data for a single query.
         
-        The results are appended to self.mTransferValues and self.mOverhangValues
+        The results are appended to self.mTransferValues and 
+        self.mOverhangValues.
+
+        Values are averaged per query, sbjct and family.
         """
 
         values.sort()
@@ -437,6 +440,7 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
                 noverhang = 0
                 
                 for xfrom, xto in xdomains:
+
                     ovlx = min(xto,n.mQueryTo) - max(xfrom,n.mQueryFrom)
                     # no overlap between domain and alignment on query
                     if ovlx < 0: continue                            
@@ -453,7 +457,7 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
                         
                         # map domain from query to sbjct
                         zfrom = max(xfrom - n.mQueryFrom + n.mSbjctFrom, n.mSbjctFrom)
-                        zto   = min(xto   - n.mQueryFrom + n.mSbjctFrom, n.mSbjctTo)                                
+                        zto   = min(xto   - n.mQueryFrom + n.mSbjctFrom, n.mSbjctTo)  
                         transfer = max(0, min(zto, yto) - max(zfrom, yfrom))
 
                         A = float(transfer) / float( lali )
@@ -474,7 +478,8 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
                             self.mOutfileData.flush()
                             
                         if transfer >= 0:
-                            values.append( (family, n.mQueryToken, n.mSbjctToken, transfer, lx-transfer, ly-transfer) ) 
+                            values.append( (family, n.mQueryToken, n.mSbjctToken, 
+                                            transfer, lx-transfer, ly-transfer) ) 
                                          
         values.sort()
         self.processValues( values )
@@ -486,22 +491,29 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
             outfile.write( "%i\t%f\n" % (bin, value) )
 
     #--------------------------------------------------------------------------    
-    def getCumulativeHistogram(self, histogram, reverse = False):
+    def truncateCounts( self, counts ):
+
+        # truncate
+        ma = len(counts) - 1
+        while ma > 0 and counts[ma] == 0: ma -= 1
+        ma += 1
+
+        mi = 0
+        while mi < len(counts) and counts[mi] == 0: mi+= 1
+        
+        bins = numpy.arange(mi,ma)
+        counts = counts[mi:ma]
+        
+        return bins, counts
+
+    #--------------------------------------------------------------------------    
+    def getCumulativeHistogram(self, counts, reverse = False):
         '''return a normalized and cumulative histogram for histogram.
         
         also truncates.
         '''
-
-        # truncate
-        ma = len(histogram) - 1
-        while ma > 0 and histogram[ma] == 0: ma -= 1
-        ma += 1
-
-        mi = 0
-        while mi < len(histogram) and histogram[mi] == 0: mi+= 1
         
-        bins = numpy.arange(mi,ma)
-        histogram = histogram[mi:ma]
+        bins, histogram = self.truncateCounts( counts )
 
         # cumulate
         if reverse:
@@ -526,46 +538,12 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         if len(self.mTransferValues) == 0 or len(self.mOverhangValues) == 0:
             self.warn( "no transfer or overhang values - no parameters computed" )
             return
-
+        
         self.mOutfile = self.openOutputStream( self.mFilenameFit, register = False )
-        self.mOutfileTransfer = self.openOutputStream( self.mFilenameTransfer, register = False )
-        self.mOutfileOverhang = self.openOutputStream( self.mFilenameOverhang, register = False )        
-                
-        bins, y = self.getCumulativeHistogram(self.mTransferValues, reverse = True )
-        self.writeHistogram( self.mOutfileTransfer, bins, y )
 
-        def f(x):
-            return A() + B() * numpy.exp ( - numpy.exp( -(x - C()) / K() ) - (x - C()) / K() + 1 )
+        A,B,C,K = self.fitTransfer()
+        E, F = self.fitOverhang()
 
-        A = Parameter(0.0)
-        B = Parameter(1.0)
-        C = Parameter(76.0)
-        K = Parameter(8.6)
-
-        result = fit(f,[A,B,C,K], y=y, x=bins)
-
-        AddaPlot.plotHistogram( bins, y, 
-                                f = f,
-                                filename = self.mFilenameTransfer + ".png",
-                                title = "transfer" )
-
-
-        # fit an exponential function to overhangs
-        bins, y = self.getCumulativeHistogram(self.mOverhangValues, reverse = True)
-        self.writeHistogram( self.mOutfileOverhang, bins, y )
-        
-        def f(x): return F() * numpy.exp ( -(x)* E() )
-        
-        E = Parameter(0.05)
-        F = Parameter(1.0)
-
-        result = fit(f,[E,F], y=y, x=bins)
-        
-        AddaPlot.plotHistogram(bins, y, 
-                               f = f,
-                               filename = self.mFilenameOverhang + ".png",
-                               title = "overhang" )
-        
         self.mOutfile.write( "[optimise]\n" )
         self.mOutfile.write( "sigmoid_min=%f\n" % A() )
         self.mOutfile.write( "sigmoid_max=%f\n" % B() )
@@ -575,14 +553,63 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         self.mOutfile.write( "exponential_F=%f\n" % F() )
 
         self.mOutfile.close()
-        self.mOutfileTransfer.close()
-        self.mOutfileOverhang.close()
-
         ## close here, so that all is flushed before merge is called
         if self.mOutfileDetails: self.mOutfileDetails.close()
 
         AddaModuleRecord.finish( self )
+
+    def fitTransfer( self ):
+
+        self.mOutfileTransfer = self.openOutputStream( self.mFilenameTransfer, register = False )
+                
+        bins, counts = self.getCumulativeHistogram(self.mTransferValues, reverse = True )
+        self.writeHistogram( self.mOutfileTransfer, bins, counts )
+
+        def f(x):
+            return A() + B() * numpy.exp ( - numpy.exp( -(x - C()) / K() ) - (x - C()) / K() + 1 )
+
+        A = Parameter(0.0)
+        B = Parameter(1.0)
+        C = Parameter(76.0)
+        K = Parameter(8.6)
+
+        result = fit(f,[A,B,C,K], y=counts, x=bins)
+
+        AddaPlot.plotHistogram( bins, counts, 
+                                f = f,
+                                filename = self.mFilenameTransfer + ".png",
+                                title = "transfer" )
+
+        self.mOutfileTransfer.close()
         
+        return A, B, C, K
+
+    def fitOverhang( self ):
+        
+        self.mOutfileOverhang = self.openOutputStream( self.mFilenameOverhang, register = False )        
+        
+        bins, counts = self.truncateCounts(self.mOverhangValues)
+        # normalize
+        counts = numpy.array( counts, numpy.float)
+        counts = counts / sum(counts)
+        self.writeHistogram( self.mOutfileOverhang, bins, counts )
+        
+        def f(x): return F() * numpy.exp ( -(x)* E() )
+        
+        E = Parameter(0.05)
+        F = Parameter(1.0)
+
+        result = fit(f,[E,F], y=counts, x=bins)
+        
+        AddaPlot.plotHistogram(bins, counts, 
+                               f = f,
+                               filename = self.mFilenameOverhang + ".png",
+                               title = "overhang" )
+        
+        self.mOutfileOverhang.close()
+
+        return E, F
+
     #--------------------------------------------------------------------------
     def merge(self, filenames = None ):
         """merge runs from parallel computations.

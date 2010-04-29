@@ -2,10 +2,13 @@ import sys, os, re, time, math, copy, glob, optparse, logging
 
 import numpy
 from AddaModule import AddaModuleRecord
+import IndexedFasta
+import AddaIO
 import CorrespondenceAnalysis
 import MatlabTools
 import SegmentedFile
 import Experiment as E
+import cadda
 
 class AddaSegment( AddaModuleRecord ):
     """decompose sequences hierarchically into putative domains.
@@ -39,15 +42,43 @@ class AddaSegment( AddaModuleRecord ):
         self.mFilenameSegments = self.mConfig.get("files","output_segments", "adda.segments" ) 
         self.mFilenames = (self.mFilenameSegments, )
 
+        self.covering_trees = self.mConfig.get("segments", "covering_trees", True)
+        self.combine_repeats = self.mConfig.get( "segments", "combine_repeats", True)
+
+        self.normalize_matrix = self.mConfig.get('segments','normalize', False)
+        self.add_local_bias =  self.mConfig.get('segments','matrix_add_local_bias', False )
+        self.permute_matrix =  self.mConfig.get('segments','permute', False )
+
+        if self.normalize_matrix:
+            E.warn( "matrix normalization is turned on" )
+
+        if self.add_local_bias:
+            E.warn( "adding local bias is turned on" )
+
+        if self.permute_matrix:
+            E.warn( "matrix permutation is turned on" )
+
     #--------------------------------------------------------------------------
     def startUp( self ):
 
         self.mHeaders = ("nid","node","parent","level","start","end") 
+
         if not self.isComplete():
             self.mOutfile = self.openOutputStream( self.mFilenameSegments )
-            self.mMinDomainSize = int(self.mConfig.get('adda','min_domain_size'), 30)
-            self.mResolution = float( self.mConfig.get('segments','resolution', 10.0) )
-            
+            self.min_domain_size = self.mConfig.get('adda','min_domain_size', 30 )
+            self.min_segment_size = self.mConfig.get('segments','min_segment_size', 30 )
+            self.min_distance_border = self.mConfig.get('segments','min_distance_border', 0)
+            self.resolution = self.mConfig.get('segments','resolution', 10.0 )
+
+            E.debug( "splitting parameters: resolution=%f, min_domain_size=%i, min_distance_border=%i" % \
+                         (self.resolution,
+                          self.min_domain_size,
+                          self.min_distance_border ) )
+
+            # rescale
+            self.r_min_domain_size = int(float(self.min_domain_size) / self.resolution)
+            self.r_min_distance_border = int(float(self.min_distance_border) / self.resolution)
+
             if self.mContinueAt == None:
                 self.mOutfile.write( "\t".join( self.mHeaders) + "\n" )
                 self.mOutfile.flush()
@@ -156,7 +187,7 @@ class AddaSegment( AddaModuleRecord ):
 
         tree = self.getTree( nid, length, neighbours ) 
 
-        if self.mConfig.get("segments", "covering_trees"):
+        if self.covering_trees:
             tree = self.convertTreeToCoveringTree( tree )
         
         max_depth = 0
@@ -239,8 +270,8 @@ class AddaSegment( AddaModuleRecord ):
         new_ranges = []
                 
         for r in ranges:
-            new_ranges.append( ( max(int(r[0] * self.mResolution), 0),
-                                 min(int(r[1] * self.mResolution), max_length)) )
+            new_ranges.append( ( max(int(r[0] * self.resolution), 0),
+                                 min(int(r[1] * self.resolution), max_length)) )
         return new_ranges
     #--------------------------------------------------------------------------
     def convertResidues2Ranges( self, residues, max_length ):
@@ -300,7 +331,7 @@ class AddaSegment( AddaModuleRecord ):
                 continue
                 
             ## write if not consecutive and there is a small gap
-            if this_left - last_right > self.mConfig['segments']['min_segment_length']:
+            if this_left - last_right > self.min_segment_size:
                 if last_is_right:
                     new_right_ranges.append((last_left, last_right))
                 else:
@@ -310,12 +341,12 @@ class AddaSegment( AddaModuleRecord ):
                 continue
     
             ## if current segment is too small: add to current type
-            if (this_right - this_left) < self.mConfig['segments']['min_segment_length']:
+            if (this_right - this_left) < self.min_segment_size:
                 last_right = this_right
                 continue
     
             ## if previous segment is too small to be output: add to next type
-            if (last_right - last_left) < self.mConfig['segments']['min_segment_length']:
+            if (last_right - last_left) < self.min_segment_size:
                 last_right = this_right
                 last_is_right = this_is_right
                 continue
@@ -418,7 +449,7 @@ class AddaSegment( AddaModuleRecord ):
         return new_left_ranges, new_right_ranges
     
     #----------------------------------------------------------------
-    def removeSmallRanges( self, ranges, min_segment_length, max_separation = 1):
+    def removeSmallRanges( self, ranges, max_separation = 1):
         """resolve ranges.
     
         ranges are defined as tuples: (from, to, type)
@@ -439,7 +470,7 @@ class AddaSegment( AddaModuleRecord ):
             ## write if not consecutive and there is a small gap, but only
             ## if segment is long enough, otherwise: discard
             if this_left - last_right > max_separation:
-                if (last_right - last_left) >= min_segment_length:
+                if (last_right - last_left) >= self.min_segment_size:
                     new_ranges.append((last_left, last_right, last_type))
                 last_left, last_right, last_type = this_left, this_right, this_type
                 # print "a"
@@ -453,13 +484,13 @@ class AddaSegment( AddaModuleRecord ):
                 continue
                 
             ## if current segment is too small: add to last type
-            if (this_right - this_left) < min_segment_length:
+            if (this_right - this_left) < self.min_segment_size:
                 last_right = this_right
                 # print "c"
                 continue
     
             ## if previous segment is too small to be output: add to current type
-            if (last_right - last_left) < min_segment_length:
+            if (last_right - last_left) < self.min_segment_size:
                 last_right = this_right
                 last_type = this_type
                 # print "d"
@@ -472,8 +503,8 @@ class AddaSegment( AddaModuleRecord ):
             
         new_ranges.append((last_left, last_right, last_type))
     
-        self.debug( "# old ranges=%s" % ranges)
-        self.debug( "# new ranges=%s" % new_ranges)
+        self.debug( "old ranges=%s" % ranges)
+        self.debug( "new ranges=%s" % new_ranges)
             
         return new_ranges
     
@@ -547,8 +578,9 @@ class AddaSegment( AddaModuleRecord ):
         """make a covering tree out of a splitting tree.
         Shortening of domains is not allowed.
         """
-    
-        self.debug( "making covering trees" )
+
+        self.debug( "convertTreeToCoveringTree: tree at start" )
+        if E.getLogLevel() >= 2: self.printTree( tree )
     
         ntree = self.addChildren( tree )
     
@@ -609,9 +641,8 @@ class AddaSegment( AddaModuleRecord ):
     
         max_range = covering_tree[0][4][0][1]
     
-        self.debug( "resulting tree" )
-        if E.getLogLevel() >= 2:
-            self.printTree( covering_tree )
+        self.debug( "convertTreeToCoveringTree: tree before removing small domains" )
+        if E.getLogLevel() >= 2: self.printTree( covering_tree )
         
         ###################################
         ## remove small fragments
@@ -629,8 +660,8 @@ class AddaSegment( AddaModuleRecord ):
                 
             # and remove small fragments
             new_ranges = self.removeSmallRanges( ranges, 
-                                                 int(self.mConfig.get('segments','min_segment_size')), 
-                                                 int(self.mConfig.get('segments','min_segment_size')))
+                                                 self.min_segment_size,
+                                                 self.min_segment_size )
     
             # and put back into tree if there is more than one range
             for (xfrom, xto, node) in new_ranges:
@@ -639,15 +670,17 @@ class AddaSegment( AddaModuleRecord ):
         ###################################
         ## delete nodes with empty ranges or only a single child.
         ## renumber nodes so that there are no gaps
-    
-        if E.getLogLevel() >= 2:
-            self.printTree( covering_tree )
+
+        self.debug( "convertTreeToCoveringTree: after removing small domains" )
+        if E.getLogLevel() >= 2: self.printTree( covering_tree )
         
         return self.collapseTree( covering_tree )
     
     #-----------------------------------------------------------------------------------------------------
     def buildMatrix( self,
-                     query_nid, lsequence, neighbours ):
+                     query_nid, 
+                     lsequence, 
+                     neighbours ):
         
         """build matrix based on BLAST alignments to query_nid.
 
@@ -664,16 +697,24 @@ class AddaSegment( AddaModuleRecord ):
 
         if residue_level is set, entries are added on the residue level. The resolution parameter
         is ignored.
+
+        Scaling by resolution:
+        
+        To convert a range according to resolution, alignments are 
+        extended.
+        
+        start, end = math.floor(start / resolution), math.ceil(end, resolution)
+        
         """
 
-        combine_repeats = self.mConfig.get( "segments", "combine_repeats")
-                    
-        query_length = int( math.floor( float(lsequence )) / float(self.mResolution))
+        query_length = int( math.ceil(float(lsequence) / self.resolution ))
 
         nindex = {}
+
+        neighbours.mMatches.sort( key = lambda x: x.mQueryFrom )
     
         nneighbours = 0
-        if combine_repeats:
+        if self.combine_repeats:
             for neighbour in neighbours.mMatches:
                 if not nindex.has_key(neighbour.mSbjctToken):
                     nindex[neighbour.mSbjctToken] = nneighbours
@@ -689,14 +730,14 @@ class AddaSegment( AddaModuleRecord ):
         
         for n in neighbours.mMatches:
 
-            if combine_repeats:
+            if self.combine_repeats:
                 use_row = nindex[n.mSbjctToken]
             else:
                 use_row = row
                 row += 1
     
-            yfrom = int(math.floor(n.mQueryFrom/self.mResolution))
-            yto   = int(math.floor(n.mQueryTo/self.mResolution)) 
+            yfrom = int(math.floor(n.mQueryFrom/self.resolution))
+            yto   = int(math.ceil(n.mQueryTo/self.resolution)) 
             matrix[use_row, yfrom:yto] = 1
                 
         return matrix
@@ -712,7 +753,9 @@ class AddaSegment( AddaModuleRecord ):
         self.debug( "blast matrix for %s: %s" % (nid, str(blast_matrix.shape)))
 
         if E.getLogLevel() >= 3:
-            MatlabTools.WriteMatrix(blast_matrix, outfile=open("blast_%s.matrix" % nid, "w"))
+            MatlabTools.WriteMatrix(blast_matrix, 
+                                    outfile=open("blast_%s.matrix" % nid, "w"),
+                                    format = "%i" )
     
         nneighbours, lmatrix = blast_matrix.shape
 
@@ -726,7 +769,9 @@ class AddaSegment( AddaModuleRecord ):
 
         if E.getLogLevel() >= 3:
             self.debug( "correlation matrix for %s: %s" % (nid, str(dot_matrix.shape)))            
-            MatlabTools.WriteMatrix(dot_matrix, outfile=open("correlation_%s.matrix" % nid, "w"))
+            MatlabTools.WriteMatrix(dot_matrix, 
+                                    outfile=open("correlation_%s.matrix" % nid, "w"),
+                                    format = "%i" )
 
         ## perform some matrix magic
         if int(self.mConfig.get('segments','multiply')) > 0:
@@ -736,10 +781,10 @@ class AddaSegment( AddaModuleRecord ):
                 if E.getLogLevel() >= 3:
                     MatlabTools.WriteMatrix(dot_matrix, outfile=open("correlation_%s_%i.matrix" % (nid, x), "w"))
     
-        if self.mConfig.get('segments','matrix_add_local_bias'):
+        if self.add_local_bias:
             self.addLocalBiasToMatrix( dot_matrix )
     
-        if self.mConfig.get('segments','normalize'):
+        if self.normalize_matrix:
             dot_matrix = self.normalizeMatrix( dot_matrix, numpy.sum( blast_matrix, axis=0) )
 
         if E.getLogLevel() >= 3:
@@ -748,11 +793,11 @@ class AddaSegment( AddaModuleRecord ):
             
         ## rearrange matrix if necessary
         map_row_new2old = range(0, lmatrix)        
-        if self.mConfig.get('segments','permute') == "True":
+        if self.permute_matrix:
             row_indices, col_indices =  CorrespondenceAnalysis.GetIndices( dot_matrix )
             
             if not row_indices:
-                print "# error for %i: correspondence analysis did not converge" % nid
+                print "error for %i: correspondence analysis did not converge" % nid
             else:
                 map_row_new2old = numpy.argsort(row_indices)
             
@@ -764,13 +809,10 @@ class AddaSegment( AddaModuleRecord ):
         
         full_range = dot_matrix.shape
     
-    
         xtree = self.splitMatrix( nid,
                                   dot_matrix,
                                   (0, lmatrix),
                                   0,
-                                  int(self.mMinDomainSize / self.mResolution),
-                                  int(self.mConfig.get('segments','min_distance_border')),
                                   map_row_new2old)
     
         self.debug( "xtree=%s" % xtree )
@@ -782,18 +824,15 @@ class AddaSegment( AddaModuleRecord ):
     
         return tree
 
-
     #-------------------------------------------------------------------------
     def splitMatrix( self,
                      nid,
                      matrix,
-                     intervall,
+                     interval,
                      level,
-                     min_length = 30,
-                     min_distance_border = 0,
                      map_row_new2old = None ):
         """
-        calculate objective function for matrix in intervall
+        calculate objective function for matrix in interval
 
         ::
 
@@ -815,13 +854,14 @@ class AddaSegment( AddaModuleRecord ):
             I[x] = (i11*i22-i21*i12)**2 * total / row&col-sums
             I[x] = mu[x]/F[x]
         """
-        xfrom, xto = intervall
+        xfrom, xto = interval
         l = xto - xfrom 
     
-        if l < min_length: return []
-    
-        self.debug( "# splitting matrix on level %i in intervall %s %i" % (level, intervall, min_length))
-    
+        if l < self.r_min_domain_size: return []
+
+        self.debug( "separation values on level %i in interval %s" % (level, interval) )
+        self.debug( "x\tlleft\tlright\ti11\ti22\ti12\tval" )
+ 
         ## 1. build Interfaces
         I = numpy.zeros( l, numpy.float )
     
@@ -848,11 +888,11 @@ class AddaSegment( AddaModuleRecord ):
             else:
                 I[l1] = 0.0
 
-            self.debug( "# %i\t%i\t%i\t%i\t%i\t%i\t%f" % (x, l1, l2, i11, i22, i12, I[l1]))
+            self.debug( "%i\t%i\t%i\t%i\t%i\t%i\t%f" % (x, l1, l2, i11, i22, i12, I[l1]))
 
         ## 2. split at maximum
-        if min_distance_border and l > 2 * min_distance_border:
-            xmax = numpy.argmax( I[min_distance_border:(-min_distance_border)] ) + min_distance_border
+        if self.r_min_distance_border and l > 2 * self.r_min_distance_border:
+            xmax = numpy.argmax( I[self.r_min_distance_border:(-self.r_min_distance_border)] ) + self.r_min_distance_border
         else:
             xmax = numpy.argmax( I )
     
@@ -861,32 +901,75 @@ class AddaSegment( AddaModuleRecord ):
     
         if xmax == 0: return []
 
-        self.debug( "splitting at position %i with value %f %f" % (pos, val, xmax))
+        self.debug( "splitting at position %i with value %f: xmax=%f" % (pos, val, xmax))
     
         result = []
     
-        if xmax > min_length:
+        if xmax > self.r_min_domain_size:
             result += [(level+1,
                         map_row_new2old[xfrom:pos],
                         self.splitMatrix( nid,
-                                     matrix,
-                                     (xfrom, pos),
-                                     level+1,
-                                     min_length,
-                                     min_distance_border,
-                                     map_row_new2old))]
+                                          matrix,
+                                          (xfrom, pos),
+                                          level+1,
+                                          map_row_new2old))]
     
     
-        if (l - xmax) > min_length:
+        if (l - xmax) > self.r_min_domain_size:
             result += [(level+1,
                         map_row_new2old[pos:xto],
                         self.splitMatrix( nid,
-                                     matrix,
-                                     (pos,xto),
-                                     level+1,
-                                     min_length,
-                                     min_distance_border,
-                                     map_row_new2old))]
+                                          matrix,
+                                          (pos,xto),
+                                          level+1,
+                                          map_row_new2old))]
             
         return result
     
+if __name__ == "__main__":
+    
+    parser = optparse.OptionParser( version = "%prog version: $Id$",
+                                    usage = globals()["__doc__"],
+                                    )
+
+    parser.add_option( "--config", dest="filename_config", type="string",
+                      help="configuration file [default=%default].")
+
+    parser.set_defaults( 
+        filename_config = "adda.ini", )
+
+    (options, args) = E.Start( parser )
+
+    if len(args) == 0:
+        raise ValueError( "please supply one or more nids to test." )
+
+    
+    config = AddaIO.ConfigParser()
+    config.read( os.path.expanduser( options.filename_config ) )
+
+    filename_graph = config.get( "files", "output_graph", "adda.graph")
+    filename_index = config.get( "files", "output_index", "adda.graph.index")
+    filename_fasta= config.get( "files", "output_fasta", "adda" )
+
+    fasta = IndexedFasta.IndexedFasta( filename_fasta )
+
+    index = cadda.IndexedNeighbours( filename_graph, 
+                                     filename_index )
+
+    config.set( "files", "output_segments", "test.segments" )
+
+    module = AddaSegment( config = config,
+                          fasta = fasta,
+                          )
+
+    module.startUp()
+
+    args = map(int, args)
+
+    for nid in args:
+        neighbours = index.getNeighbours( nid )
+        module.applyMethod( AddaIO.NeighboursRecord( nid, neighbours )) 
+                      
+    module.finish
+
+    E.Stop()

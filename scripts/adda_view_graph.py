@@ -17,8 +17,19 @@ def main():
     parser = optparse.OptionParser( version = "%prog version: $Id$", usage = USAGE )
 
     parser.add_option( "--method", dest="method", type="choice",
-                       choices=("view", "align" ),
+                       choices=("view", "align", "pileup", "profile" ),
                        help="method to perform [default=%default].")
+
+    parser.add_option( "--mode", dest="mode", type="choice",
+                       choices=("global", "local"),
+                       help="alignment mode [default=%default].")
+
+    parser.add_option( "--gop", dest="gop", type="float",
+                       help="gap opening penalty [default=%default].")
+
+    parser.add_option( "--gep", dest="gep", type="float",
+                       help="gap extension penalty [default=%default].")
+
 
     parser.set_defaults( 
         filename_graph = "adda.graph",
@@ -28,6 +39,9 @@ def main():
         filename_config = "adda.ini",
         append = False,
         force = False,
+        mode = "local",
+        gop = -10.0,
+        gep = -1.0,
         )
     
     (options, args) = E.Start( parser )
@@ -38,6 +52,14 @@ def main():
     index = cadda.IndexedNeighbours( options.filename_graph,
                                      options.filename_index )
 
+    alignlib.getDefaultToolkit().setEncoder( alignlib.getEncoder( alignlib.Protein20 ) )
+    alignlib.getDefaultToolkit().setRegularizor( alignlib.makeRegularizorDirichletPrecomputed() )
+    alignlib.getDefaultToolkit().setLogOddor( alignlib.makeLogOddorDirichlet( 0.3 ) )
+    alignlib.getDefaultToolkit().setWeightor( alignlib.makeWeightor() )
+
+    fasta = IndexedFasta.IndexedFasta( options.filename_fasta )
+    align = AddaProfiles.AddaProfiles( config, fasta = fasta )
+
     if options.method == "view":
         for nid in  args:
             nid = int(args[0])
@@ -47,27 +69,51 @@ def main():
             for n in neighbours:
                 print str(n)
 
+    elif options.method == "pileup":
+        
+        if "_" in args[0]:
+            nid,start,end = AddaIO.toTuple( args[0] )
+        else:
+            nid = int(args[0])
+            start, end = None, None
+
+        neighbours = index.getNeighbours( nid )
+        mali = align.buildMali( nid, neighbours )
+        options.stdout.write( "%s\n" % str(mali))
+
+    elif options.method == "profile":
+        
+        if "_" in args[0]:
+            nid,start,end = AddaIO.toTuple( args[0] )
+        else:
+            nid = int(args[0])
+            start, end = None, None
+
+        neighbours = index.getNeighbours( nid )
+        mali = align.buildMali( nid, neighbours )
+        prof = alignlib.makeProfile( mali )
+        E.info( "nid: %i, neighours=%i" % (nid, len(neighbours)))
+        if start != None:
+            prof.useSegment( start, end )
+        prof.prepare()
+        options.stdout.write("%s\n"% str(prof))
+
+
     elif options.method == "align":
         
-        fasta = IndexedFasta.IndexedFasta( options.filename_fasta )
         nid1,start1, end1 = AddaIO.toTuple( args[0] )
         nid2,start2, end2 = AddaIO.toTuple( args[1] )
 
-        align = AddaProfiles.AddaProfiles( options, config, fasta = fasta )
+        align = AddaProfiles.AddaProfiles( config, fasta = fasta )
 
-        logoddor    = alignlib.makeLogOddorDirichlet( 0.3 )
-        regularizor = alignlib.makeRegularizorDirichletPrecomputed()
-        weightor    = alignlib.makeWeightor()
+        if options.mode == "local":
+            mode = alignlib.ALIGNMENT_LOCAL 
+        else:
+            mode = alignlib.ALIGNMENT_GLOBAL
 
-        alignator = alignlib.makeAlignatorDPFull( alignlib.ALIGNMENT_LOCAL, 
-                                                  -10.0,
-                                                  -1.0 )
-
-        toolkit = alignlib.makeToolkit()
-        alignlib.setDefaultToolkit( toolkit )
-        toolkit.setWeightor( weightor )
-        toolkit.setLogOddor( logoddor )
-        toolkit.setRegularizor( regularizor )
+        alignator = alignlib.makeAlignatorDPFull( mode,
+                                                  options.gop,
+                                                  options.gep )
 
         def _buildProfile( nid, start, end ):
             neighbours = index.getNeighbours( nid )
@@ -85,6 +131,8 @@ def main():
         result = alignlib.makeAlignmentVector()
         
         alignator.align( result, prof1, prof2 )
+
+        E.debug( "%s\n" % str(result))
         
         options.stdout.write( "%s vs %s: score=%5.2f, length=%i, numgaps=%i, row_from=%i, row_to=%i, col_from=%i, col_to=%i\n" %\
                                   (nid1, nid2,
@@ -95,7 +143,6 @@ def main():
                                    result.getColFrom(), result.getColTo()))
 
         f = alignlib.AlignmentFormatExplicit( result, seq1, seq2 )
-
         options.stdout.write( "%s\n" % str(f))
 
     E.Stop()

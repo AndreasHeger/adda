@@ -108,6 +108,7 @@ class AddaOptimise( AddaModuleBlock ):
         self.info( "setting parameters" )
                 
         config = AddaIO.ConfigParser()
+
         config.read( self.mFilenameFit )                                
         self.mExponentialF = float( config.get( "optimise", "exponential_f" ) )   
         self.mExponentialE = float( config.get( "optimise", "exponential_e" ) )           

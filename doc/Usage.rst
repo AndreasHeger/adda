@@ -86,7 +86,8 @@ ABCDE will result in "ABC---DE".
 
 ADDA can read alternative formats. See the command line option ``--alignment-format``.
 
-This file can be read in compressed form (gzip, suffix ".gz").
+This file can be compressed (filenames ending in suffix ".gz") and/or split into
+several files. 
 
 .. _ReferenceFile:
 
@@ -120,56 +121,15 @@ input_fasta
 input_reference
    the file with reference domain information (`ReferenceFile`_)
 
+A sample :file:`adda.ini` can be found in the :file:`test` directory.
+
 Running ADDA
 ============
 
-ADDA is controlled through a single script :file:`adda.py`.
-ADDA proceeds in stage and each stage corresponds to a command to
-the script adda.py. To run all stages, run adda.py as
+ADDA is controlled through a single script :file:`adda.py`. In order to
+run 
 
-   python adda.py --steps=all
 
-The specific stages are:
-
-   0 ``sequences``: read the sequence file and relabel numerically (:class:`AddaSequences.AddaSequences`)
-
-   1 Pre-processing of graph. These steps are performed in parallel
-
-      1 ``segment`` - compute hierachical decomposition of sequences (:class:`AddaSegment.AddaSegment`)
-      
-      2 ``profiles`` - build sequence profiles (:class:`AddaProfiles.AddaProfiles`)
-      
-      3 ``graph`` - format and filtering the alignment graph (:class:`AddaGraph.AddaGraph`)
-      
-      4 ``fit`` - estimate the error parameters (:class:`AddaFit.AddaFit`)
- 
-   2 ``index`` index the alignment graph (:class:`AddaIndex.AddaIndex`)
-
-   3 ``optimise`` - decompose sequences into domains (:class:`AddaOptimise.AddaOptimise`)
-
-   4 ``convert`` - convert the alignment graph into a domain graph (:class:`AddaConvert.AddaConvert`)
-
-   5  ``mst`` - build minimum spanning tree of domains (:class:`AddaMst.AddaMst`)
-
-   6 ``align`` - align domains (:class:`AddaAlign.AddaAlign`)
-
-   7 ``cluster`` - cluster domains into families (:class:`AddaCluster.AddaCluster`)
-
-   8 ``families`` - process singletons (:class:`AddaFamilies.AddaFamilies`)
-
-Disk usage
-----------
-
-ADDA requires a large amount of temporary diskspace. The largest components are
-
-   * the :file:`files:profile library`. The file size depends on the number of sequences. In the
-      test set, 220,000 sequences require 2.6 Gb space.
-
-   * the :file:`files:domain_graph`. The file size depends on the number of domains and 
-      the number of pairwise alignments. In the test set, this file is 1.2 Gb.
-
-   * the :file:`files:graph`. The file size depends on the number of pairwise alignments.
-      In the test set, this file is 605 Mb.
 
 Parallel runs
 -------------

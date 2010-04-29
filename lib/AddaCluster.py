@@ -1,4 +1,4 @@
-import sys, os, re, time, math, copy, glob, optparse, math
+import sys, os, re, time, math, copy, glob, optparse, math, gzip
 
 import cadda
 
@@ -50,18 +50,18 @@ class AddaCluster( AddaModuleBlock ):
         """
         componentor = Components.SComponents()
 
-        infile = SegmentedFile.openfile( self.mFilenameAlignments, "r" )
+        infile = open( self.mFilenameAlignments, "r" )
 
         naccepted, nrejected_score, nrejected_aligned = 0, 0, 0
         for line in infile:
             if line[0] == "#": continue
             if line.startswith( "passed"): continue
             
-            (code, qdomain, sdomain, estimate, 
+            (qdomain, sdomain, estimate, code, 
              qstart, qend, qali, sstart, send, sali, 
              score, naligned, ngaps, zscore) =\
-                line[:-1].split("\t")
-            
+             line[:-1].split("\t")
+             
             if code == "+":
                 if int(naligned) >= self.mMinAlignedResidues:
                     componentor.add( qdomain, sdomain )

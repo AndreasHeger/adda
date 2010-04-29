@@ -273,7 +273,9 @@ def Write( outfile, h, intervalls = None, format = 0, nonull = None, format_valu
         fb = lambda x: format_bin % x
     else:
         fb = str
-    
+
+    lines = []
+
     if type(h[0]) != ListType and type(h[0]) != TupleType:
         for x in range(0,len(h)):
 

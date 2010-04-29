@@ -32,7 +32,7 @@ class OutputStatisticsAnnotations ( OutputStatistics):
 
     
     ##-------------------------------------------------------------------------------------
-    def __init__(self, dbhandle):
+    def __init__(self):
 
         self.mShortOptions += "d:f:s:l:a:n:"
         self.mLongOptions += ["domains=", "families=", "structures=",
@@ -72,19 +72,19 @@ class OutputStatisticsAnnotations ( OutputStatistics):
         self.mCombineRepeats = 1
         self.mMinNeighbours = 0
         
-        OutputStatistics.__init__(self, dbhandle)
+        OutputStatistics.__init__(self)
         
-        self.mTableDomains = TableDomains( self.mDbhandle, "domains")
+        self.mTableDomains = TableDomains( self.dbhandle, "domains")
         self.mTableDomains.SetName( self.mTableNameDomains)
 
-        self.mTableFamilies = TableFamilies( self.mDbhandle, "families")
+        self.mTableFamilies = TableFamilies( self.dbhandle, "families")
         self.mTableFamilies.SetName( self.mTableNameFamilies)
 
         if self.mTableNameNids:
-            self.mTableNids = TableNids( self.mDbhandle )
+            self.mTableNids = TableNids( self.dbhandle )
             self.mTableNids.SetName( self.mTableNameNids )
 
-        self.mTableNrdb = Table_nrdb( self.mDbhandle )
+        self.mTableNrdb = Table_nrdb( self.dbhandle )
 
 
     ##------------------------------------------------------------------------------------        
@@ -164,12 +164,12 @@ class OutputStatisticsAnnotations ( OutputStatistics):
         class_name = self.mTableDomains.GetFieldNameClass()
 
         statement = "SELECT COUNT(*) FROM %s GROUP BY %s" % (self.mTableNameDomains, class_name)
-        data = map(lambda x: x[0], self.mDbhandle.Execute( statement ).fetchall())
+        data = map(lambda x: x[0], self.dbhandle.Execute( statement ).fetchall())
         h1 = Histogram.Calculate(data)
         histograms.append( h1 )
 
-        statement = "SELECT COUNT(DISTINCT rep_nid) FROM %s GROUP BY %s" % (self.mTableNameDomains, class_name)
-        data = map(lambda x: x[0], self.mDbhandle.Execute( statement ).fetchall())
+        statement = "SELECT COUNT(DISTINCT nid) FROM %s GROUP BY %s" % (self.mTableNameDomains, class_name)
+        data = map(lambda x: x[0], self.dbhandle.Execute( statement ).fetchall())
         h2 = Histogram.Calculate(data)
         histograms.append( h2 )
         
@@ -189,8 +189,8 @@ class OutputStatisticsAnnotations ( OutputStatistics):
         print "LENGTH\tNUNITS"
         sys.stdout.flush()
 
-        statement = "SELECT rep_to-rep_from+1 AS length, COUNT(*) FROM %s GROUP BY length" % self.mTableNameDomains
-        h1 = self.mDbhandle.Execute( statement ).fetchall()        
+        statement = "SELECT end-start+1 AS length, COUNT(*) FROM %s GROUP BY length" % self.mTableNameDomains
+        h1 = self.dbhandle.Execute( statement ).fetchall()        
 
         Histogram.Print(h1)        
         
@@ -214,18 +214,18 @@ class OutputStatisticsAnnotations ( OutputStatistics):
 
         class_name = self.mTableDomains.GetFieldNameClass()
         
-        nnids = self.mDbhandle.Execute(
-            "SELECT COUNT(DISTINCT rep_nid) FROM %s" %\
+        nnids = self.dbhandle.Execute(
+            "SELECT COUNT(DISTINCT nid) FROM %s" %\
             self.mTableNameDomains).fetchone()[0]
-        ndom,nfam = self.mDbhandle.Execute(
+        ndom,nfam = self.dbhandle.Execute(
             "SELECT COUNT(*), COUNT(DISTINCT(%s)) FROM %s" %\
             (class_name, self.mTableNameDomains)).fetchone()
-        nsin = len(self.mDbhandle.Execute(
+        nsin = len(self.dbhandle.Execute(
             "SELECT COUNT(*) AS s FROM %s GROUP BY %s HAVING s <= 1" % (self.mTableNameDomains, class_name)).fetchall())
-        maxu = self.mDbhandle.Execute(
+        maxu = self.dbhandle.Execute(
             "SELECT COUNT(*) AS s FROM %s GROUP BY %s ORDER BY s DESC" % (self.mTableNameDomains, class_name)).fetchone()[0]
-        maxs = self.mDbhandle.Execute(
-            "SELECT COUNT(DISTINCT rep_nid) AS s FROM %s GROUP BY %s ORDER BY s DESC " % (self.mTableNameDomains, class_name)).fetchone()[0]
+        maxs = self.dbhandle.Execute(
+            "SELECT COUNT(DISTINCT nid) AS s FROM %s GROUP BY %s ORDER BY s DESC " % (self.mTableNameDomains, class_name)).fetchone()[0]
         
         print "%i\t%i\t%i\t%i\t%i\t%i" % ( nnids, ndom, nfam, nsin, maxu, maxs)
         sys.stdout.flush()
@@ -281,7 +281,7 @@ class OutputStatisticsAnnotations ( OutputStatistics):
 
         if self.mRestrictTaxonomy:
             s1 = ",taxonomy_assignments AS t, taxonomy AS tt"
-            s2 = " AND t.nid = a.rep_nid AND tt.tax_id = t.tax_id AND tt.node_id <= %i" % self.mRestrictTaxonomy
+            s2 = " AND t.nid = a.nid AND tt.tax_id = t.tax_id AND tt.node_id <= %i" % self.mRestrictTaxonomy
         else:
             s1 = ""
             s2 = ""
@@ -290,10 +290,10 @@ class OutputStatisticsAnnotations ( OutputStatistics):
             class_id1 = sclass_ids[x]
                                     
             statement = """
-            SELECT DISTINCT b.family, COUNT(DISTINCT a.rep_nid) AS counts
+            SELECT DISTINCT b.family, COUNT(DISTINCT a.nid) AS counts
             FROM %s AS a, %s AS b %s
             WHERE a.family = '%s'
-            AND a.rep_nid = b.rep_nid
+            AND a.nid = b.nid
             AND b.family > a.family
             %s
             GROUP BY b.family
@@ -301,7 +301,7 @@ class OutputStatisticsAnnotations ( OutputStatistics):
                     self.mTableNameDomains,
                     s1, class_id1, s2)
 
-            result = self.mDbhandle.Execute(statement).fetchall()
+            result = self.dbhandle.Execute(statement).fetchall()
             
             for class_id2, counts in result:
                 print string.join(map(str, (class_id1, class_id2, counts)), "\t")
@@ -323,14 +323,14 @@ class OutputStatisticsAnnotations ( OutputStatistics):
         
         for class_id in class_ids:
             statement = """
-            SELECT a.rep_nid, COUNT(*) AS counts
+            SELECT a.nid, COUNT(*) AS counts
             FROM %s AS a
             WHERE %s = %s
-            GROUP BY a.rep_nid
+            GROUP BY a.nid
             """ % (self.mTableNameDomains,
                    class_name, class_id)
 
-            result = self.mDbhandle.Execute(statement).fetchall()
+            result = self.dbhandle.Execute(statement).fetchall()
 
             for x in range(0, len(result)-1):
                 nid1, counts1 = result[x]
@@ -353,12 +353,12 @@ class OutputStatisticsAnnotations ( OutputStatistics):
 
         class_name = self.mTableDomains.GetFieldNameClass()
         statement = """
-        SELECT a.rep_nid, b.rep_nid, a.%s, COUNT(*) AS counts
+        SELECT a.nid, b.nid, a.%s, COUNT(*) AS counts
         FROM %s AS a
         LEFT JOIN %s AS b
         ON a.%s = b.%s
-        WHERE a.rep_nid < b.rep_nid
-        GROUP BY a.rep_nid, b.rep_nid, a.%s
+        WHERE a.nid < b.nid
+        GROUP BY a.nid, b.nid, a.%s
         INTO OUTFILE '%s'
         """ % (class_name,
                self.mTableNameDomains, self.mTableNameDomains,
@@ -366,7 +366,7 @@ class OutputStatisticsAnnotations ( OutputStatistics):
                class_name,
                self.mOutputFilenameLinksSequences)
         
-        self.mDbhandle.Execute(statement)
+        self.dbhandle.Execute(statement)
 
     ##------------------------------------------------------------------------                
     def AnalyseTransfer( self ):
@@ -451,7 +451,7 @@ class OutputStatisticsAnnotations ( OutputStatistics):
                     WHERE query_nid = %i AND sbjct_nid = %i
                     """ % (self.mTableNameLinks, nids[x], nids[y])
 
-                    result = self.mDbhandle.Execute(statement).fetchall()
+                    result = self.dbhandle.Execute(statement).fetchall()
                     
                     for r in result:
                         query_from, query_to, sbjct_from, sbjct_to, evalue = r
@@ -526,7 +526,7 @@ class OutputStatisticsAnnotations ( OutputStatistics):
                 
             ## retrieve blast matrix
             ## make sure, add_self is 1, so that there are no empty columns
-            blast_matrix = NeighbourTools.BuildBLASTMatrix( self.mDbhandle,
+            blast_matrix = NeighbourTools.BuildBLASTMatrix( self.dbhandle,
                                                             nid,
                                                             self.mResolution,
                                                             self.mTableNameLinks,
@@ -624,25 +624,25 @@ class OutputStatisticsAnnotations ( OutputStatistics):
         statement = """
         SELECT
         a.%s AS class,
-        COUNT(DISTINCT a.rep_nid) AS nsequences,
-        COUNT(DISTINCT a.rep_nid, a.rep_from) AS nunits,
+        COUNT(DISTINCT a.nid) AS nsequences,
+        COUNT(DISTINCT a.nid, a.start) AS nunits,
         COUNT(DISTINCT s.pdb_id, s.pdb_chain) AS nstructures,
-        AVG(a.rep_to - a.rep_from)+1,
-        AVG(s.rep_to - s.rep_from)+1,
+        AVG(a.end - a.start)+1,
+        AVG(s.end - s.start)+1,
         AVG(
-         (LEAST(a.rep_to, s.rep_to) - GREATEST(a.rep_from,s.rep_from+1))/
-         (GREATEST(a.rep_to,s.rep_to)-LEAST(a.rep_from,s.rep_from+1)) ) AS avg_ovl,
+         (LEAST(a.end, s.end) - GREATEST(a.start,s.start+1))/
+         (GREATEST(a.end,s.end)-LEAST(a.start,s.start+1)) ) AS avg_ovl,
         AVG(
-         (LEAST(a.rep_to, s.rep_to) - GREATEST(a.rep_from,s.rep_from)+1)/
-         (a.rep_to-a.rep_from+1) ) AS avg_cov_domain,
+         (LEAST(a.end, s.end) - GREATEST(a.start,s.start)+1)/
+         (a.end-a.start+1) ) AS avg_cov_domain,
         AVG(
-         (LEAST(a.rep_to, s.rep_to) - GREATEST(a.rep_from,s.rep_from)+1)/
-         (s.rep_to-s.rep_from+1) ) AS avg_cov_struct
+         (LEAST(a.end, s.end) - GREATEST(a.start,s.start)+1)/
+         (s.end-s.start+1) ) AS avg_cov_struct
         FROM %s AS a,
         %s AS s
         WHERE
-        a.rep_nid = s.rep_nid AND
-        LEAST(a.rep_to, s.rep_to) - GREATEST(a.rep_from,s.rep_from) > %i
+        a.nid = s.nid AND
+        LEAST(a.end, s.end) - GREATEST(a.start,s.start) > %i
         GROUP BY a.%s
         """ % (class_name,
                self.mTableNameDomains, self.mTableNameStructures,
@@ -653,7 +653,7 @@ class OutputStatisticsAnnotations ( OutputStatistics):
             print statement
             sys.stdout.flush()
             
-        result = self.mDbhandle.Execute(statement).fetchall()
+        result = self.dbhandle.Execute(statement).fetchall()
 
         for r in result:
             print string.join(map(str, r),"\t")
@@ -687,7 +687,7 @@ class OutputStatisticsAnnotations ( OutputStatistics):
         class_name = self.mTableDomains.GetFieldNameClass()
         statement = """
         SELECT %s,
-        COUNT(DISTINCT %s, rep_from) AS nunits,
+        COUNT(DISTINCT %s, start) AS nunits,
         COUNT(DISTINCT %s) AS nsequences,
         0
         FROM %s AS d
@@ -704,7 +704,7 @@ class OutputStatisticsAnnotations ( OutputStatistics):
             self.mAnnotationMinSequences,
             self.mAnnotationMaxSequences)
 
-        clusters = self.mDbhandle.Execute( statement ).fetchall()
+        clusters = self.dbhandle.Execute( statement ).fetchall()
 
         totals = {}
 
@@ -715,16 +715,16 @@ class OutputStatisticsAnnotations ( OutputStatistics):
             # retrieve interpro annotation
             statement = """
             SELECT
-            COUNT(DISTINCT a.rep_nid, a.rep_from) AS nunits,                        
-            COUNT(DISTINCT a.rep_nid) AS nseqs,
+            COUNT(DISTINCT a.nid, a.start) AS nunits,                        
+            COUNT(DISTINCT a.nid) AS nseqs,
             p.db_key, p.description
             FROM %s AS a,
             pairsdb.nrdb_interpro AS i,
             pairsdb.interpro AS p 
             WHERE a.master_did = %%i
             AND p.interpro_id = i.interpro_id 
-            AND a.rep_nid = i.rep_nid 
-            AND (LEAST(i.rep_to,a.rep_to)-GREATEST( i.rep_from, a.rep_from)) > %i
+            AND a.nid = i.nid 
+            AND (LEAST(i.end,a.end)-GREATEST( i.start, a.start)) > %i
             GROUP BY p.interpro_id  
             HAVING nunits >= %s  
             ORDER BY nunits DESC""" % (
@@ -737,16 +737,16 @@ class OutputStatisticsAnnotations ( OutputStatistics):
             print "broken"
             sys.exit(1)
             statement = """
-            SELECT db_key, COUNT(*), COUNT(DISTINCT a.rep_nid)
+            SELECT db_key, COUNT(*), COUNT(DISTINCT a.nid)
             FROM %s AS a,
             pairsdb.nrdb_interpro AS i
-            WHERE a.rep_nid = i.rep_nid 
-            AND (LEAST(i.rep_to,a.rep_to)-GREATEST( i.rep_from, a.rep_from)) > %i
+            WHERE a.nid = i.nid 
+            AND (LEAST(i.end,a.end)-GREATEST( i.start, a.start)) > %i
             AND i.db_code = 3
             GROUP BY i.db_key
             """ % (self.mTableNameDomains, self.mAnnotationMinOverlap)
 
-            result = self.mDbhandle.Execute(statement).fetchall()
+            result = self.dbhandle.Execute(statement).fetchall()
             for key, nunits, nseqs in result:
                 tunits[key] = nunits
                 tseqs[key] = nseqs                
@@ -754,15 +754,15 @@ class OutputStatisticsAnnotations ( OutputStatistics):
             # retrieve pfam annotation from interpro (without mapping)
             statement = """
             SELECT
-            COUNT(DISTINCT i.rep_nid, i.rep_from) AS nunits,
-            COUNT(DISTINCT i.rep_nid) AS nseqs, 
+            COUNT(DISTINCT i.nid, i.start) AS nunits,
+            COUNT(DISTINCT i.nid) AS nseqs, 
             i.db_key, p.description
             FROM %s AS a,
             pairsdb.nrdb_interpro AS i,
             pairsdb.interpro AS p 
             WHERE a.master_did = %%i
-            AND a.rep_nid = i.rep_nid 
-            AND (LEAST(i.rep_to,a.rep_to)-GREATEST( i.rep_from, a.rep_from)) > %i
+            AND a.nid = i.nid 
+            AND (LEAST(i.end,a.end)-GREATEST( i.start, a.start)) > %i
             AND i.db_code = 3
             AND i.db_key = p.db_key
             GROUP BY i.db_key
@@ -777,34 +777,34 @@ class OutputStatisticsAnnotations ( OutputStatistics):
             statement = """
             SELECT
             pfam_class,
-            COUNT(DISTINCT i.rep_nid, i.rep_from) AS nunits,
-            COUNT(DISTINCT i.rep_nid) AS nseqs,
-            AVG(i.rep_to-i.rep_from+1)
+            COUNT(DISTINCT i.nid, i.start) AS nunits,
+            COUNT(DISTINCT i.nid) AS nseqs,
+            AVG(i.end-i.start+1)
             FROM pairsdb.nrdb40_pfam_nr AS i,
             %s AS a
-            WHERE a.rep_nid = i.rep_nid
+            WHERE a.nid = i.nid
             GROUP BY i.pfam_class
             """ % self.mTableNameDomains
 
-            result = self.mDbhandle.Execute(statement).fetchall()
+            result = self.dbhandle.Execute(statement).fetchall()
             for key, nunits, nseqs, length in result:
                 totals[key]= (nunits, nseqs,length)
             
             # retrieve pfam annotation from nrdb40_pfam_nr
             statement = """
             SELECT
-            COUNT(DISTINCT i.rep_nid, i.rep_from) AS nunits,
-            COUNT(DISTINCT i.rep_nid) AS nseqs, 
+            COUNT(DISTINCT i.nid, i.start) AS nunits,
+            COUNT(DISTINCT i.nid) AS nseqs, 
             i.pfam_class, p.description,
-            AVG(LEAST(i.rep_to,a.rep_to)-GREATEST(i.rep_from, a.rep_from)),
-            GREATEST(i.rep_to,a.rep_to)-LEAST(i.rep_from, a.rep_from),
-            LEAST(i.rep_to,a.rep_to)-GREATEST(i.rep_from, a.rep_from)            
+            AVG(LEAST(i.end,a.end)-GREATEST(i.start, a.start)),
+            GREATEST(i.end,a.end)-LEAST(i.start, a.start),
+            LEAST(i.end,a.end)-GREATEST(i.start, a.start)            
             FROM %s AS a,
             pairsdb.nrdb40_pfam_nr AS i,
             pairsdb.pfam AS p 
             WHERE a.%s = "%%s"
-            AND a.rep_nid = i.rep_nid 
-            AND (LEAST(i.rep_to,a.rep_to)-GREATEST(i.rep_from, a.rep_from)) > %i
+            AND a.nid = i.nid 
+            AND (LEAST(i.end,a.end)-GREATEST(i.start, a.start)) > %i
             AND i.pfam_class = p.db_key
             GROUP BY i.pfam_class
             HAVING nunits >= %i  
@@ -816,13 +816,13 @@ class OutputStatisticsAnnotations ( OutputStatistics):
 
             statement_annotated = """
             SELECT
-            COUNT(DISTINCT a.rep_nid, a.rep_from) AS nunits,
-            COUNT(DISTINCT a.rep_nid) AS nseqs
+            COUNT(DISTINCT a.nid, a.start) AS nunits,
+            COUNT(DISTINCT a.nid) AS nseqs
             FROM %s AS a,
             pairsdb.nrdb40_pfam_nr AS i
             WHERE a.%s = "%%s"
-            AND a.rep_nid = i.rep_nid             
-            AND (LEAST(i.rep_to,a.rep_to)-GREATEST( i.rep_from, a.rep_from)) > %i
+            AND a.nid = i.nid             
+            AND (LEAST(i.end,a.end)-GREATEST( i.start, a.start)) > %i
             """ % (
                 self.mTableNameDomains,
                 class_name,
@@ -833,36 +833,36 @@ class OutputStatisticsAnnotations ( OutputStatistics):
             statement = """
             SELECT
             SUBSTRING(scop_class,1,9) AS c,
-            COUNT(DISTINCT rep_nid, rep_from) AS nunits,
-            COUNT(DISTINCT rep_nid) AS nseqs,
-            AVG(rep_to-rep_from+1)
+            COUNT(DISTINCT nid, start) AS nunits,
+            COUNT(DISTINCT nid) AS nseqs,
+            AVG(end-start+1)
             FROM pairsdb.nrdb40_scop_nr AS i,
             %s AS a
-            WHERE a.rep_nid = i.rep_nid
+            WHERE a.nid = i.nid
             AND SUBSTRING(scop_class,3,1) IN ("a", "b", "c", "d")            
             GROUP BY c
             """ % self.mTableNameDomains
 
-            result = self.mDbhandle.Execute(statement).fetchall()
+            result = self.dbhandle.Execute(statement).fetchall()
             for key, nunits, nseqs, length in result:
                 totals[key]= (nunits, nseqs,length)
             
             # retrieve scop annotation from nrdb40_scop_nr
             statement = """
             SELECT
-            COUNT(DISTINCT i.rep_nid, i.rep_from) AS nunits,
-            COUNT(DISTINCT i.rep_nid) AS nseqs, 
+            COUNT(DISTINCT i.nid, i.start) AS nunits,
+            COUNT(DISTINCT i.nid) AS nseqs, 
             SUBSTRING(i.scop_class,1,9) AS c, p.description,
-            AVG(LEAST(i.rep_to,a.rep_to)-GREATEST(i.rep_from, a.rep_from)),
-            GREATEST(i.rep_to,a.rep_to)-LEAST(i.rep_from, a.rep_from),
-            LEAST(i.rep_to,a.rep_to)-GREATEST(i.rep_from, a.rep_from)            
+            AVG(LEAST(i.end,a.end)-GREATEST(i.start, a.start)),
+            GREATEST(i.end,a.end)-LEAST(i.start, a.start),
+            LEAST(i.end,a.end)-GREATEST(i.start, a.start)            
             FROM %s AS a,
             pairsdb.nrdb40_scop_nr AS i,
             pairsdb.scop AS p
             WHERE a.master_did = %%i
-            AND a.rep_nid = i.rep_nid
+            AND a.nid = i.nid
             AND SUBSTRING(i.scop_class,3,1) IN ("a", "b", "c", "d")            
-            AND (LEAST(i.rep_to,a.rep_to)-GREATEST(i.rep_from, a.rep_from)) > %i
+            AND (LEAST(i.end,a.end)-GREATEST(i.start, a.start)) > %i
             AND SUBSTRING(p.db_key,1,9) = SUBSTRING(i.scop_class,1,9)
             GROUP BY c
             HAVING nunits >= %i  
@@ -873,22 +873,22 @@ class OutputStatisticsAnnotations ( OutputStatistics):
 
             statement_annotated = """
             SELECT
-            COUNT(DISTINCT a.rep_nid, a.rep_from) AS nunits,
-            COUNT(DISTINCT a.rep_nid) AS nseqs
+            COUNT(DISTINCT a.nid, a.start) AS nunits,
+            COUNT(DISTINCT a.nid) AS nseqs
             FROM %s AS a,
             pairsdb.nrdb40_scop_nr AS i
             WHERE a.master_did = %%i
-            AND a.rep_nid = i.rep_nid             
-            AND (LEAST(i.rep_to,a.rep_to)-GREATEST( i.rep_from, a.rep_from)) > %i
+            AND a.nid = i.nid             
+            AND (LEAST(i.end,a.end)-GREATEST( i.start, a.start)) > %i
             AND SUBSTRING(i.scop_class,3,1) IN ("a", "b", "c", "d")
             """ % ( 
                 self.mTableNameDomains,
                 self.mAnnotationMinOverlap )
             
         for did, nunits, nsequences,length in clusters:
-            annotations = self.mDbhandle.Execute( statement % did ).fetchall()
+            annotations = self.dbhandle.Execute( statement % did ).fetchall()
             # anno_units, anno_seqs = 0,0
-            anno_units, anno_seqs   = self.mDbhandle.Execute( statement_annotated % did ).fetchone()
+            anno_units, anno_seqs   = self.dbhandle.Execute( statement_annotated % did ).fetchone()
             
             print string.join( map(str, ( did,nunits,anno_units,nsequences,anno_seqs,length)), "\t" ),
 

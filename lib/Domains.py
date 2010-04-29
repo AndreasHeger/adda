@@ -22,7 +22,7 @@ import Adda.AddaIO
 #-------------------------------------------
 class Domains (Experiment):
 
-    def __init__ (self, dbhandle):
+    def __init__( self ):
 
         ## source table, needed for adding singletons
         self.mTableNameSource = "nrdb40"
@@ -63,12 +63,15 @@ class Domains (Experiment):
 
         self.mCombineOverlaps = 0
 
-        self.mDbHandle = dbhandle
-        
 	Experiment.__init__( self )
 
-        self.mDbHandle.UseDatabase( self.mDatabase )
+        dbhandle = Pairsdb()
         
+        dbhandle.Connect( dbname = self.mDatabase )
+
+        self.dbhandle = dbhandle
+        self.dbhandle = dbhandle
+
         self.mFileNameFamilies = None
         self.mFileNameDomains = None
 
@@ -90,11 +93,12 @@ class Domains (Experiment):
         if string.find( self.mTableNameDomains, ".") == -1:
             self.mTableNameDomains = self.mWorkSpace + "." + self.mTableNameDomains
 
-        self.mTableNrdb = Table_nrdb( self.mDbHandle )
+        self.mTableNrdb = Table_nrdb( self.dbhandle )
 
         if self.mTableNameSource:
-            self.mTableNids = TableNids( self.mDbHandle )
-            self.mTableNids.SetName( self.mTableNameSource)
+            self.mTableNids = TableNids( self.dbhandle )
+            self.mTableNids.SetName( self.mTableNameSource )
+            self.mTableNrdb.SetName( self.mTableNameSource )
             
         self.mTableFamilies = TableFamilies( dbhandle, "generic" )
         self.mTableDomains = TableDomains( dbhandle, "generic" )
@@ -138,11 +142,11 @@ class Domains (Experiment):
                 self.mFileNameMapNids = a
             elif o in ("-r", "--repeats"):
                 self.mTableNameDomainsCore = a
-                self.mTableDomainsCore = TableDomainsCore( self.mDbHandle, "core" )
+                self.mTableDomainsCore = TableDomainsCore( self.dbhandle, "core" )
                 self.mTableDomainsCore.SetName( self.mTableNameDomainsCore )
 
                 self.mTableNameFamiliesCore = re.sub("domains", "families",a)
-                self.mTableFamiliesCore = TableFamiliesCore( self.mDbHandle, "core" )
+                self.mTableFamiliesCore = TableFamiliesCore( self.dbhandle, "core" )
                 self.mTableFamiliesCore.SetName( self.mTableNameFamiliesCore )
             elif o == "--filter_repeats":
                 self.mFilterRepeats = 1
@@ -213,7 +217,7 @@ class Domains (Experiment):
         result_table_domains = self.mTableNameMappedDomains
         result_table_families = self.mTableNameMappedFamilies
 
-        if not self.mDbHandle.Exists( src_table_domains ):
+        if not self.dbhandle.Exists( src_table_domains ):
             print "--> no mapping, as %s does not exist" % (src_table_domains)
             sys.stdout.flush()
             return
@@ -394,7 +398,7 @@ class Domains (Experiment):
             
             domains = list(self.mTableDomains.GetDomainBoundaries(nid))
             length = self.mTableNrdb.GetLength( nid )
-            
+
             domains.sort()
             all_intervalls = []
             last_family = None
@@ -779,13 +783,7 @@ class Domains (Experiment):
 
 if __name__ == '__main__':
 
-    dbhandle = Pairsdb()
-    if not dbhandle.Connect():
-	print "Connection failed"
-	sys.exit(1)
-
-    x = Domains( dbhandle )
-
+    x = Domains( )
     x.Process()
     
 

@@ -5,7 +5,7 @@ USAGE="""adda.py [OPTIONS] cmds
 interface to compute adda
 """
 
-import sys, os, re, time, math, copy, glob, optparse, logging, traceback, shelve
+import sys, os, re, time, math, copy, glob, optparse, logging, traceback, shelve, types
 from multiprocessing import Process, cpu_count, Pool
 import multiprocessing
 
@@ -27,8 +27,7 @@ def merge( options,
 
     nchunks = config.get( "adda", "num_slices", 10 )
 
-    module = module( options, 
-                     config, 
+    module = module( config, 
                      fasta = fasta,
                      chunk = 0,
                      num_chunks = nchunks )
@@ -102,7 +101,7 @@ class RunOnGraph(Run):
 
     def apply( self, argv ):
 
-        (filename, chunk, nchunks, options, module, config ) = argv
+        (filename, chunk, nchunks, options, module, config, kwargs ) = argv
 
         L.info( "chunk %i: setting up" % (chunk ))
 
@@ -112,19 +111,18 @@ class RunOnGraph(Run):
             self.mMapNid2Domains = shelve.open( config.get( "files", "storage_domains", "memory" ), "r")
 
         # build the modules
-        if module( options, 
-                   config = config, 
+        if module( config = config, 
                    fasta = self.mFasta ).isComplete():
             L.info( "chunk %i is complete" % (chunk ))
             return
 
-        module = module( options, 
-                         config = config, 
-                         fasta = self.mFasta,
+        module = module( config = config, 
                          num_chunks = nchunks,
                          chunk = chunk,
+                         fasta = self.mFasta,
                          map_id2nid = self.mMapId2Nid,
-                         map_nid2domains = self.mMapNid2Domains )
+                         map_nid2domains = self.mMapNid2Domains,
+                         **kwargs )
         
         if module.isComplete():
             L.info( "chunk %i is complete" % (chunk,) )
@@ -166,21 +164,21 @@ class RunOnGraph(Run):
         L.info( "chunk %i: finished  %i nids" % (chunk, len(nids)) )
 
 def run_on_file( argv ):
-
-    (filename, chunk, nchunks, options, module, config ) = argv
+    '''run parallel jobs on a single file.
+    '''
+    (filename, chunk, nchunks, options, module, config, kwargs ) = argv
 
     L.info( "setting up chunk %i" % chunk )
 
     fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
 
-    if module( options, 
-               config = config, 
-               fasta = fasta ).isComplete():
+    if module( config = config, 
+               fasta = fasta, 
+               **kwargs ).isComplete():
         L.info( "complete" )
         return
 
-    module = module( options, 
-                     config = config, 
+    module = module( config = config, 
                      fasta = fasta,
                      num_chunks = nchunks,
                      chunk = chunk )
@@ -211,8 +209,50 @@ def run_on_file( argv ):
 
     L.info( "finished chunk %i on %s" % (chunk, filename) )
 
+def run_on_files( argv ):
+    '''run parallel jobs on multiple files
+    '''
+    (filename, chunk, nchunks, options, module, config, kwargs ) = argv
+
+    L.info( "setting up chunk %i on filename %s" % (chunk, filename) )
+
+    fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
+
+    if module( config = config, 
+               fasta = fasta,
+               **kwargs ).isComplete():
+        L.info( "complete" )
+        return
+
+    module = module( config = config, 
+                     fasta = fasta,
+                     num_chunks = nchunks,
+                     chunk = chunk,
+                     **kwargs )
+
+    # force running on filename
+    module.setFilename( filename, chunk )
+
+    if module.isComplete():
+        L.info( "chunk %i is complete" % (chunk,) )
+        return
+
+    L.info( "opening file %s at chunk %i" % (filename, chunk) )
+
+    L.debug( "module startup" )
+    module.startUp()
+
+    L.debug( "module running" )
+    module.run()
+
+    L.info( "module finished" )
+    module.finish()
+
+    L.info( "finished chunk %i on %s" % (chunk, filename) )
+
 def getChunks( options, config ):
     """find out which chunks to compute from command line options."""
+
     nchunks = config.get( "adda", "num_slices", 10 )
 
     # set up the arguments for chunks to run
@@ -232,19 +272,23 @@ def getChunks( options, config ):
 
     return nchunks, chunks
         
-def runParallel( runner, filename, options, module, config ):
+def runParallel( runner, filename, options, module, config, kwargs ):
     """process filename in paralell."""
-
+    
     if options.num_jobs:
         njobs = options.num_jobs 
     else:
         njobs = cpu_count()
-    
-    nchunks, chunks = getChunks( options, config )
+
+    if type(filename) in (types.TupleType, types.ListType):
+        nchunks = len( filename )
+        chunks = range( nchunks )
+        args = [ (filename[chunk], chunk, nchunks, options, module, config, kwargs ) for chunk in chunks ]
+    else:
+        nchunks, chunks = getChunks( options, config )
+        args = [ (filename, chunk, nchunks, options, module, config, kwargs ) for chunk in chunks ]
 
     L.info( "running %i chunks in %i parallel jobs" % (len(chunks), njobs ))
-    
-    args = [ (filename, chunk, nchunks, options, module, config ) for chunk in chunks ]
 
     logging.info('starting parallel jobs')
 
@@ -266,14 +310,14 @@ def runParallel( runner, filename, options, module, config ):
 
     L.info( "all jobs finished" )
 
-def runSequentially( runner, filename, options, module, config ):
+def runSequentially( runner, filename, options, module, config, kwargs ):
     """process filename sequentially."""
 
     nchunks, chunks = getChunks( options, config )
     
     L.info( "running %i chunks sequentially" % (len(chunks) ))
 
-    args = [ (filename, chunk, nchunks, options, module, config ) for chunk in chunks ]
+    args = [ (filename, chunk, nchunks, options, module, config, kwargs ) for chunk in chunks ]
 
     for (job, argv) in enumerate(args):
         L.info( "job %i started" % job )
@@ -415,11 +459,56 @@ def main():
     else:
         run_parallel = runParallel
 
-    if options.command in ("sequences", "index", "stats", "optimise",
+    kwargs = {
+        "loglevel" : options.loglevel,
+        "append" : options.append,
+        "force": options.force }
+
+    if options.command == "index":
+        module = map_module[options.command](config, fasta = fasta, **kwargs )
+        if module.isComplete():
+            E.info("output of command `%s` present and complete" % options.command )
+        else:
+            filename_graph = config.get( "files", "input_graph", "pairsdb_40x40.links.gz")
+            if "," in filename_graph:
+                filename_graph = filename_graph.split(",")
+                # permit parallel processing of multiple files
+                run_parallel( 
+                    run_on_files,
+                    filename = filename_graph,
+                    options = options,
+                    module = map_module[options.command],
+                    config = config,
+                    kwargs = kwargs,
+                    )
+                
+                nchunks = len( filename_graph )
+
+                module = map_module[options.command]( config, 
+                                                      chunk = 0,
+                                                      num_chunks = nchunks, 
+                                                      **kwargs )
+                
+                if not module.isComplete():                 
+                    L.info( "merging" )
+
+                    if not module.merge():
+                        raise ValueError("error while merging for `%s`" % options.command )
+
+            else:
+                # process single file - no hazzle.
+                module.startUp()
+                module.run()
+                module.finish()
+
+    if options.command in ("sequences", "stats", 
+                           "optimise",
                            "convert", 
                            "mst", "mst-components", "cluster", "families",
                            "summary" ):
-        module = map_module[options.command](options, config, fasta = fasta )
+        module = map_module[options.command]( config, 
+                                              fasta = fasta,
+                                              **kwargs )
         if module.isComplete():
             E.info("output of command `%s` present and complete" % options.command )
         else:
@@ -434,9 +523,10 @@ def main():
         run_parallel( 
             run_on_graph,
             filename = config.get( "files", "input_graph", "adda.graph" ),
-            options = options, 
+            options = options,
             module = map_module[options.command],
-            config = config )
+            config = config,
+            kwargs = kwargs )
         
         if not merge( options,
                       module = map_module[options.command],
@@ -444,14 +534,16 @@ def main():
                       fasta = fasta ):
             E.Stop()
             return
+
     elif options.command in ("align" ):
 
         run_parallel( 
             run_on_file,
             filename = config.get( "files", "output_mst", "adda.mst" ),
-            options = options, 
+            options = options,
             module = map_module[options.command],
-            config = config )
+            config = config,
+            kwargs = kwargs )
 
         merge( options,
                module = map_module[options.command],
@@ -463,9 +555,10 @@ def main():
         run_parallel( 
             run_on_file,
             filename = config.get( "files", "output_align", "adda.align" ),
-            options = options, 
+            options = options,
             module = map_module[options.command],
-            config = config )
+            config = config,
+            kwargs = kwargs )
 
         merge( options,
                module = map_module[options.command],

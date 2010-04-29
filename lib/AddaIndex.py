@@ -1,4 +1,4 @@
-import sys, os, re
+import sys, os, re, time
 
 import cadda
 
@@ -22,7 +22,7 @@ class AddaIndex( AddaModuleBlock ):
     def __init__(self, *args, **kwargs ):
         AddaModuleBlock.__init__( self, *args, **kwargs )
                 
-        self.mFilenameInputGraph = self.mConfig.get( "files", "input_graph", "adda.graph")
+        self.mFilenameInputGraph = self.mConfig.get( "files", "input_graph", "pairsdb_40x40.links.gz")
 
         self.mFilenameOutputGraph = self.mConfig.get( "files", "output_graph", "adda.graph")
         self.mFilenameOutputIndex = self.mConfig.get( "files", "output_index", "adda.graph.index")
@@ -31,7 +31,8 @@ class AddaIndex( AddaModuleBlock ):
         cadda.setReportStep( self.mConfig.get( "adda", "report_step", 1000 ) )
         cadda.dump_parameters()
         
-        self.mFilenames = (self.mFilenameOutputIndex, )
+        self.mFilenames = (self.mFilenameOutputGraph, 
+                           self.mFilenameOutputIndex, )
 
         self.mAlignmentFormat = self.mConfig.get( "files", "graph_format", "pairsdb")
 
@@ -50,6 +51,13 @@ class AddaIndex( AddaModuleBlock ):
         
     def startUp( self ):
         pass
+
+    def setFilename( self, filename, chunk ):
+        '''set this to force using a different file
+        (for multiple file processing).'''
+        self.mFilenameInputGraph = filename
+        self.mFilenameOutputGraph += self.getSlice( chunk )
+        self.mFilenameOutputIndex += self.getSlice( chunk )
 
 class AddaIndexBuild( AddaIndex ):
     """index a graph."""
@@ -76,7 +84,7 @@ class AddaIndexBuild( AddaIndex ):
         infile = AddaIO.openStream( self.mFilenameInputGraph )
 
         cadda.indexGraph( cadda.PairsDBNeighboursIterator( 
-                self.mGraphIterator( infile, map_id2nid ) ),
+                self.mGraphIterator( infile, map_id2nid, self.mLogger ), self.mLogger ),
                           len(map_id2nid), 
                           self.mFilenameOutputGraph, 
                           self.mFilenameOutputIndex, 
@@ -84,6 +92,54 @@ class AddaIndexBuild( AddaIndex ):
 
         del map_id2nid
 
+    def merge( self ):
+        '''merge several runs.
+        
+        simply concatenate all files and reindex
+        '''
+
+        f = self.mFilenameOutputGraph
+
+        if self.mNumChunks == 1:
+            raise ValueError("merge called with only one chunk" )
+
+        if os.path.exists( f ):
+            raise ValueError( "file %s already exists - no merging" % f )
+
+        self.info( "merging file %s from %i chunks" % (f, self.mNumChunks) )
+
+        # check if all parts have finished and are present
+        ff = []
+
+        for chunk in range( self.mNumChunks ):
+            fn = f + self.getSlice( chunk )
+            if not os.path.exists( fn ):
+                self.info("file %s is not present - merging aborted" % fn )
+                return False
+            ff.append( fn )
+
+        self.info( "all files present" )
+
+        ff = " ".join( ff )
+        self.execute( "cat %s > %s" % (ff,f) )
+
+        self.info( "rebuilding index" )
+
+        self.info( "loading map_id2nid from %s" % self.mConfig.get( "files", "output_nids", "adda.nids" ))
+        infile = open( self.mConfig.get( "files", "output_nids", "adda.nids" ) )
+        map_id2nid = AddaIO.readMapId2Nid( infile, 
+                                           storage = self.mConfig.get( "files", "storage_nids", "memory" ) )
+        infile.close()
+
+        cadda.reindexGraph( 
+            len(map_id2nid), 
+            self.mFilenameOutputGraph, 
+            self.mFilenameOutputIndex, 
+            self.mLogger )
+
+        return True
+
+    
 class AddaIndexCheck( AddaIndex ):
     """check indexed graph."""
     

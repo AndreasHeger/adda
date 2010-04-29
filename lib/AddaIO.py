@@ -471,8 +471,8 @@ def readMapNid2Domains( infile,
 
 
 TestedLink = collections.namedtuple( "TestedLinks", 
-      """passed,  qdomain, sdomain,
-         weight,
+      """qdomain, sdomain, weight,
+         passed,  
          qstart, qend, qali,    
          sstart, send, sali, score,
          naligned, ngaps, zscore""" )
@@ -482,13 +482,12 @@ def iterate_tested_links( infile ):
                                      
     for line in infile:
         if line.startswith("#"): continue
-        if line.startswith("passed"): continue
+        if line.startswith("qdomain"): continue
         data = line[:-1].split("\t")
         try:
             yield TestedLink._make( data )
         except ValueError:
             raise ValueError("parsing error in line `%s`" % data)
-
 
 def toTuple( domain ):
     '''convert string to a domain tuple'''
@@ -496,4 +495,4 @@ def toTuple( domain ):
 
 def toDomain( tple ):
     '''convert a domain tuple to a string.'''
-    return "%s_%s_%s" % tpl
+    return "%s_%s_%s" % tple

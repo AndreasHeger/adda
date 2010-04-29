@@ -60,29 +60,66 @@ Code
 
 import sys, os, re, time, math, copy, glob, optparse, logging, traceback, shelve
 
-import networkx as nx
+# import networkx as nx
 import Adda.Experiment as E
 import Adda.AddaIO as AddaIO
-
+import igraph
 def readAlignmentGraph( infile ):
+
+    result = [ x[:-1].split("\t") for x in infile.readlines() if not x.startswith("#") or not x.startswith( "passed") ]
+    E.info( "collected %i edges" % len(result) )    
+
+    # collect vertices
+    vertices = set( [x[1] for x in result ] )
+    vertices.update( [x[2] for x in result ] )
+    vertices = list( vertices )
+    map_vertex2id = dict( [ (x[1],x[0]) for x in enumerate(vertices) ] )
+
+    E.info( "collected %i vertices" % len(vertices ) )
+
+    G = igraph.Graph( len(vertices) )
+    G.add_edges( [ (map_vertex2id[x[1]], \
+                    map_vertex2id[x[2]]) for x in result ] )
+
+    G.es[ "info" ] = [ "%s\t%s\t%s\t%s\t%s" % \
+                           (x[0], x[10], x[11],
+                            x[16], x[17] ) for x in result ]
+
+    return map_vertex2id, vertices, G
+
+def readAlignmentGraphOld( infile ):
 
     G = nx.Graph()
     for line in infile:
         if line.startswith("#"): continue
         if line.startswith("passed"): continue
         data = line[:-1].split("\t")
-        try:
-            (passed, start, end, 
-             evalue,
-             qstart, qend, qali, 
-             sstart, send, sali,
-             score, naligned, ngaps,
-             zscore) = data
-        except ValueError:
-            print "parsing error in line `%s`" % data
-            raise
-        G.add_edge( start, end, (passed, float(score), int(naligned)) )
-        
+        if len(data) == 14:
+            try:
+                (passed, start, end, 
+                 evalue,
+                 qstart, qend, qali, 
+                 sstart, send, sali,
+                 score, naligned, ngaps,
+                 zscore) = data
+            except ValueError:
+                print "parsing error in line `%s`" % data
+                raise
+            G.add_edge( start, end, (passed, float(score), int(naligned)) )
+        elif len(data) == 18:
+            try:
+                (passed, start, end, 
+                 evalue,
+                 qstart, qend, qali, 
+                 sstart, send, sali,
+                 score, naligned, ngaps,
+                 zscore,
+                 _, _, qdomains, sdomains) = data
+            except ValueError:
+                print "parsing error in line `%s`" % data
+                raise
+            G.add_edge( start, end, (passed, float(score), int(naligned), qdomains, sdomains) )
+            
     return G
 
 def main( argv = sys.argv ):
@@ -184,17 +221,41 @@ def main( argv = sys.argv ):
 
     t = time.time()
     if options.graph_format == "alignments":
-        G = readAlignmentGraph( options.stdin )
+        map_vertex2id, map_id2vertex, G = readAlignmentGraph( options.stdin )
         
     E.info( "graph read in %i seconds" % (time.time() - t ))
     t = time.time()
 
     if options.method == "shortest-path":
-        path = nx.shortest_path(G, options.node1, options.node2)
-        last_node = path[0]
-        for node in path[1:]:
-            print "%s\t%s\t%s" % (last_node, node, str(G[last_node][node]))
-            last_node = node
+        E.debug( "shortest path between %s:%i and %s:%i" % \
+                     (options.node1,
+                      map_vertex2id[options.node1],
+                      options.node2,
+                      map_vertex2id[options.node2] ) )
+
+        paths = G.get_shortest_paths( map_vertex2id[options.node1],
+                                      to = (map_vertex2id[options.node2],)
+                                      )
+             
+        p = paths[map_vertex2id[options.node2]]
+        if len(p) == 0: 
+            E.info( "no path between %s:%i and %s:%i" % \
+                        (options.node1,
+                         map_vertex2id[options.node1],
+                         options.node2,
+                         map_vertex2id[options.node2] ) )
+
+        
+        l, last_node = p[0], map_id2vertex[p[0]]
+        
+        for x in p[1:]:
+            node = map_id2vertex[x]
+            ei = G.get_eid(x, l)
+            
+            options.stdout.write( "%s\t%s\t%s\n" %\
+                                  (last_node, node, 
+                                   G.es[ei]["info"]) ) 
+            l, last_node = x, node
 
     elif options.method == "components":
         print "component\tnode"

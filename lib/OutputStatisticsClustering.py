@@ -25,7 +25,7 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
 
     
     ##-------------------------------------------------------------------------------------
-    def __init__(self, dbhandle):
+    def __init__( self ):
 
         self.mShortOptions += "D:a:d:m:"
         self.mLongOptions += ["mode=", 
@@ -73,7 +73,7 @@ class OutputStatisticsClustering( OutputStatisticsAnnotations):
         self.mLongOptions.append("ref_families=")
         self.mTableNameReferenceFamilies = None
         
-        OutputStatisticsAnnotations.__init__(self, dbhandle)
+        OutputStatisticsAnnotations.__init__( self )
 
         if self.mTableNameSubset:
             self.mSubsetTables = ", %s AS s" % self.mTableNameSubset
@@ -158,13 +158,13 @@ family\tnunits\tnseqs\tlength\taunits\taseqs\trunits\ttunits\trseqs\ttseqs\tsel\
         statement_summary = """
         SELECT
         ref_domains.family,
-        COUNT(DISTINCT ref_domains.rep_nid, ref_domains.rep_from) AS nunits,
-        COUNT(DISTINCT ref_domains.rep_nid) AS nseqs,
-        AVG(ref_domains.rep_to-ref_domains.rep_from+1)
+        COUNT(DISTINCT ref_domains.nid, ref_domains.start) AS nunits,
+        COUNT(DISTINCT ref_domains.nid) AS nseqs,
+        AVG(ref_domains.end-ref_domains.start+1)
         FROM %(reference_domains)s AS ref_domains,
         %(domains)s AS domains 
         %(subset_tables)s
-        WHERE domains.rep_nid = ref_domains.rep_nid %(subset_where)s
+        WHERE domains.nid = ref_domains.nid %(subset_where)s
         GROUP BY ref_domains.family
         """ % locals()
 
@@ -173,19 +173,19 @@ family\tnunits\tnseqs\tlength\taunits\taseqs\trunits\ttunits\trseqs\ttseqs\tsel\
         ## matching between reference families and cluster per reference family
         statement_counts = """
         SELECT
-        COUNT(DISTINCT ref_domains.rep_nid, ref_domains.rep_from) AS nunits,
-        COUNT(DISTINCT ref_domains.rep_nid) AS nseqs, 
+        COUNT(DISTINCT ref_domains.nid, ref_domains.start) AS nunits,
+        COUNT(DISTINCT ref_domains.nid) AS nseqs, 
         ref_domains.family, ref_family.description,
-        AVG(LEAST(ref_domains.rep_to,domains.rep_to)-GREATEST(ref_domains.rep_from, domains.rep_from)),
-        GREATEST(ref_domains.rep_to,domains.rep_to)-LEAST(ref_domains.rep_from, domains.rep_from),
-        LEAST(ref_domains.rep_to,domains.rep_to)-GREATEST(ref_domains.rep_from, domains.rep_from)            
+        AVG(LEAST(ref_domains.end,domains.end)-GREATEST(ref_domains.start, domains.start)),
+        GREATEST(ref_domains.end,domains.end)-LEAST(ref_domains.start, domains.start),
+        LEAST(ref_domains.end,domains.end)-GREATEST(ref_domains.start, domains.start)            
         FROM %(domains)s AS domains,
         %(reference_domains)s AS ref_domains,
         %(reference_families)s AS ref_family
         WHERE domains.family = '%%s'
         AND ref_family.family = ref_domains.family
-        AND domains.rep_nid = ref_domains.rep_nid 
-        AND (LEAST(ref_domains.rep_to,domains.rep_to)-GREATEST(ref_domains.rep_from, domains.rep_from)) > %(min_overlap)i
+        AND domains.nid = ref_domains.nid 
+        AND (LEAST(ref_domains.end,domains.end)-GREATEST(ref_domains.start, domains.start)) > %(min_overlap)i
         GROUP BY ref_domains.family
         HAVING nunits >= %(min_evidence)i  
         ORDER BY nunits DESC""" % locals()
@@ -195,13 +195,13 @@ family\tnunits\tnseqs\tlength\taunits\taseqs\trunits\ttunits\trseqs\ttseqs\tsel\
         ## that are annotated in a cluster
         statement_annotated = """
         SELECT
-        COUNT(DISTINCT domains.rep_nid, domains.rep_from) AS nunits,
-        COUNT(DISTINCT domains.rep_nid) AS nseqs
+        COUNT(DISTINCT domains.nid, domains.start) AS nunits,
+        COUNT(DISTINCT domains.nid) AS nseqs
         FROM %(domains)s AS domains,
         %(reference_domains)s AS ref_domains
         WHERE domains.family = '%%s'
-        AND domains.rep_nid = ref_domains.rep_nid             
-        AND (LEAST(ref_domains.rep_to,domains.rep_to)-GREATEST( ref_domains.rep_from, domains.rep_from)) > %(min_overlap)i
+        AND domains.nid = ref_domains.nid             
+        AND (LEAST(ref_domains.end,domains.end)-GREATEST( ref_domains.start, domains.start)) > %(min_overlap)i
         """ % locals()
 
         ##
@@ -230,19 +230,19 @@ family\tnunits\tnseqs\tlength\taunits\taseqs\trunits\ttunits\trseqs\ttseqs\tsel\
             self.mAnnotationMaxSequences,
             self.mSubsetWhere)
 
-        clusters = self.mDbhandle.Execute( statement ).fetchall()
+        clusters = self.dbhandle.Execute( statement ).fetchall()
 
         totals = {}
-        result = self.mDbhandle.Execute(statement_summary).fetchall()
+        result = self.dbhandle.Execute(statement_summary).fetchall()
         for key, nunits, nseqs, length in result:
             totals[key]= (nunits, nseqs,length)
 
         for adda_family, adda_nunits, adda_nsequences, adda_length in clusters:
 
-            annotations = self.mDbhandle.Execute( statement_counts % str(adda_family) ).fetchall()
+            annotations = self.dbhandle.Execute( statement_counts % str(adda_family) ).fetchall()
 
             # annotated units and sequences in family
-            anno_nunits, anno_nseqs = self.mDbhandle.Execute( statement_annotated % str(adda_family) ).fetchone()
+            anno_nunits, anno_nseqs = self.dbhandle.Execute( statement_annotated % str(adda_family) ).fetchone()
             
             if not annotations:
                 print "%s\t%i\t%i\t%i\t%i\t%i\t\t\t\t\t\t\t\t\t\t" %\
@@ -297,18 +297,18 @@ family\tnunits\tnseqs\tlength\taunits\taseqs\trunits\ttunits\trseqs\ttseqs\tsel\
         ## matching between reference families and cluster per reference family
         statement = """
         SELECT
-        ref_domains.rep_nid, 
-        domains.rep_from, domains.rep_to, 
+        ref_domains.nid, 
+        domains.start, domains.end, 
         domains.family,
-        ref_domains.rep_from, ref_domains.rep_to,
+        ref_domains.start, ref_domains.end,
         ref_domains.family
         FROM %(domains)s AS domains,
         %(reference_domains)s AS ref_domains
         WHERE
-        domains.rep_nid = ref_domains.rep_nid 
-        AND (LEAST(ref_domains.rep_to,domains.rep_to)-GREATEST(ref_domains.rep_from, domains.rep_from)) > %(min_overlap)i""" % locals()
+        domains.nid = ref_domains.nid 
+        AND (LEAST(ref_domains.end,domains.end)-GREATEST(ref_domains.start, domains.start)) > %(min_overlap)i""" % locals()
  
-        for x in self.mDbhandle.Execute( statement ).fetchall():
+        for x in self.dbhandle.Execute( statement ).fetchall():
             print "\t".join( map(str,x) )
     #-------------------------------------------------------------------------------------
     def AssociatedDomains( self ):
@@ -336,15 +336,15 @@ family\tnunits\tnseqs\tnres\tlength\trunits\trseqs\tanno""" %\
         ## matching between reference families and cluster per reference family
         statement_counts = """
         SELECT
-        COUNT(DISTINCT i.rep_nid, i.rep_from) AS nunits,
-        COUNT(DISTINCT i.rep_nid) AS nseqs, 
+        COUNT(DISTINCT i.nid, i.start) AS nunits,
+        COUNT(DISTINCT i.nid) AS nseqs, 
         i.family, p.description
         FROM %s AS a,
         %s AS i,
         %s AS p 
         WHERE a.family = '%%s'
-        AND a.rep_nid = i.rep_nid 
-        AND (LEAST(i.rep_to,a.rep_to)-GREATEST(i.rep_from, a.rep_from)) < 0
+        AND a.nid = i.nid 
+        AND (LEAST(i.end,a.end)-GREATEST(i.start, a.start)) < 0
         AND i.family = p.family
         GROUP BY i.family
         HAVING nunits >= %i  
@@ -359,13 +359,13 @@ family\tnunits\tnseqs\tnres\tlength\trunits\trseqs\tanno""" %\
         ## that are annotated in a cluster
         statement_annotated = """
         SELECT
-        COUNT(DISTINCT a.rep_nid, a.rep_from) AS nunits,
-        COUNT(DISTINCT a.rep_nid) AS nseqs
+        COUNT(DISTINCT a.nid, a.start) AS nunits,
+        COUNT(DISTINCT a.nid) AS nseqs
         FROM %s AS a,
         %s AS i
         WHERE a.family = '%%s'
-        AND a.rep_nid = i.rep_nid             
-        AND (LEAST(i.rep_to,a.rep_to)-GREATEST( i.rep_from, a.rep_from)) < 0
+        AND a.nid = i.nid             
+        AND (LEAST(i.end,a.end)-GREATEST( i.start, a.start)) < 0
         """ % ( 
             self.mTableNameDomains,
             self.mTableNameReferenceDomains)
@@ -395,14 +395,14 @@ family\tnunits\tnseqs\tnres\tlength\trunits\trseqs\tanno""" %\
             self.mAnnotationMaxSequences,
             self.mSubsetWhere)
 
-        clusters = self.mDbhandle.Execute( statement ).fetchall()
+        clusters = self.dbhandle.Execute( statement ).fetchall()
 
         for family, nunits, nsequences, nresidues,length in clusters:
             
-            annotations = self.mDbhandle.Execute( statement_counts % str(family) ).fetchall()
+            annotations = self.dbhandle.Execute( statement_counts % str(family) ).fetchall()
 
             # anno_units, anno_seqs = 0,0
-            anno_units, anno_seqs   = self.mDbhandle.Execute( statement_annotated % str(family) ).fetchone()
+            anno_units, anno_seqs   = self.dbhandle.Execute( statement_annotated % str(family) ).fetchone()
             
             print string.join( map(str, ( family,nunits,nsequences,nresidues, length)), "\t" ),
 
@@ -457,16 +457,16 @@ family\tnunits\tnseqs\tnres\tlength""",
         ## a domain.
         statement_masks = """
         SELECT
-        COUNT(DISTINCT a.rep_nid, a.rep_from) AS n_masked_nunits,
-        COUNT(DISTINCT a.rep_nid) AS n_masked_seqs,
+        COUNT(DISTINCT a.nid, a.start) AS n_masked_nunits,
+        COUNT(DISTINCT a.nid) AS n_masked_seqs,
         COUNT(DISTINCT m.nid, m.first_res) AS n_masked_segments,
         SUM( m.last_res - m.first_res + 1) AS n_masked_residues
         FROM %s AS a,
         %s AS m
         WHERE a.family = '%%s'
-        AND a.rep_nid = m.nid
+        AND a.nid = m.nid
         AND method = %%i
-        AND (LEAST(m.last_res,a.rep_to)-GREATEST( m.first_res, a.rep_from)) > %i
+        AND (LEAST(m.last_res,a.end)-GREATEST( m.first_res, a.start)) > %i
         """ % ( 
             self.mTableNameDomains,
             self.mTableNameMasks,
@@ -490,7 +490,7 @@ family\tnunits\tnseqs\tnres\tlength""",
             self.mAnnotationMaxSequences,
             self.mSubsetWhere)
 
-        clusters = self.mDbhandle.Execute( statement ).fetchall()
+        clusters = self.dbhandle.Execute( statement ).fetchall()
 
         totals = {}
 
@@ -498,7 +498,7 @@ family\tnunits\tnseqs\tnres\tlength""",
             print string.join( map(str, ( family,nunits,nseqs, nres,length)), "\t" ),
             
             for method in self.mMaskMethods:
-                (mnunits, mnseqs, mnsegs, mnres) = self.mDbhandle.Execute(statement_masks % (family, method)).fetchone()
+                (mnunits, mnseqs, mnsegs, mnres) = self.dbhandle.Execute(statement_masks % (family, method)).fetchone()
                 if not mnres:
                     mnres = 0
                 print "\t%i\t%i\t%i\t%i" % (mnunits, mnseqs, mnsegs, mnres),
@@ -544,20 +544,20 @@ x\ty""" %\
             self.mAnnotationMaxSequences)
 
         
-        clusters = self.mDbhandle.Execute( statement ).fetchall()
+        clusters = self.dbhandle.Execute( statement ).fetchall()
 
         ##################################################################
         ## preformulated statement for counting nunits and nseqs
         ## matching between reference families and cluster per reference family
         statement_counts = """
         SELECT
-        COUNT(DISTINCT i.rep_nid, i.rep_from) AS nunits,
-        COUNT(DISTINCT i.rep_nid) AS nseqs
+        COUNT(DISTINCT i.nid, i.start) AS nunits,
+        COUNT(DISTINCT i.nid) AS nseqs
         FROM %s AS a,
         %s AS i
         WHERE a.family = '%%s'
-        AND a.rep_nid = i.rep_nid 
-        AND (LEAST(i.rep_to,a.rep_to)-GREATEST(i.rep_from, a.rep_from)) > %i
+        AND a.nid = i.nid 
+        AND (LEAST(i.end,a.end)-GREATEST(i.start, a.start)) > %i
         GROUP BY i.family
         HAVING nunits >= %i  
         ORDER BY nunits DESC""" % (
@@ -568,7 +568,7 @@ x\ty""" %\
 
         total, TP = 0,0
         for family, nunits in clusters:
-            annotations = self.mDbhandle.Execute( statement_counts % str(family) ).fetchall()
+            annotations = self.dbhandle.Execute( statement_counts % str(family) ).fetchall()
             
             total += 1
             if annotations:
@@ -594,11 +594,11 @@ x\ty""" %\
         histograms = []
         
         statement = "SELECT nunits, COUNT(*) FROM %s GROUP BY nunits" % self.mTableNameFamilies
-        h1 = self.mDbhandle.Execute( statement ).fetchall()        
+        h1 = self.dbhandle.Execute( statement ).fetchall()        
         histograms.append( h1 )
         
         statement = "SELECT nsequences, COUNT(*) FROM %s GROUP BY nsequences" % self.mTableNameFamilies
-        h2 = self.mDbhandle.Execute( statement ).fetchall()
+        h2 = self.dbhandle.Execute( statement ).fetchall()
         histograms.append( h2 )
         
         ch = Histogram.Combine( histograms )
@@ -621,22 +621,22 @@ x\ty""" %\
 
         histograms = []
         
-        statement = "SELECT CEILING((rep_to-rep_from+1)/10) * 10 AS olength, COUNT(*) FROM %s GROUP BY olength" % self.mTableNameDomains
-        h1 = self.mDbhandle.Execute( statement ).fetchall()        
+        statement = "SELECT CEILING((end-start+1)/10) * 10 AS olength, COUNT(*) FROM %s GROUP BY olength" % self.mTableNameDomains
+        h1 = self.dbhandle.Execute( statement ).fetchall()        
         histograms.append( h1 )
         
-        statement = "SELECT CEILING((rep_to-rep_from+1)/10) * 10 AS dlength, COUNT(*) FROM %s AS a, %s AS d " %\
+        statement = "SELECT CEILING((end-start+1)/10) * 10 AS dlength, COUNT(*) FROM %s AS a, %s AS d " %\
                     (self.mTableNameDomains, self.mTableNameFamilies) +\
                     " WHERE d.family = a.family AND d.nunits > 1 GROUP BY dlength"
         
-        h2 = self.mDbhandle.Execute( statement ).fetchall()
+        h2 = self.dbhandle.Execute( statement ).fetchall()
         histograms.append( h2 )
         
-        statement = "SELECT CEILING((rep_to-rep_from+1)/10) * 10 AS alength, COUNT(*) FROM %s AS a, %s AS d " %\
+        statement = "SELECT CEILING((end-start+1)/10) * 10 AS alength, COUNT(*) FROM %s AS a, %s AS d " %\
                     (self.mTableNameDomains, self.mTableNameFamilies) +\
                     " WHERE d.family = a.family AND d.nunits = 1 GROUP BY alength"
         
-        h3 = self.mDbhandle.Execute( statement ).fetchall()
+        h3 = self.dbhandle.Execute( statement ).fetchall()
         histograms.append( h3 )
 
         ch = Histogram.Combine( histograms )
@@ -660,15 +660,15 @@ x\ty""" %\
         print "nnids\tndom\tnfam\tnsin\tmaxu\tmaxs"
         sys.stdout.flush()
         
-        nnids = self.mDbhandle.Execute(
-            "SELECT COUNT(DISTINCT rep_nid) FROM %s" %\
+        nnids = self.dbhandle.Execute(
+            "SELECT COUNT(DISTINCT nid) FROM %s" %\
             self.mTableNameDomains).fetchone()[0]
-        ndom,nfam = self.mDbhandle.Execute(
+        ndom,nfam = self.dbhandle.Execute(
             "SELECT COUNT(family), COUNT(DISTINCT(family)) FROM %s" %\
             self.mTableNameDomains).fetchone()
-        nsin = self.mDbhandle.Execute(
+        nsin = self.dbhandle.Execute(
             "SELECT COUNT(*) FROM %s WHERE nunits = 1" % self.mTableNameFamilies).fetchone()[0]
-        maxu,maxs = self.mDbhandle.Execute(
+        maxu,maxs = self.dbhandle.Execute(
             "SELECT MAX(nunits), MAX(nsequences) FROM %s" % self.mTableNameFamilies).fetchone()
 
         print "%i\t%i\t%i\t%i\t%i\t%i" % ( nnids, ndom, nfam, nsin, maxu, maxs)
@@ -693,10 +693,10 @@ x\ty""" %\
         statement =  """
         SELECT
         a.family,
-        COUNT(DISTINCT a.rep_nid) AS nseqs,
-        COUNT(DISTINCT a.rep_nid, a.rep_from) AS nunits,
-        ROUND(SUM(a.rep_to - a.rep_from+1)),
-        ROUND(AVG(a.rep_to - a.rep_from)+1)
+        COUNT(DISTINCT a.nid) AS nseqs,
+        COUNT(DISTINCT a.nid, a.start) AS nunits,
+        ROUND(SUM(a.end - a.start+1)),
+        ROUND(AVG(a.end - a.start)+1)
         FROM %s AS a
         GROUP BY a.family""" % (self.mTableNameDomains)
 
@@ -730,26 +730,26 @@ family\tnseqs\tnunits\tnstr\tdlen\tdstr\tovl\tdcov\tscov"""
         statement = """
         SELECT
         a.family,
-        COUNT(DISTINCT a.rep_nid) AS nsequences,
-        COUNT(DISTINCT a.rep_nid, a.rep_from) AS nunits,
+        COUNT(DISTINCT a.nid) AS nsequences,
+        COUNT(DISTINCT a.nid, a.start) AS nunits,
         COUNT(DISTINCT p.domain_id) AS nstructures,
-        ROUND(AVG(a.rep_to - a.rep_from)+1),
-        ROUND(AVG(p.rep_to - p.rep_from)+1),
+        ROUND(AVG(a.end - a.start)+1),
+        ROUND(AVG(p.end - p.start)+1),
         ROUND(AVG(
-         (LEAST(a.rep_to, p.rep_to) - GREATEST(a.rep_from,p.rep_from+1))/
-         (GREATEST(a.rep_to,p.rep_to)-LEAST(a.rep_from,p.rep_from+1))),2 ) AS avg_ovl,
+         (LEAST(a.end, p.end) - GREATEST(a.start,p.start+1))/
+         (GREATEST(a.end,p.end)-LEAST(a.start,p.start+1))),2 ) AS avg_ovl,
         ROUND(AVG(
-         (LEAST(a.rep_to, p.rep_to) - GREATEST(a.rep_from,p.rep_from)+1)/
-         (a.rep_to-a.rep_from+1)),2 ) AS avg_cov_domain,
+         (LEAST(a.end, p.end) - GREATEST(a.start,p.start)+1)/
+         (a.end-a.start+1)),2 ) AS avg_cov_domain,
         ROUND(AVG(
-         (LEAST(a.rep_to, p.rep_to) - GREATEST(a.rep_from,p.rep_from)+1)/
-         (p.rep_to-p.rep_from+1)),2 ) AS avg_cov_struct
+         (LEAST(a.end, p.end) - GREATEST(a.start,p.start)+1)/
+         (p.end-p.start+1)),2 ) AS avg_cov_struct
         FROM %s AS a,
         %s AS p
         %s
         WHERE
-        a.rep_nid = p.rep_nid AND
-        LEAST(a.rep_to, p.rep_to) - GREATEST(a.rep_from,p.rep_from) > %i
+        a.nid = p.nid AND
+        LEAST(a.end, p.end) - GREATEST(a.start,p.start) > %i
         %s
         GROUP BY a.family
         """ % (self.mTableNameDomains,
@@ -790,7 +790,7 @@ family\tnseqs\tnunits\tnstr\tdlen\tdstr\tovl\tdcov\tscov"""
         ORDER BY scientific_name
         """ % (self.mTableNameTaxonomy)
 
-        kingdoms = self.mDbhandle.Execute(statement).fetchall()
+        kingdoms = self.dbhandle.Execute(statement).fetchall()
 
         for kingdom in map(lambda x: x[0], kingdoms):
             print "# %s:        number of sequences in %s" % (string.upper(kingdom)[:5], kingdom)
@@ -811,13 +811,13 @@ family\tnseqs\tnunits\tnstr\tdlen\tdstr\tovl\tdcov\tscov"""
             statement_genera = """
             SELECT
             t2.scientific_name,
-            COUNT(d.rep_nid) AS counts
+            COUNT(d.nid) AS counts
             FROM %s AS d,
             %s AS a,
             %s AS t,
             %s AS t2
             WHERE family = '%%s'
-            AND d.rep_nid = a.nid
+            AND d.nid = a.nid
             AND a.tax_id = t.tax_id
             AND t.node_id BETWEEN t2.min_node_id AND t2.node_id
             AND t2.rank = "%s"
@@ -845,7 +845,7 @@ family\tnseqs\tnunits\tnstr\tdlen\tdstr\tovl\tdcov\tscov"""
             %s AS t2,
             %s AS p
             WHERE family = '%%s'
-            AND d.rep_nid = p.rep_nid
+            AND d.nid = p.nid
             AND p.mem_nid = a.nid
             AND a.tax_id = t.tax_id
             AND t.node_id BETWEEN t2.min_node_id AND t2.node_id
@@ -871,7 +871,7 @@ family\tnseqs\tnunits\tnstr\tdlen\tdstr\tovl\tdcov\tscov"""
         %s AS t,
         %s AS a
         WHERE family = '%%s'
-        AND a.nid = d.rep_nid
+        AND a.nid = d.nid
         AND a.tax_id = t.tax_id
         AND t.rank = "species"
         """ % (self.mTableNameDomains, self.mTableNameTaxonomy, self.mTableNameTaxonomyAssignments)
@@ -879,14 +879,14 @@ family\tnseqs\tnunits\tnstr\tdlen\tdstr\tovl\tdcov\tscov"""
         ##--------------------------------------------------------------------------
         ## statement for retrieving number of sequences per kingdom
         statement_taxonomy = """
-        SELECT COUNT(DISTINCT d.rep_nid)
+        SELECT COUNT(DISTINCT d.nid)
         FROM %s AS d,
         %s AS t,
         %s AS a
         WHERE family = '%%s'
         AND t.node_id BETWEEN %%i AND %%i
         AND a.tax_id = t.tax_id
-        AND a.nid = d.rep_nid
+        AND a.nid = d.nid
         """ % (self.mTableNameDomains, self.mTableNameTaxonomy, self.mTableNameTaxonomyAssignments)
 
         ##--------------------------------------------------------------------------
@@ -898,7 +898,7 @@ family\tnseqs\tnunits\tnstr\tdlen\tdstr\tovl\tdcov\tscov"""
         %s AS t,
         %s AS p
         WHERE family = '%%s'
-        AND d.rep_nid = p.rep_nid
+        AND d.nid = p.nid
         AND p.mem_nid = a.nid
         AND a.tax_id = t.tax_id
         AND t.node_id BETWEEN %%i AND %%i
@@ -925,7 +925,7 @@ family\tnseqs\tnunits\tnstr\tdlen\tdstr\tovl\tdcov\tscov"""
             self.mAnnotationMaxSequences,
             self.mSubsetWhere)
 
-        clusters = self.mDbhandle.Execute( statement ).fetchall()
+        clusters = self.dbhandle.Execute( statement ).fetchall()
         
         totals = {}
 
@@ -933,22 +933,22 @@ family\tnseqs\tnunits\tnstr\tdlen\tdstr\tovl\tdcov\tscov"""
             print string.join( map(str, (key, nseqs, nunits, nresidues, length)),
                                "\t"),
             
-            nspecies = self.mDbhandle.Execute(statement_species % str(key)).fetchone()[0]
+            nspecies = self.dbhandle.Execute(statement_species % str(key)).fetchone()[0]
             print "\t%i" % nspecies,
             
             for kingdom, tax_from, tax_to in kingdoms:
                 # print statement_taxonomy % (key, tax_from, tax_to)
-                number = self.mDbhandle.Execute( statement_taxonomy % (str(key), tax_from, tax_to)).fetchone()[0]
+                number = self.dbhandle.Execute( statement_taxonomy % (str(key), tax_from, tax_to)).fetchone()[0]
                 print "\t%i" % number,
                 if self.mTableNameTaxonomyMapping:
-                    members = self.mDbhandle.Execute(statement_taxonomy_members % (str(key), tax_from, tax_to)).fetchone()[0]
+                    members = self.dbhandle.Execute(statement_taxonomy_members % (str(key), tax_from, tax_to)).fetchone()[0]
                     print "\t%i" % (number + members),
                 else:
                     print "\t%i" % number,                    
                     
             if self.mTaxonomyLevel:
                 # print statement_genera % key
-                genera = self.mDbhandle.Execute( statement_genera % key).fetchall()
+                genera = self.dbhandle.Execute( statement_genera % key).fetchall()
                 first = 1
                 for genus, count in genera:
                     if not first:
@@ -986,7 +986,7 @@ family\tnseqs\tnunits\tnstr\tdlen\tdstr\tovl\tdcov\tscov"""
         ORDER BY scientific_name
         """ % (self.mTableNameTaxonomy)
         
-        kingdoms = self.mDbhandle.Execute(statement).fetchall()
+        kingdoms = self.dbhandle.Execute(statement).fetchall()
             
         if not self.mFileNameTaxonomyClasses:
             raise "please specify taxonomy classes"
@@ -995,14 +995,14 @@ family\tnseqs\tnunits\tnstr\tdlen\tdstr\tovl\tdcov\tscov"""
         subset_families = None
         if self.mTableNameSubset:
             subset_families = {}
-            families = map(lambda x: x[0], self.mDbhandle.Execute("SELECT family FROM %s" % self.mTableNameSubset).fetchall())
+            families = map(lambda x: x[0], self.dbhandle.Execute("SELECT family FROM %s" % self.mTableNameSubset).fetchall())
             for family in families:
                 subset_families[str(family)] = 1
 
             
         if self.mAnnotationMinUnits:
             subset_families = {}
-            families = map(lambda x: x[0], self.mDbhandle.Execute("SELECT family FROM %s WHERE nunits >= %i " %\
+            families = map(lambda x: x[0], self.dbhandle.Execute("SELECT family FROM %s WHERE nunits >= %i " %\
                                                                   (self.mTableNameFamilies, self.mAnnotationMinUnits)).fetchall())
             for family in families:
                 subset_families[str(family)] = 1
@@ -1036,11 +1036,11 @@ family\tnseqs\tnunits\tnstr\tdlen\tdstr\tovl\tdcov\tscov"""
             # min_node_id = 0
             # node_id = 10000000
             statement = """
-            SELECT STRAIGHT_JOIN a.family, b.family, COUNT(DISTINCT a.rep_nid) AS counts
+            SELECT STRAIGHT_JOIN a.family, b.family, COUNT(DISTINCT a.nid) AS counts
             FROM %s AS a, %s AS tt, %s AS t, %s AS b
-            WHERE a.rep_nid = b.rep_nid
+            WHERE a.nid = b.nid
             AND b.family > a.family
-            AND tt.nid = a.rep_nid
+            AND tt.nid = a.nid
             AND tt.tax_id = t.tax_id
             AND t.node_id BETWEEN %i AND %i
             GROUP BY a.family, b.family
@@ -1050,7 +1050,7 @@ family\tnseqs\tnunits\tnstr\tdlen\tdstr\tovl\tdcov\tscov"""
                     self.mTableNameDomains,
                     min_node_id, node_id)
 
-            result = self.mDbhandle.Execute(statement).fetchall()
+            result = self.dbhandle.Execute(statement).fetchall()
             total_combinations = 0
             total_sequences = 0
 
@@ -1150,18 +1150,18 @@ family\tnseqs\tnunits\tnstr\tdlen\tdstr\tovl\tdcov\tscov"""
 
         histograms = []
         
-        statement = "SELECT COUNT(*) FROM %s GROUP BY rep_nid" % self.mTableNameDomains
-        d1 = map(lambda x: x[0], self.mDbhandle.Execute( statement ).fetchall())
+        statement = "SELECT COUNT(*) FROM %s GROUP BY nid" % self.mTableNameDomains
+        d1 = map(lambda x: x[0], self.dbhandle.Execute( statement ).fetchall())
 
         histograms.append( Histogram.Calculate( d1 ) )
 
-        statement = "SELECT COUNT(*) FROM %s AS d, %s AS f WHERE f.family = d.family AND f.nunits > 1 GROUP BY d.rep_nid" % (self.mTableNameDomains, self.mTableNameFamilies)
-        d2 = map(lambda x: x[0], self.mDbhandle.Execute( statement ).fetchall())
+        statement = "SELECT COUNT(*) FROM %s AS d, %s AS f WHERE f.family = d.family AND f.nunits > 1 GROUP BY d.nid" % (self.mTableNameDomains, self.mTableNameFamilies)
+        d2 = map(lambda x: x[0], self.dbhandle.Execute( statement ).fetchall())
         
         histograms.append( Histogram.Calculate( d2 ) )
 
-        statement = "SELECT COUNT(*) FROM %s AS d, %s AS f WHERE f.family = d.family GROUP BY d.rep_nid" % (self.mTableNameDomains, self.mTableNameSubset)
-        d3 = map(lambda x: x[0], self.mDbhandle.Execute( statement ).fetchall())
+        statement = "SELECT COUNT(*) FROM %s AS d, %s AS f WHERE f.family = d.family GROUP BY d.nid" % (self.mTableNameDomains, self.mTableNameSubset)
+        d3 = map(lambda x: x[0], self.dbhandle.Execute( statement ).fetchall())
         
         histograms.append( Histogram.Calculate( d3 ) )
 
@@ -1174,13 +1174,7 @@ family\tnseqs\tnunits\tnstr\tdlen\tdstr\tovl\tdcov\tscov"""
 ##--------------------------------------------------------------------------------        
 if __name__ == '__main__':
 
-    dbhandle = Pairsdb()
-    if not dbhandle.Connect():
-	print "Connection failed"
-	sys.exit(1)
-
-    x = OutputStatisticsClustering( dbhandle )
-
+    x = OutputStatisticsClustering()
     x.Process()
 
     

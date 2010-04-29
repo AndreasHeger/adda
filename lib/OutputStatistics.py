@@ -27,9 +27,8 @@ class OutputStatistics:
     mLongOptions = ["Verbose=", "Database=", "split="]
 
     ##-------------------------------------------------------------------------------------
-    def __init__(self, dbhandle):
+    def __init__(self ):
 
-        self.mDbhandle = dbhandle
         self.mLogLevel = 1
         self.mDatabaseName = "pairsdb"
         self.mSplit = 0
@@ -42,7 +41,12 @@ class OutputStatistics:
         # set options now
         self.ProcessOptions(optlist)
 
-        self.mDbhandle.UseDatabase( self.mDatabaseName )
+        dbhandle = Pairsdb()
+        
+        dbhandle.Connect( dbname = self.mDatabaseName )
+
+        self.dbhandle = dbhandle
+        self.dbhandle = dbhandle
 
         self.mAnalysisDatabaseName = self.mDatabaseName + "_analysis"
         
@@ -164,7 +168,7 @@ class OutputStatistics:
             print statement
             sys.stdout.flush()
 
-        result = self.mDbhandle.Execute(statement).fetchall()
+        result = self.dbhandle.Execute(statement).fetchall()
         for r in result:
             print string.join(map(str,r), "\t")
         

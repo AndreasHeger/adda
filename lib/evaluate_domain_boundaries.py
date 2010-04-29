@@ -31,12 +31,14 @@
 Purpose
 -------
 
-Evaluate domain partitions against a reference set.
+Compare two domain definitions by their overlap.
 
-The script collects all overlapping domains between the ``test set`` and 
-``reference set``. For each overlap, it collects the number of overlapping 
-bases, the coverage of the ``test`` domain and the coverage of the ``reference``
-domain. 
+For each domain in the ``reference`` set, the script collects 
+the best matching ``test`` domain (largest overlap).
+
+For each pair of domains that overlap, the script records the 
+number of overlapping bases, the coverage of the ``test`` (ADDA) domain 
+and the coverage of the ``reference`` domain. 
 
 It outputs the following files:
 
@@ -50,9 +52,9 @@ domain_coverage.histogram
 reference_coverage.histogram
    distribution of coverage of ``reference`` domains by ``test`` domains.
 
-For a good covering, both the coverage of ``reference`` domains by ``test``
-domains and the coverage of ``test`` with ``reference`` domains should be
-as close to 100% as possible.
+Both the coverage of ``reference`` domains by ``test``
+domains and the coverage of ``test`` with ``reference`` domains 
+should be as close to 100% as possible.
 
 Usage
 -----
@@ -84,7 +86,7 @@ def main( argv = sys.argv ):
 
     parser.add_option("-D", "--database", dest="database", type="string",          
                       help="tablename to use [default=%default]."  )
-
+    
     parser.add_option("-t", "--trees", dest="table_name_trees", type="string",          
                       help="tablename with trees [default=%default]."  )
 
@@ -161,37 +163,43 @@ def main( argv = sys.argv ):
                                add_output_options = True )
 
     dbhandle = Pairsdb()
-    dbhandle.Connect()
-    dbhandle.UseDatabase( options.database )
+    dbhandle.Connect( dbname =  options.database )
     
     tbl_reference = TableDomains(dbhandle, "generic")
     tbl_reference.SetName(options.table_name_reference)
     
     # tbl_masks = Table_nrdb90_masks(dbhandle)
-    tbl_nrdb = Table_nrdb(dbhandle)
+    tbl_nrdb = Table_nrdb( dbhandle )
+
+    # todo: encapsulate this with a parameter
+    tbl_nrdb.name = "nrdb40"
 
     if options.table_name_trees:
 
-        nids_statement = "SELECT DISTINCT s.nid FROM %s AS s, %s AS t %%s WHERE t.rep_nid = s.nid %%s" %\
-                         (options.table_name_trees, options.table_name_reference)
+        nids_statement = '''SELECT DISTINCT t.nid 
+                            FROM %s AS t, %s AS s %%s WHERE t.nid = s.nid %%s''' %\
+                         (options.table_name_trees, 
+                          options.table_name_reference)
 
         if options.quality:
-            nids_statement = nids_statement % (", nrdb_quality AS q", "AND q.nid = s.rep_nid AND q.is_curated = 'T'")
+            nids_statement = nids_statement % (", nrdb_quality AS q", "AND q.nid = s.nid AND q.is_curated = 'T'")
         else:
             nids_statement = nids_statement % ("","")
             
         statement = """
-        SELECT t.node, t.parent, t.level, t.xfrom, t.xto,
-        ((LEAST(t.xto, %%i) - GREATEST(t.xfrom, %%i)) / (GREATEST( t.xto, %%i) - LEAST( t.xfrom, %%i))) AS ovl,
-        ((LEAST(t.xto, %%i) - GREATEST(t.xfrom, %%i)) / (t.xto - t.xfrom)) AS cov_dom,
-        ((LEAST(t.xto, %%i) - GREATEST(t.xfrom, %%i)) / (%%i - %%i)) AS cov_ref,
-        ((t.xto - t.xfrom) / (%%i - %%i)) AS rat_ref
-        FROM %s AS t
-        WHERE t.nid = %%i
-        AND (LEAST(t.xto, %%i) - GREATEST(t.xfrom, %%i) > %%i)
+        SELECT t.node, t.parent, t.level, t.start, t.end,
+        ((LEAST(t.end, %(end)i) - GREATEST(t.start, %(start)i)) / (GREATEST( t.end, %(end)i) - LEAST( t.start, %(start)i))) AS ovl,
+        ((LEAST(t.end, %(end)i) - GREATEST(t.start, %(start)i)) / (t.end - t.start)) AS cov_dom,
+        ((LEAST(t.end, %(end)i) - GREATEST(t.start, %(start)i)) / (%(end)i - %(start)i)) AS cov_ref,
+        ((t.end - t.start) / (%(end)i - %(start)i)) AS rat_ref
+        FROM %(tablename)s AS t
+        WHERE t.nid = %(nid)i
+        AND (LEAST(t.end, %(end)i) - GREATEST(t.start, %(start)i) > %(min_overlap)i)
         ORDER BY ovl DESC
         LIMIT 1
-        """ % (options.table_name_trees)
+        """ 
+
+        tablename = options.table_name_trees
         
     elif options.table_name_parts or options.table_name_bench:
 
@@ -201,28 +209,39 @@ def main( argv = sys.argv ):
             table_name = options.table_name_bench
 
         if options.subset:
-            nids_statement = "SELECT DISTINCT s.nid FROM %s AS s, %s AS t WHERE t.rep_nid = s.nid" % (options.subset, table_name)
+            nids_statement = '''SELECT DISTINCT s.nid 
+                                FROM %s AS s, %s AS t 
+                                WHERE t.nid = s.nid''' % (options.subset, table_name)
         else:
-            nids_statement = "SELECT DISTINCT s.rep_nid FROM %s AS s, %s AS t %%s WHERE t.rep_nid = s.rep_nid %%s" %\
+            nids_statement = '''SELECT DISTINCT s.nid 
+                                FROM %s AS s, 
+                                     %s AS r %%s 
+                                 WHERE r.nid = s.nid %%s''' %\
                              (table_name, options.table_name_reference)
 
             if options.quality:
-                nids_statement = nids_statement % (", nrdb_quality AS q", "AND q.nid = s.rep_nid AND q.is_curated = 'T'")
+                nids_statement = nids_statement % (", nrdb_quality AS q", "AND q.nid = s.nid AND q.is_curated = 'T'")
             else:
                 nids_statement = nids_statement % ("","")
 
         statement = """
-        SELECT 1, 0, 0, t.rep_from, t.rep_to,
-        ((LEAST(t.rep_to, %%i) - GREATEST(t.rep_from, %%i)) / (GREATEST( t.rep_to, %%i) - LEAST( t.rep_from, %%i))) AS ovl,
-        ((LEAST(t.rep_to, %%i) - GREATEST(t.rep_from, %%i)) / (t.rep_to - t.rep_from)) AS cov_dom,
-        ((LEAST(t.rep_to, %%i) - GREATEST(t.rep_from, %%i)) / (%%i - %%i)) AS cov_ref,
-        ((t.rep_to - t.rep_from) / (%%i - %%i)) AS rat_ref
-        FROM %s AS t
-        WHERE t.rep_nid = %%i
-        AND (LEAST(t.rep_to, %%i) - GREATEST(t.rep_from, %%i) > %%i)
+        SELECT 1, 0, 0, t.start, t.end,
+        ((LEAST(t.end, %(end)i) - GREATEST(t.start, %(start)i)) / 
+               (GREATEST( t.end, %(end)i) - LEAST( t.start, %(start)i))) AS ovl,
+        ((LEAST(t.end, %(end)i) - GREATEST(t.start, %(start)i)) / 
+               (t.end - t.start)) AS cov_dom,
+        ((LEAST(t.end, %(end)i) - GREATEST(t.start, %(start)i)) / 
+               (%(end)i - %(start)i)) AS cov_ref,
+        ((t.end - t.start) / (%(end)i - %(start)i)) AS rat_ref
+        FROM %(tablename)s AS t
+        WHERE t.nid = %(nid)i
+        AND (LEAST(t.end, %(end)i) - GREATEST(t.start, %(start)i) > %(min_overlap)i)
         ORDER BY ovl DESC
         LIMIT 1
-        """ % (table_name)
+        """
+
+        tablename = table_name
+
     else:
         print "what shall I compare?"
         sys.exit(1)
@@ -230,22 +249,28 @@ def main( argv = sys.argv ):
     if options.check_selection:
         selection_statement = """
         SELECT t.domain_from, t.domain_to,
-        ((LEAST(t.domain_to, %%i) - GREATEST(t.domain_from, %%i)) / (GREATEST( t.domain_to, %%i) - LEAST( t.domain_from, %%i))) AS ovl,
-        ((LEAST(t.domain_to, %%i) - GREATEST(t.domain_from, %%i)) / (t.domain_to - t.domain_from)) AS cov_dom,
-        ((LEAST(t.domain_to, %%i) - GREATEST(t.domain_from, %%i)) / (%%i - %%i)) AS cov_ref,
-        ((t.domain_to - t.domain_from) / (%%i - %%i)) AS rat_ref
-        FROM %s AS t
-        WHERE t.domain_nid = %%i
-        AND (LEAST(t.domain_to, %%i) - GREATEST(t.domain_from, %%i) > %%i)
+        ((LEAST(t.domain_to, %(end)i) - GREATEST(t.domain_from, %(start)i)) / 
+           (GREATEST( t.domain_to, %(end)i) - LEAST( t.domain_from, %(start)i))) AS ovl,
+        ((LEAST(t.domain_to, %(end)i) - GREATEST(t.domain_from, %(start)i)) / 
+           (t.domain_to - t.domain_from)i) AS cov_dom,
+        ((LEAST(t.domain_to, %(end)i) - GREATEST(t.domain_from, %(start)i)) / 
+           (%(end)i - %(start)i)) AS cov_ref,
+        ((t.domain_to - t.domain_from) / (%(end)i - %(start)i)) AS rat_ref
+        FROM %(selection_tablename)s AS t
+        WHERE t.domain_nid = %(nid)i
+        AND (LEAST(t.domain_to, %(start)i) - GREATEST(t.domain_from, %(start)i) > %(min_overlap)i)
         ORDER BY ovl DESC
         LIMIT 1
-        """ % (options.table_name_parts)
+        """
+        selection_tablename = options.table_name_parts
+
         options.table_name_parts = None
         
         parts_same_as_trees, parts_larger_than_trees, parts_smaller_than_trees, parts_much_smaller_than_trees =  0,0,0,0
 
-    
-    nids = map(lambda x:x[0],dbhandle.Execute(nids_statement).fetchall())
+    min_overlap = options.min_overlap    
+
+    nids = map(lambda x:x[0], dbhandle.Execute(nids_statement).fetchall())
 
     overlaps = []
     cov_doms = []
@@ -282,14 +307,14 @@ def main( argv = sys.argv ):
         if options.no_full_length and len(domains) == 1:
             ## check if domain is actually full length, otherwise keep
             id, domain_from, domain_to = domains[0]
-            if float(domain_to-domain_from+1) / float(length) >= options.min_length_ratio:
+            if float(domain_to-domain_from) / float(length) >= options.min_length_ratio:
                 nskipped_wrong_domaintype += 1
                 continue
             
         if options.only_full_length:
             if len(domains) == 1:
                 id, domain_from, domain_to = domains[0]
-                if float(domain_to-domain_from+1) / float(length) <= options.min_length_ratio:
+                if float(domain_to-domain_from) / float(length) <= options.min_length_ratio:
                     nskipped_wrong_domaintype += 1
                     continue
             else:
@@ -301,10 +326,13 @@ def main( argv = sys.argv ):
         last_id = None
         x = 0
 
+        # iteration over domains in reference
         while x < len(domains):
             
             id, domain_from, domain_to = domains[x]
                 
+            ##########################################################
+            # process repeats
             is_repeat = -1
             
             while x < len(domains) and domains[x][0] == id:
@@ -318,31 +346,31 @@ def main( argv = sys.argv ):
             # if options.skip_tms and tbl_masks.HasMask( nid, 2, domain_from, domain_to):
             #    continue
 
+            ##########################################################
+            ## apply resolution
             if options.resolution:
-                xdomain_from = int(float(domain_from-1)/options.resolution)
-                xdomain_to   = int(float(domain_to-1)/options.resolution) + 1
+                start = int(float(domain_from-1)/options.resolution)
+                end   = int(float(domain_to-1)/options.resolution) + 1
             else:
-                xdomain_from = domain_from
-                xdomain_to   = domain_to
+                start = domain_from
+                end   = domain_to
 
-            E.debug( "processing domain %s (%i-%i) (%i-%i)" % ( id, domain_from, domain_to, xdomain_from, xdomain_to))
+            E.debug( "processing domain %s_%i_%i (scaled: %i-%i)" % \
+                         ( id, domain_from, domain_to, start, end))
 
-            s = statement % (xdomain_to, xdomain_from, xdomain_to, xdomain_from,
-                             xdomain_to, xdomain_from,
-                             xdomain_to, xdomain_from, xdomain_to, xdomain_from,
-                             xdomain_to, xdomain_from,
-                             nid,
-                             xdomain_to, xdomain_from, options.min_overlap)
+            ##########################################################
+            ## get best matching domain
+            s = statement % locals() 
 
             if options.loglevel >= 4: print s
-                
+            
             result = dbhandle.Execute(s).fetchone()
-
+            
             if not result: continue
 
-            node, parent, level, xfrom, xto, overlap, cov_dom, cov_ref, rat_ref = result
+            node, parent, level, start, end, overlap, cov_dom, cov_ref, rat_ref = result
 
-            key = "%i-%s-%i-%i" % (nid, id, xfrom, xto)
+            key = "%i-%s-%i-%i" % (nid, id, start, end)
             if touched.has_key(key):
                 continue
             else:
@@ -353,7 +381,7 @@ def main( argv = sys.argv ):
                 if options.table_name_trees:            
                     if node == 0: continue
                 else:
-                    if length == xto - xfrom + 1: continue
+                    if length == end - start: continue
             
             if options.switch and cov_ref == 1.0:
                 xcov_ref = rat_ref
@@ -362,16 +390,12 @@ def main( argv = sys.argv ):
                 
             # check, if selection did take a domain lower or further up
             if options.check_selection:
-                yfrom = (xfrom * 10) + 1
-                yto   = min(xto * 10 + 1, length)
-                s = selection_statement % (yto, yfrom, yto, yfrom,
-                                           yto, yfrom,
-                                           yto, yfrom, yto, yfrom,
-                                           yto, yfrom,
-                                           nid,
-                                           yto, yfrom, options.min_overlap)
-                
+                start = (start * 10) + 1
+                end   = min(end * 10 + 1, length)
+
+                s = selection_statement % locals()
                 result = dbhandle.Execute(s).fetchone()
+
                 if result:
                     parts_from, parts_to, ovl_parts, cov_parts, cov_tree, rat_parts = result
 
@@ -398,10 +422,11 @@ def main( argv = sys.argv ):
                                                                token)), "\t") + "\n")
                     
             else:
-                options.stdout.write(string.join(map(str, (nid, node, parent, level, xfrom, xto,
+                options.stdout.write(string.join(map(str, (nid, node, parent, level, start, end,
                                                            id,
-                                                           xdomain_from, xdomain_to,
-                                                           overlap, cov_dom, cov_ref, rat_ref, xcov_ref)), "\t") + "\n")
+                                                           start, end,
+                                                           overlap, cov_dom, cov_ref, 
+                                                           rat_ref, xcov_ref)), "\t") + "\n")
                 
                 overlaps.append( int(overlap * 100) )
                 cov_doms.append( int(cov_dom * 100) )
@@ -418,7 +443,6 @@ def main( argv = sys.argv ):
         E.info( " parts like trees=", parts_same_as_trees )
         E.info( " parts smaller than trees=", parts_smaller_than_trees )
         E.info( " parts much smaller than trees (<%f)=" % options.selection_threshold, parts_much_smaller_than_trees )
-        
     else:
         outfile_stats = E.openOutputFile( "stats" )
         outfile_stats.write("section\t%s\n" % Stats.Summary().getHeader())

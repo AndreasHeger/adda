@@ -37,9 +37,9 @@ class TableDomains( Table ):
     def __init__ ( self, handle, root = "domains"):
 
 	self.fields = (
-            ('rep_nid', 'INT UNSIGNED NOT NULL'),
-            ('rep_from', 'SMALLINT UNSIGNED NOT NULL DEFAULT 0'),
-            ('rep_to', 'SMALLINT UNSIGNED NOT NULL DEFAULT 0'),
+            ('nid', 'INT UNSIGNED NOT NULL'),
+            ('start', 'SMALLINT UNSIGNED NOT NULL DEFAULT 0'),
+            ('end', 'SMALLINT UNSIGNED NOT NULL DEFAULT 0'),
             ('rep_ali', 'BLOB NOT NULL'),
             ('domain_id', self.mTypeDomainId),
             ('domain_from', 'SMALLINT UNSIGNED NOT NULL DEFAULT 0'),
@@ -49,18 +49,18 @@ class TableDomains( Table ):
             ) + self.mExtraFields
         
 	self.indices = (
-            'INDEX (rep_nid)',
+            'INDEX (nid)',
             'INDEX (domain_id)',
             'INDEX (family)'
             ) + self.mExtraIndices
         
         self.mFieldsNr = (
-            ('rep_nid INT UNSIGNED NOT NULL'),
-            ('rep_from SMALLINT UNSIGNED NOT NULL DEFAULT 0'),
-            ('rep_to SMALLINT UNSIGNED NOT NULL DEFAULT 0'),
+            ('nid INT UNSIGNED NOT NULL'),
+            ('start SMALLINT UNSIGNED NOT NULL DEFAULT 0'),
+            ('end SMALLINT UNSIGNED NOT NULL DEFAULT 0'),
             ('family %s' % self.mTypeDomainClass),
             )
-        self.mIndicesNr = ( 'INDEX (rep_nid)',
+        self.mIndicesNr = ( 'INDEX (nid)',
                             'INDEX (family)',
                             )
 
@@ -124,23 +124,23 @@ class TableDomains( Table ):
     ##------------------------------------------------------------------------------------------------------    
     def GetDomainBoundariesForIdentifier( self, domain_id):
         """retrieve domain boundaries for a given domain_id."""
-        statement = "SELECT %s, rep_nid, rep_from, rep_to FROM %s" % (self.mClassNr, self.name) +\
-                    " WHERE domain_id = '%s' ORDER by rep_from" % str(domain_id)
+        statement = "SELECT %s, nid, start, end FROM %s" % (self.mClassNr, self.name) +\
+                    " WHERE domain_id = '%s' ORDER by start" % str(domain_id)
         return self.Execute( statement ).fetchall()
     
     ##------------------------------------------------------------------------------------------------------    
     def GetDomainBoundariesForNid( self, nid, region_from = None, region_to = None, min_overlap = 10):
         """retrieve domain boundaries for a given nid."""
-        statement = "SELECT %s, rep_from, rep_to FROM %s" % (self.mClassNr, self.name) +\
-                    " WHERE rep_nid = %i " % nid
+        statement = "SELECT %s, start, end FROM %s" % (self.mClassNr, self.name) +\
+                    " WHERE nid = %i " % nid
 
 
         if region_from and not region_from:
-            statement = statement + " AND rep_from >= %i " % region_from
+            statement = statement + " AND start >= %i " % region_from
         elif region_to and not region_to:
-            statement = statement + " AND rep_to <= %i " % region_to
+            statement = statement + " AND end <= %i " % region_to
         elif region_from and region_to:
-            statement = statement + " AND LEAST(rep_to,%i)-GREATEST(rep_from,%i) > %i " % (region_to, region_from, min_overlap)
+            statement = statement + " AND LEAST(end,%i)-GREATEST(start,%i) > %i " % (region_to, region_from, min_overlap)
 
         statement += " ORDER BY %s" % self.mClassNr
         return self.Execute( statement ).fetchall()
@@ -148,8 +148,8 @@ class TableDomains( Table ):
     ##------------------------------------------------------------------------------------------------------    
     def GetDomainBoundariesForNidAndClass( self, nid, class_id):
         """retrieve nid for a given pdb_id."""
-        statement = "SELECT rep_from, rep_to FROM %s" % (self.name) +\
-                    " WHERE rep_nid = %i AND %s = '%s' ORDER by rep_from" % (nid, self.mClassNr, class_id)
+        statement = "SELECT start, end FROM %s" % (self.name) +\
+                    " WHERE nid = %i AND %s = '%s' ORDER by start" % (nid, self.mClassNr, class_id)
         return self.Execute( statement ).fetchall()
 
     ##------------------------------------------------------------------------------------------------------    
@@ -160,15 +160,15 @@ class TableDomains( Table ):
         else:
             x = ""
 
-        statement = "SELECT rep_nid, rep_from, rep_to, %s %s FROM %s" % (self.mClassNr, x, self.name ) +\
-                    " ORDER by rep_nid, rep_from"
+        statement = "SELECT nid, start, end, %s %s FROM %s" % (self.mClassNr, x, self.name ) +\
+                    " ORDER by nid, start"
         
         return self.Execute( statement ).fetchall()
 
     ##------------------------------------------------------------------------------------------------------    
     def GetNearestBoundary( self, nid, boundary):
         """retrieve domain boundaries for a given nid."""
-        statement = "SELECT rep_from FROM %s WHERE rep_nid = %i ORDER BY ABS(%i - rep_from) ASC" % (self.name, nid, boundary)
+        statement = "SELECT start FROM %s WHERE nid = %i ORDER BY ABS(%i - start) ASC" % (self.name, nid, boundary)
         result = self.Execute(statement).fetchone()
         if not result:
             return None
@@ -188,27 +188,27 @@ class TableDomains( Table ):
     #--------------------------------------------------------------------------------
     def GetAllNids( self ):
         """retrieve all nids."""
-        statement = "SELECT DISTINCT rep_nid FROM %s" % (self.name)
+        statement = "SELECT DISTINCT nid FROM %s" % (self.name)
         return map(lambda x: x[0], self.dbhandle.Execute(statement).fetchall())
 
     #--------------------------------------------------------------------------------
     def GetMembersOfClass( self, xclass ):
         """retrieve all members for a class."""
-        statement = "SELECT DISTINCT rep_nid FROM %s WHERE %s = '%s'" % (self.name, self.mClassNr, str(xclass))
+        statement = "SELECT DISTINCT nid FROM %s WHERE %s = '%s'" % (self.name, self.mClassNr, str(xclass))
         return map(lambda x: x[0], self.dbhandle.Execute(statement).fetchall())
 
     #---------------------------------------------------------------------------------------------------------------    
     def GetClasses( self, nid, region_from = None, region_to = None, min_overlap = 10):
         """return a tuple of classes, that this sequence belongs to (limited to region)."""
 
-        statement =  "SELECT DISTINCT %s FROM %s WHERE rep_nid = %i " % (self.mClassNr, self.name, nid)
+        statement =  "SELECT DISTINCT %s FROM %s WHERE nid = %i " % (self.mClassNr, self.name, nid)
         
         if region_from and not region_from:
-            statement = statement + " AND rep_from >= %i " % region_from
+            statement = statement + " AND start >= %i " % region_from
         elif region_to and not region_to:
-            statement = statement + " AND rep_to <= %i " % region_to
+            statement = statement + " AND end <= %i " % region_to
         elif region_from and region_to:
-            statement = statement + " AND LEAST(rep_to,%i)-GREATEST(rep_from,%i) > %i " % (region_to, region_from, min_overlap)
+            statement = statement + " AND LEAST(end,%i)-GREATEST(start,%i) > %i " % (region_to, region_from, min_overlap)
 
         statement += " ORDER BY %s" % self.mClassNr
         return map( lambda x: x[0], self.Execute(statement).fetchall())
@@ -224,14 +224,14 @@ class TableDomains( Table ):
             restriction = ""
 
         if left:
-            direction = "AND rep_to   < %i ORDER BY rep_to DESC" % pos
+            direction = "AND end   < %i ORDER BY end DESC" % pos
         else:
-            direction = "AND rep_from > %i ORDER BY rep_from ASC" % pos            
+            direction = "AND start > %i ORDER BY start ASC" % pos            
             
 	statement = """
-        SELECT %s, rep_from, rep_to 
+        SELECT %s, start, end 
         FROM %s 
-        WHERE rep_nid = %i %s %s
+        WHERE nid = %i %s %s
         """ % (self.mClassNr, self.name, nid, restriction, direction)
         
         result = self.Execute(statement).fetchall()
@@ -244,7 +244,7 @@ class TableDomains( Table ):
     def GetNidForDomainIdentifier( self, identifier ):
         """return nid for identifier.
         """
-        statement = "SELECT rep_nid FROM %s WHERE domain_id LIKE '%s%%'" % (self.name, identifier)
+        statement = "SELECT nid FROM %s WHERE domain_id LIKE '%s%%'" % (self.name, identifier)
         result = self.Execute(statement).fetchone()
         if result:
             return result[0]
@@ -262,9 +262,9 @@ class TableDomains( Table ):
         """
         statement = """
         SELECT
-        COUNT(DISTINCT(rep_nid)) AS nsequences,
+        COUNT(DISTINCT(nid)) AS nsequences,
         COUNT(*) AS nunits,
-        SUM(rep_to - rep_from+1) AS nresidues
+        SUM(end - start+1) AS nresidues
         FROM %s
         WHERE SUBSTRING(%s,1,%i) = '%s'
         """ % (self.name,self.mClassNr, len(str(family)), str(family))
@@ -278,9 +278,9 @@ class TableDomains( Table ):
         statement = """
         SELECT
         family,
-        COUNT(DISTINCT(rep_nid)) AS nsequences,
+        COUNT(DISTINCT(nid)) AS nsequences,
         COUNT(*) AS nunits,
-        SUM(rep_to - rep_from+1) AS nresidues
+        SUM(end - start+1) AS nresidues
         FROM %s
         GROUP BY family
         ORDER BY family
@@ -292,15 +292,15 @@ class TableDomains( Table ):
     def GetAssignmentsSummary( self ):
         """returns distribution of sequences and units containing a given class.
         """
-        statement = "SELECT %s, COUNT(DISTINCT rep_nid) AS size, COUNT(*) FROM %s " % (self.mClassNr, self.name) +\
+        statement = "SELECT %s, COUNT(DISTINCT nid) AS size, COUNT(*) FROM %s " % (self.mClassNr, self.name) +\
                     " GROUP BY (%s) ORDER BY size DESC" % self.mClassNr
         return self.Execute(statement).fetchall()
     
     ##------------------------------------------------------------------------------------------------------    
     def GetNumAssignments( self):
         """retrieve number of assignments for all nids."""
-        statement = "SELECT rep_nid, COUNT(*), COUNT(DISTINCT %s) AS size FROM %s" % (self.mClassNr, self.name) +\
-                    " GROUP BY rep_nid ORDER BY size DESC"
+        statement = "SELECT nid, COUNT(*), COUNT(DISTINCT %s) AS size FROM %s" % (self.mClassNr, self.name) +\
+                    " GROUP BY nid ORDER BY size DESC"
         return self.Execute( statement ).fetchall()
 
 
@@ -309,16 +309,16 @@ class TableDomains( Table ):
     #--------------------------------------------------------------------------------
     def RemoveFragments( self, length):
         """remove all entries of size smaller than length."""
-        self.Execute("DELETE FROM %s WHERE rep_to - rep_from < %i" % (self.name, length))
+        self.Execute("DELETE FROM %s WHERE end - start < %i" % (self.name, length))
         
     #--------------------------------------------------------------------------------
     def RemoveOldEntries( self ):
         """removes all entries, where sequence is not part of nrdb any more.
         """
-        statement = "SELECT DISTINCTROW s.rep_nid FROM %s AS s, nrdb AS n WHERE n.nid = s.rep_nid AND n.filter = 0" % self.name
+        statement = "SELECT DISTINCTROW s.nid FROM %s AS s, nrdb AS n WHERE n.nid = s.nid AND n.filter = 0" % self.name
         nids = map( lambda x: x[0], self.Execute(statement).fetchall())
         for nid in nids:
-            self.Execute( "DELETE FROM %s WHERE rep_nid = %i" % (self.name, nid))
+            self.Execute( "DELETE FROM %s WHERE nid = %i" % (self.name, nid))
 
     #--------------------------------------------------------------------------------------------------------------
     def RemoveEntry( self, domain_id):
@@ -372,10 +372,10 @@ class TableDomains( Table ):
         map info from member to rep
 
         domains contains the following information:
-        rep_nid,                        # nid of new rep
+        nid,                        # nid of new rep
         info_mem_from, info_mem_to, info_mem_ali,      # information to be mapped on mem
         info_from, info_to, info_ali,   # information to be mapped on other quantity
-        rep_from, rep_to, rep_ali,      # map between mem and new rep, rep-part
+        start, end, rep_ali,      # map between mem and new rep, rep-part
         mem_from, mem_to, mem_ali,       # map between mem and new rep, mem-part
         ...info-fields
         """
@@ -388,10 +388,10 @@ class TableDomains( Table ):
 
         for domain in domains:
             
-            ( rep_nid,
+            ( nid,
               info_mem_from, info_mem_to, info_mem_ali,
               info_from, info_to, info_ali,
-              rep_from, rep_to, rep_ali,
+              start, end, rep_ali,
               mem_from, mem_to, mem_ali,
               domain_id, family) = domain[:15]
             
@@ -405,7 +405,7 @@ class TableDomains( Table ):
             
             map_rep2mem = alignlib.makeAlignataVector()
             alignlib.fillAlignataCompressed( map_rep2mem,
-                                             rep_from, rep_ali.tostring(),
+                                             start, rep_ali.tostring(),
                                              mem_from, mem_ali.tostring() )
             
             map_rep2info = alignlib.makeAlignataVector()
@@ -418,7 +418,7 @@ class TableDomains( Table ):
                 failed += 1
                 
             else:
-                self.WriteLine( outfile, rep_nid, map_rep2info, domain_id, family,
+                self.WriteLine( outfile, nid, map_rep2info, domain_id, family,
                                 domain[15:])
         
         outfile.close()
@@ -432,20 +432,20 @@ class TableDomains( Table ):
         return failed
     
     #-----------------------------------------------------------------------------------        
-    def WriteLine( self, outfile, rep_nid, map_rep2domain, domain_id, family, additional_info):
+    def WriteLine( self, outfile, nid, map_rep2domain, domain_id, family, additional_info):
         """write line into file for loading into table.
         """
         
-        rep_from = map_rep2domain.getRowFrom()
-        rep_to = map_rep2domain.getRowTo()
+        start = map_rep2domain.getRowFrom()
+        end = map_rep2domain.getRowTo()
         domain_from = map_rep2domain.getColFrom()
         domain_to = map_rep2domain.getColTo()
         
         (rep_ali, domain_ali) = alignlib.writeAlignataCompressed( map_rep2domain )
 
-        outfile.write ( string.join( map( str, ( rep_nid,
-                                              rep_from,
-                                              rep_to,
+        outfile.write ( string.join( map( str, ( nid,
+                                              start,
+                                              end,
                                               rep_ali,
                                               domain_id,
                                               domain_from,
@@ -463,8 +463,8 @@ class TableDomains( Table ):
         """
         
         statement = """
-        SELECT rep_nid, rep_from, rep_to, %s FROM %s
-        ORDER BY rep_nid, %s, rep_from ASC""" % (self.mClassNr,
+        SELECT nid, start, end, %s FROM %s
+        ORDER BY nid, %s, start ASC""" % (self.mClassNr,
                                                  self.name,
                                                  self.mClassNr
                                                  )
@@ -509,11 +509,11 @@ class TableDomains( Table ):
         
         for r in result:
             
-            nid, rep_from, rep_to, family = r[0:4]
+            nid, start, end, family = r[0:4]
             info = r[4:]
 
             ## skip small domains
-            if rep_to - rep_from < self.mMinAssignmentLength:
+            if end - start < self.mMinAssignmentLength:
                 continue
 
             ## new entry if different nid
@@ -523,13 +523,13 @@ class TableDomains( Table ):
                                                     (last_nid, first_from, last_to, last_family) + last_info),
                                                 "\t") + "\n" )
                 last_to = 0
-                first_from = rep_from
+                first_from = start
 
             ## new entry if different family
             elif last_family != family:
 
                 # check if domain is contained in current domain. If so, skip this one.
-                # if rep_from >= first_from and rep_to <= last_to:
+                # if start >= first_from and end <= last_to:
                 #    continue
                 
                 # write current domain as there is a new assignment
@@ -537,32 +537,32 @@ class TableDomains( Table ):
                                                 (last_nid, first_from, last_to, last_family) + last_info),
                                             "\t") + "\n" )
                 if self.mShortenDomains:
-                    if rep_from <= last_to:
+                    if start <= last_to:
                         print "--> shortened domain in %i due to %s (%i-%i)" % (last_nid,
                                                                                 str(last_family),
                                                                                 first_from,
                                                                                 last_to), r                
                         first_from = last_to + 1
                     else:
-                        first_from = rep_from
+                        first_from = start
                 else:
-                    first_from = rep_from
+                    first_from = start
                     
                 last_to = 0
                 
             ## new entry if no overlap
-            elif last_to - self.mMinRedundancyOverlap < rep_from:
+            elif last_to - self.mMinRedundancyOverlap < start:
                 # write current domain, as there is a gap in between two domains
                 outfile.write( string.join( map(str,
                                                 (last_nid, first_from, last_to, last_family) + last_info),
                                             "\t") + "\n" )
-                first_from = rep_from
+                first_from = start
                 last_to = 0
                 
             last_nid = nid
             last_family = family
             last_info = info
-            last_to = max( last_to, rep_to )
+            last_to = max( last_to, end )
 
         outfile.write( string.join( map(str, (last_nid, first_from, last_to, last_family) + last_info), "\t") + "\n" )
         outfile.close()
@@ -585,15 +585,15 @@ class TableDomains( Table ):
         # do not use IGNORE, as there can be several different domains corresponding to the same nid
         statement = """
         INSERT INTO %s
-                (rep_nid, rep_from, rep_to, rep_ali,
+                (nid, start, end, rep_ali,
                 domain_id, domain_from, domain_to, domain_ali, family %s)
         SELECT
-                p.nid, s.rep_from, s.rep_to, s.rep_ali,
+                p.nid, s.start, s.end, s.rep_ali,
                 s.domain_id,  s.domain_from, s.domain_to, s.domain_ali, family %s
         FROM
                 %s AS p,
                 %s AS s
-        WHERE   p.nid = s.rep_nid
+        WHERE   p.nid = s.nid
         """ % (self.name, self.GetAdditionalInfo(), self.GetAdditionalInfo(), table_representatives, table_source)
         self.Execute( statement) 
 
@@ -602,17 +602,17 @@ class TableDomains( Table ):
         statement = """
         SELECT
                 p.nid,
-                s.rep_from, s.rep_to, s.rep_ali,  
+                s.start, s.end, s.rep_ali,  
                 s.domain_from, s.domain_to, s.domain_ali,  
-                g.rep_from, g.rep_to, g.rep_ali,
+                g.start, g.end, g.rep_ali,
                 g.mem_from, g.mem_to, g.mem_ali,
                 s.domain_id, s.family
                 %s
         FROM    %s AS p,
                 %s AS s,
                 %s AS g
-        WHERE   p.nid = g.rep_nid AND
-        g.mem_nid = s.rep_nid
+        WHERE   p.nid = g.nid AND
+        g.mem_nid = s.nid
         LIMIT %%i,%%i""" % ( self.GetAdditionalInfo(),
                                                    table_representatives,
                                                    table_source,
@@ -656,10 +656,10 @@ class TableDomains( Table ):
         # 1. insert entries of source database directly.
         statement = """
         INSERT INTO %s
-               (rep_nid, rep_from, rep_to, rep_ali,
+               (nid, start, end, rep_ali,
                 domain_id, domain_from, domain_to, domain_ali, family %s)
         SELECT
-                p.rep_nid, p.rep_from, p.rep_to, p.rep_ali,
+                p.nid, p.start, p.end, p.rep_ali,
                 p.domain_id,  p.domain_from, p.domain_to, p.domain_ali, family %s
         FROM
                 %s AS p 
@@ -678,10 +678,10 @@ class TableDomains( Table ):
         SELECT COUNT(*), COUNT(DISTINCT g.mem_nid)
         FROM    %s AS s,
                 %s AS g
-        LEFT JOIN %s AS e ON g.mem_nid = e.rep_nid
-        WHERE   g.rep_nid = s.rep_nid AND
-        LEAST(s.rep_to, g.rep_to) - GREATEST(s.rep_from, g.rep_from) > 0
-        AND e.rep_nid IS NULL
+        LEFT JOIN %s AS e ON g.mem_nid = e.nid
+        WHERE   g.nid = s.nid AND
+        LEAST(s.end, g.end) - GREATEST(s.start, g.start) > 0
+        AND e.nid IS NULL
         """ % ( table_source,
                 table_alignments,
                 table_source )
@@ -698,18 +698,18 @@ class TableDomains( Table ):
         statement = """
         SELECT
                 g.mem_nid,
-                s.rep_from, s.rep_to, s.rep_ali,  
+                s.start, s.end, s.rep_ali,  
                 s.domain_from, s.domain_to, s.domain_ali,  
                 g.mem_from, g.mem_to, g.mem_ali,
-                g.rep_from, g.rep_to, g.rep_ali,
+                g.start, g.end, g.rep_ali,
                 s.domain_id, s.family
                 %s
         FROM    %s AS s,
                 %s AS g
-        LEFT JOIN %s AS e ON g.mem_nid = e.rep_nid
-        WHERE   g.rep_nid = s.rep_nid AND
-        LEAST(s.rep_to, g.rep_to) - GREATEST(s.rep_from, g.rep_from) > 0
-        AND e.rep_nid IS NULL
+        LEFT JOIN %s AS e ON g.mem_nid = e.nid
+        WHERE   g.nid = s.nid AND
+        LEAST(s.end, g.end) - GREATEST(s.start, g.start) > 0
+        AND e.nid IS NULL
         LIMIT %%i,%%i
         """ % ( self.GetAdditionalInfo( "s" ),
                 table_source,
@@ -740,7 +740,7 @@ class TableDomains( Table ):
         """
 
         statement = """
-        SELECT rep_nid, rep_from, rep_to, rep_ali,
+        SELECT nid, start, end, rep_ali,
         domain_id, domain_from, domain_to, domain_ali,
         family
         %s
@@ -753,13 +753,13 @@ class TableDomains( Table ):
         domains = self.Execute(statement).fetchall()
 
         for domain in domains:
-            (rep_nid, rep_from, rep_to, rep_ali,
+            (nid, start, end, rep_ali,
              domain_id, domain_from, domain_to, domain_ali,
              family) = domain[:9]
 
             map_rep2domains = alignlib.makeAlignataVector()
 
-            alignlib.fillAlignataCompressed( map_rep2domains, rep_from, rep_ali, domain_from, domain_ali)
+            alignlib.fillAlignataCompressed( map_rep2domains, start, rep_ali, domain_from, domain_ali)
 
             val = alignlib.splitAlignata( map_rep2domains, max_gap_length)
             
@@ -770,15 +770,15 @@ class TableDomains( Table ):
                 ## so that the object gets deleted, once it goes out of scope
                 map_rep2domain.thisown = 1
                                            
-                rep_from = map_rep2domain.getRowFrom()
-                rep_to = map_rep2domain.getRowTo()
+                start = map_rep2domain.getRowFrom()
+                end = map_rep2domain.getRowTo()
                 domain_from = map_rep2domain.getColFrom()
                 domain_to = map_rep2domain.getColTo()
 
                 (rep_ali, domain_ali) = alignlib.writeAlignataCompressed( map_rep2domain)
 
                 self.WriteLine( outfile,
-                                rep_nid, 
+                                nid, 
                                 map_rep2domain,
                                 domain_id,
                                 family,
@@ -800,7 +800,7 @@ class TableDomains( Table ):
         statement = """
         INSERT INTO %s
         SELECT
-        rep_nid, rep_from, rep_to, rep_ali,
+        nid, start, end, rep_ali,
         domain_id, domain_from, domain_to, domain_ali,
         %s %s
         FROM %s
@@ -815,14 +815,14 @@ class TableDomains( Table ):
         is specified. "extra_fields" should then start with a ,.
         """
         if subset:
-            s = " INNER JOIN %s AS subset ON subset.nid = rep_nid " % subset
+            s = " INNER JOIN %s AS subset ON subset.nid = nid " % subset
         else:
             s = ""
             
         statement = """
         INSERT INTO %s
         SELECT
-        rep_nid, rep_from, rep_to, rep_ali
+        nid, start, end, rep_ali
         domain_id, domain_from, domain_to, domain_ali,
         family %s
         FROM %s

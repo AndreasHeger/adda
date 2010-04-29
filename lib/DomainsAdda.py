@@ -18,14 +18,14 @@ class DomainsAdda (Domains):
     requirements        = ()                            ## modules that should have finished before
 
     #--------------------------------------------------------------------------------
-    def __init__ (self, dbhandle):
+    def __init__ ( self ):
         
         self.mLogLevel = 3
 
-	Domains.__init__( self, dbhandle )
+	Domains.__init__( self )
 
-        self.mTableFamilies = TableFamiliesAdda( dbhandle, "adda" )
-        self.mTableDomains = TableDomainsAdda( dbhandle, "adda" )
+        self.mTableFamilies = TableFamiliesAdda( self.dbhandle, "adda" )
+        self.mTableDomains = TableDomainsAdda( self.dbhandle, "adda" )
         
         self.mTableFamilies.SetName( self.mTableNameFamilies )        
         self.mTableDomains.SetName( self.mTableNameDomains  )
@@ -35,13 +35,8 @@ class DomainsAdda (Domains):
 #--------------------------------------< end of class definition >-------------------------------
 
 if __name__ == '__main__':
-    dbhandle = Pairsdb()
-    if not dbhandle.Connect():
-	print "Connection failed" 
-	sys.exit(1)
 
-    x = DomainsAdda( dbhandle )
-    
+    x = DomainsAdda()
     x.Process()
 
                 

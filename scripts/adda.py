@@ -131,7 +131,7 @@ def computeMSTComponents(infile, outfile):
     statement = ADDA_STATEMENT
     P.run()
 
-@files( computeMSTComponents, PARAMS["output_align"])
+@files( buildMST, PARAMS["output_align"])
 def alignDomains(infile, outfile):
     cmd = "align"
     statement = ADDA_STATEMENT

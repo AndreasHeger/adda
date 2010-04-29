@@ -92,9 +92,15 @@ class AddaAlign( AddaModuleRecord ):
 
         ###############################################
         # create objects for algorithm 
+        alignlib.getDefaultToolkit().setEncoder( alignlib.getEncoder( alignlib.Protein20 ) )
         self.mLogOddor    = alignlib.makeLogOddorDirichlet( self.mScaleFactor )
         self.mRegularizor = alignlib.makeRegularizorDirichletPrecomputed()
         self.mWeightor    = alignlib.makeWeightor()
+
+        alignlib.getDefaultToolkit().setRegularizor( self.mRegularizor )
+        alignlib.getDefaultToolkit().setLogOddor( self.mLogOddor )
+        alignlib.getDefaultToolkit().setWeightor( self.mWeightor )
+
 
         if self.mUsePrebuiltProfiles:
             self.mProfileLibrary = ProfileLibrary.ProfileLibrary( self.mFilenameProfiles, "r" )
@@ -105,17 +111,12 @@ class AddaAlign( AddaModuleRecord ):
         else:
             self.mProfileLibrary = None
             self.mIndexedNeighbours = cadda.IndexedNeighbours( self.mFilenameGraph, self.mFilenameIndex )
-            self.mToolkit = alignlib.makeToolkit()
-            alignlib.setDefaultToolkit( self.mToolkit )
-            self.mToolkit.setWeightor( self.mWeightor )
-            self.mToolkit.setLogOddor( self.mLogOddor )
-            self.mToolkit.setRegularizor( self.mRegularizor )
 
         self.mChecker = self.checkLinkZScore
-        self.mHeader = ("passed",
-                        "qdomain",
+        self.mHeader = ("qdomain",
                         "sdomain",
                         "weight",
+                        "passed",
                         "qstart",
                         "qend",
                         "qali",
@@ -263,12 +264,14 @@ class AddaAlign( AddaModuleRecord ):
             code = "-"
             self.mNFailed += 1
 
-        self.mOutfile.write( "\t".join( ( code,
-                                    line[:-1],
-                                    str(alignlib.AlignmentFormatEmissions( alignment )),
-                                    str(alignment.getScore()), 
-                                    str(alignment.getNumAligned()), 
-                                    str(alignment.getNumGaps())) + extra_info ) + "\n" )                    
+        self.mOutfile.write( "\t".join( ( 
+                    line[:-1],
+                    code,
+                    str(alignlib.AlignmentFormatEmissions( alignment )),
+                    str(alignment.getScore()), 
+                    str(alignment.getNumAligned()), 
+                    str(alignment.getNumGaps())) + extra_info ) + "\n" )                    
+
         self.mOutfile.flush()
 
         self.mOutput += 1
@@ -454,10 +457,10 @@ class AddaRealign( AddaAlign ):
             code = "-"
             self.mNFailed += 1
 
-        self.mOutfile.write( "\t".join( ( code,
-                                          link.qdomain,
+        self.mOutfile.write( "\t".join( ( link.qdomain,
                                           link.sdomain,
                                           link.weight,
+                                          code,
                                           str(alignlib.AlignmentFormatEmissions( alignment )),
                                           str(alignment.getScore()), 
                                           str(alignment.getNumAligned()), 

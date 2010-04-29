@@ -41,7 +41,7 @@ DIR_SCRIPTS?=/home/andreas/workspace/adda/scripts/
 
 ################################
 ## Database with pairsdb information
-PARAM_DATABASE_PAIRSDB?=pairsdb
+PARAM_DATABASE_PAIRSDB?=adda_helsinki_new
 
 ################################
 ## Database to store adda results
@@ -155,9 +155,9 @@ prepare: create-database load-primary
 load-primary:	\
 	adda_nids.load \
 	adda_nrdb.load \
-	pairsdb_100x40.load \
 	$(PARAM_REFERENCES:%=reference_%.load) \
 	adda_domains.load 
+# pairsdb_100x40.load \
 
 benchmark-domains: $(PARAM_REFERENCES:%=%.eval_parts)
 
