@@ -46,7 +46,7 @@ Code
 ----
 """
 import sys, tempfile, optparse, shutil, itertools, csv, math, random, re, glob, os, shutil
-import fileinput, collections, gzip
+import fileinput, collections, gzip, time
 
 import Adda.Experiment as E
 import Adda.Pipeline as P
@@ -59,6 +59,12 @@ PARAMS = P.getParameters( "adda.ini" )
 
 ADDA_STATEMENT="adda_build.py %(cmd)s > cmd_%(cmd)s.log"
 
+##--------------------------------------------------------------
+##--------------------------------------------------------------
+##--------------------------------------------------------------
+##--------------------------------------------------------------
+## Targets for building ADDA
+##--------------------------------------------------------------
 @files( PARAMS["input_fasta"], PARAMS["output_nids"] )
 def indexSequences(infile, outfile ):
     '''index sequence database and map to internal identifiers.
@@ -155,6 +161,39 @@ def buildAddaSummary(infile, outfile):
     statement = ADDA_STATEMENT
     P.run()
 
+@files( buildAddaSummary, "adda.%s.tgz" % (time.strftime( "%Y-%m-%d", time.localtime(time.time()))))
+def exportResults( infile, outfile ):
+    '''export Adda results.'''
+    
+    statement = '''
+    tar -cvzf %(outfile)s 
+          %(output_result)s
+          %(output_families)s
+          %(output_summary)s
+    '''
+    P.run()
+
+@files( buildAddaSummary, "adda.%s.tgz" % (time.strftime( "%Y-%m-%d", time.localtime(time.time()))))
+def exportPfam( infile, outfile ):
+    '''export Adda results.'''
+    
+    outdir = time.strftime( "%Y_%m_%d", time.localtime(time.time()))
+
+    statement = '''
+    mkdir %(outdir)s;
+    awk '!/^nid/ {printf("%%s\\n%%s\\n", $1, $5);}' < %(output_nids) > %(outdir)s/adda.fasta;
+    ln -s ../adda.result %(outdir)s/adda.result;
+    tar -cvzf %(outfile)s %(outdir)s;
+    rm -rf %(outdir)s
+    '''
+    P.run()
+
+##--------------------------------------------------------------
+##--------------------------------------------------------------
+##--------------------------------------------------------------
+##--------------------------------------------------------------
+## Targets for mapping ADDA to pfam
+##--------------------------------------------------------------
 #########################################################################
 #########################################################################
 #########################################################################
@@ -468,6 +507,11 @@ def buildMappingSummary( infiles, outfile ):
         
     outf.close()
 
+##--------------------------------------------------------------
+##--------------------------------------------------------------
+##--------------------------------------------------------------
+## primary targets
+##--------------------------------------------------------------
 @follows(
     collectTargetSequences,
     collectADDASequences,
@@ -484,6 +528,9 @@ def map(): pass
 
 @follows( buildAddaSummary )
 def build(): pass
+
+@follows( exportResults )
+def export(): pass
 
 if __name__ == "__main__":
     # P.checkExecutables( ("blat", "gunzip", ))

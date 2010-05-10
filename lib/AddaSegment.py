@@ -449,7 +449,7 @@ class AddaSegment( AddaModuleRecord ):
         return new_left_ranges, new_right_ranges
     
     #----------------------------------------------------------------
-    def removeSmallRanges( self, ranges, max_separation = 1):
+    def removeSmallRanges( self, ranges ):
         """resolve ranges.
     
         ranges are defined as tuples: (from, to, type)
@@ -464,6 +464,8 @@ class AddaSegment( AddaModuleRecord ):
     
         last_left, last_right, last_type = ranges[0]
         
+        max_separation = self.min_segment_size
+
         for this_left, this_right, this_type in ranges[1:]:
     
             # print this_left, this_right, this_type,
@@ -659,9 +661,7 @@ class AddaSegment( AddaModuleRecord ):
                 covering_tree[node][4] = []
                 
             # and remove small fragments
-            new_ranges = self.removeSmallRanges( ranges, 
-                                                 self.min_segment_size,
-                                                 self.min_segment_size )
+            new_ranges = self.removeSmallRanges( ranges )
     
             # and put back into tree if there is more than one range
             for (xfrom, xto, node) in new_ranges:

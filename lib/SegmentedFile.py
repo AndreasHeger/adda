@@ -148,7 +148,7 @@ def openfile( filename, mode = "r", slice = None, force = None, has_header = Tru
     if mode[0] == "r":
         if isComplete(filename): return SegmentedFile( filename, mode )
         filenames = getParts( filename )
-        assert len(filenames) > 0
+        if len(filenames) == 0: raise OSError( "file(s) not found: %s.*" % filename )
         for filename in filenames:
             if not checkTailForToken( filename, TOKEN ):
                 raise ValueError( "incomplete file %s" % filename )

@@ -3,7 +3,7 @@
 from distutils.core import setup
 from distutils.extension import Extension
 from Cython.Distutils import build_ext
-import os
+import os, glob
 
 # TODO: add tests for required packages
 # numpy, pyrex, matplotlib and scipy
@@ -36,6 +36,8 @@ Components = Extension(
      language="c++",               # this causes Pyrex/Cython to create C++ source
      )
 
+scripts = [ os.path.basename(x) for x in glob.glob("lib/*.pl") + glob.glob("lib/[a-z]*.py") ]
+
 setup(name='Adda',
       version='1.0',
       description='ADDA - automatic domain detection algorithm',
@@ -43,9 +45,8 @@ setup(name='Adda',
       author_email='andreas.heger@helsinki.fi',
       url='http://wwwfgu.anat.ox.ac.uk/~andreas',
       packages = ["Adda",],
-      package_dir = {'Adda': 'lib'},
-      package_data = { "Adda" : [ 'adda_blast_parser.pl',
-	                          'split_fasta.pl' ] },
+      package_dir = {'Adda': 'lib' },
+      package_data = { "Adda" : scripts },
       scripts=['scripts/adda.py',
                'scripts/adda_build.py',
                'scripts/adda_annotate.py',

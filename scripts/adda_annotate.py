@@ -182,9 +182,45 @@ def annotateAlignmentGraph( infile, outfiles ):
     outf_stats.close()
     E.info( "%s" % str( counts ) )
 
+
+@files( ( (PARAMS["filename_adda_nids"], PARAMS["eval_tablename_adda_nids"]+ ".import"), ) )
+def importSequences( infile, outfile ):
+    '''import sequences.
+
+    This command will also create the database
+    '''
+
+    statement = '''
+         mysql %(mysql_options)s -e "DROP DATABASE IF EXISTS %(load_database)s"
+    '''
+    	
+    P.run()
+
+    statement = '''
+         mysql %(mysql_options)s -e "CREATE database %(load_database)s"
+    '''
+    	
+    P.run()
+
+    table = outfile[:-len(".import")]
+
+    statement ='''
+        perl -p -e "s/nid/adda_nid/; s/pid/nid/" 
+        < %(infile)s 
+	| python %(scriptsdir)s/csv2db.py 
+        %(csv2db_options)s
+           --database=%(database)s
+	   --table=%(table)s 
+	   --index=nid 
+        > %(outfile)s
+    '''
+
+    P.run()
+
+@follows( importSequences )
 @files( [ (x, "%s.import" % y) for x,y in \
-              ( (PARAMS["eval_filename_segments"],PARAMS["eval_tablename_segments"]),
-                (PARAMS["eval_filename_domains"], PARAMS["eval_tablename_domains"]) ) ] )
+              ( (PARAMS["eval_filename_segments"], PARAMS["eval_tablename_segments"]),
+                (PARAMS["eval_filename_domains"], PARAMS["eval_tablename_domains"]) ) if os.path.exists(x) ] )
 def importADDAIntermediateResults( infile, outfile ):
     '''import the segmentation segments.
 
@@ -207,7 +243,7 @@ def importADDAIntermediateResults( infile, outfile ):
     
     P.run()
 
-
+@follows( importSequences )
 @files( [ (x, re.sub( "[.].*", "", os.path.basename(x))+".import") \
               for x in P.asList( PARAMS["eval_filename_reference_domains"] ) ] )
 def importReference( infile, outfile ):
@@ -236,6 +272,7 @@ def importReference( infile, outfile ):
 
     P.run()
 
+@follows( importSequences )
 @files( ( (PARAMS["eval_filename_result"], 
            PARAMS["tablename_adda"]+".import" ), ) )
 def importADDAResults( infile, outfile ):
@@ -277,6 +314,18 @@ def annotateADDA( infile, outfile ):
     
     P.run()
 
+    statement = '''
+        perl %(scriptsdir)s/calculate_selectivity.pl < %(outfile)s > %(outfile)s.selectivity
+    '''
+
+    P.run()
+
+    statement = '''
+        perl %(scriptsdir)s/calculate_sensitivity.pl < %(outfile)s > %(outfile)s.sensitivity
+    '''
+
+    P.run()
+        
 @follows( importADDAIntermediateResults )
 @transform( importReference, suffix(".import"), "_segments.eval" )
 def evaluateSegments( infile, outfile ):
@@ -335,12 +384,14 @@ def benchmarkFamilies():
     appropriately.
     '''
 
-@follows( importADDAIntermediateResults,
+@follows( importSequences,
+          importADDAIntermediateResults,
           importADDAResults,
           importReference )
 def load(): pass
 
 @follows( annotateAlignmentGraph,
+          annotateADDA,
           evaluateDomains,
           evaluateSegments )
 def benchmark(): pass

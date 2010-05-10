@@ -1,9 +1,10 @@
-import sys, os, re, time, math, copy, random, glob  
+import sys, os, re, time, math, copy, random, glob, optparse, itertools, shutil
 import numpy
 import scipy, scipy.optimize
 
+import Experiment as E
 from AddaModule import AddaModuleRecord
-import AddaIO, AddaPlot
+import AddaIO, AddaPlot, IndexedFasta
 import SegmentedFile
 import multiprocessing
 
@@ -102,15 +103,17 @@ class AddaFit( AddaModuleRecord ):
 
         AddaModuleRecord.__init__( self, *args, **kwargs )
 
-        self.mFilenameFit = self.mConfig.get("files","output_fit", "adda.fit" )
-        self.mFilenameOverhang = self.mConfig.get( "files", "output_fit_overhang", "adda.fit.overhang" )
-        self.mFilenameTransfer = self.mConfig.get( "files", "output_fit_transfer", "adda.fit.transfer" )
-        self.mFilenameData = self.mConfig.get( "files", "output_fit_data", "adda.fit.data" )
-        self.mFilenameDetails = self.mConfig.get( "files", "output_fit_details", "adda.fit.details" )
+        self.mFilenameFit = self.mConfig.get("output","output_fit", "adda.fit" )
+        self.mFilenameOverhang = self.mConfig.get( "output", "output_fit_overhang", "adda.fit.overhang" )
+        self.mFilenameTransfer = self.mConfig.get( "output", "output_fit_transfer", "adda.fit.transfer" )
+        self.mFilenameData = self.mConfig.get( "output", "output_fit_data", "adda.fit.data" )
+        self.mFilenameDetails = self.mConfig.get( "output", "output_fit_details", "adda.fit.details" )
         self.mMinTransfer = float(self.mConfig.get( "fit", "min_transfer" ))
         self.mMinOverhang = float(self.mConfig.get( "fit", "min_overhang" ))
-        self.mFilenameNids = self.mConfig.get( "files", "output_nids", "adda.nids" )
+        self.mFilenameNids = self.mConfig.get( "output", "output_nids", "adda.nids" )
         self.mMaxSequenceLength = self.mConfig.get( "segment", "max_sequence_length", 10000 )
+        
+        self.min_counts = self.mConfig.get( "fit", "min_counts", 10 )
 
         self.mFilenames = (self.mFilenameFit, 
                            self.mFilenameTransfer, 
@@ -206,68 +209,35 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         The results are appended to self.mTransferValues and 
         self.mOverhangValues.
 
-        Values are averaged per query, sbjct and family.
+        Values are averaged per family, query, sbjct.
+        This averages over repeats and query and sbjct at the same
+        time.
+
         """
 
         values.sort()
 
-        def __iterate( values):
-            t, nt, o, no = 0, 0, 0, 0
-            last_f, last_q, last_s = None, None, None
+        for g, vals in itertools.groupby( values, key = lambda x: x[:3] ):
             
-            for f, q, s, transfer, overhang1, overhang2 in values:
-                
-                if f != last_f or \
-                    q != last_q or \
-                    s != last_s:
-                    if nt > 0:
-                        a = float(t)/nt
-                    else:
-                        a = None
-                    
-                    if no > 0:
-                        b = float(o)/no
-                    else:
-                        b = None
-                        
-                    yield a,b 
+            vals = list(vals)
             
-                    t, nt, o, no = 0, 0, 0, 0
-    
-                    last_f, last_q, last_s = f, q, s
-                    
-                if transfer >= self.mMinTransfer:                                         
-                    t += transfer
-                    nt += 1
-                    
-                if overhang1 >= self.mMinOverhang:
-                    o += overhang1
-                    no += 1     
-    
-                if overhang2 >= self.mMinOverhang:
-                    o += overhang2
-                    no += 1     
-                
-            if nt > 0:
-                a = float(t)/nt
-            else:
-                a = None
-            
-            if no > 0:
-                b = float(o)/no
-            else:
-                b = None
-                
-            yield a,b 
-                
-            raise StopIteration
+            transfers, overhangs = [], []
+            for f, q, s, transfer, overhang1, overhang2 in vals:
 
-        for transfer, overhang in __iterate( values):                   
+                if transfer < self.mMinTransfer: continue
 
-            if transfer:
+                transfers.append( transfer )
+                overhangs.append( overhang1 )
+                overhangs.append( overhang2 )
+                
+            if transfers:
+                transfer = int(round(sum( transfers ) / float(len(transfers))))
                 self.mTransferValues[transfer] += 1
-            if overhang:
-                self.mOverhangValues[overhang] += 1
+
+            if overhangs:
+                overhang = int(math.floor(sum( overhangs ) / float(len(overhangs))))
+                if overhang >= self.mMinOverhang:
+                    self.mOverhangValues[overhang] += 1
 
     #--------------------------------------------------------------------------    
     def readPreviousData(self, filename = None):
@@ -286,38 +256,25 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         
         infile = open( filename, "r" )
 
-        def iterate_per_query(infile):
-            
-            last_query = None
-            
-            for line in infile:
-                if line.startswith("#"): continue
-                if line.startswith("class"): continue
+        values = []
 
-                try: 
-                    (family, query_token, sbjct_token, transfer, overhang1, overhang2) = line[:-1].split("\t")
-                except ValueError:
-                    self.warn( "parsing error in line %s\n" % line[:-1] )
-                    continue
-                
-                if query_token != last_query:
-                    if last_query: yield values
-                    values = []
-                    last_query = query_token
-                    
-                transfer, overhang1, overhang2 = map( int, (transfer, overhang2, overhang1) )
-                
-                if transfer >= 0:
-                    values.append( (family, query_token, sbjct_token, transfer, overhang1, overhang2) ) 
-                    
-            if last_query: 
-                yield values
-                self.mContinueAt = (query_token, sbjct_token)
+        for line in infile:
+            if line.startswith("#"): continue
+            if line.startswith("class"): continue
 
-            raise StopIteration
+            try: 
+                (family, query_token, sbjct_token, transfer, overhang1, overhang2) = line[:-1].split("\t")
+            except ValueError:
+                self.warn( "parsing error in line %s\n" % line[:-1] )
+                continue
+                
+            transfer, overhang1, overhang2 = map( int, (transfer, overhang2, overhang1) )
             
-        for values in iterate_per_query(infile):
-            self.processValues(values)
+            if transfer < self.mMinTransfer: continue
+
+            values.append( (family, query_token, sbjct_token, transfer, overhang1, overhang2) ) 
+            
+        self.processValues(values)
             
         self.info("read previous data from %s: transfer=%i, overhang=%i" % \
                       (filename, len(self.mTransferValues), len(self.mOverhangValues) ))
@@ -492,7 +449,11 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
 
     #--------------------------------------------------------------------------    
     def truncateCounts( self, counts ):
+        '''truncate counts.'''
 
+        s = sum(counts)
+        if s == 0: raise ValueError( "no counts" )
+            
         # truncate
         ma = len(counts) - 1
         while ma > 0 and counts[ma] == 0: ma -= 1
@@ -514,13 +475,13 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         '''
         
         bins, histogram = self.truncateCounts( counts )
-
+        
         # cumulate
         if reverse:
             c = numpy.add.accumulate( numpy.array( histogram[::-1], numpy.float) )
         else: 
             c = numpy.add.accumulate( numpy.array( histogram, numpy.float) )
-            
+        
         # normalize
         total = max(c)
         y = c / total
@@ -535,24 +496,32 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         self.info( "number of values: transfer=%i, overhang=%i" % (len(self.mTransferValues),
                                                                    len(self.mOverhangValues)) )
 
-        if len(self.mTransferValues) == 0 or len(self.mOverhangValues) == 0:
+        if sum(self.mTransferValues) < self.min_counts or sum(self.mOverhangValues) < self.min_counts :
             self.warn( "no transfer or overhang values - no parameters computed" )
             return
         
         self.mOutfile = self.openOutputStream( self.mFilenameFit, register = False )
 
-        A,B,C,K = self.fitTransfer()
-        E, F = self.fitOverhang()
-
         self.mOutfile.write( "[optimise]\n" )
-        self.mOutfile.write( "sigmoid_min=%f\n" % A() )
-        self.mOutfile.write( "sigmoid_max=%f\n" % B() )
-        self.mOutfile.write( "sigmoid_k=%f\n" % K() )
-        self.mOutfile.write( "sigmoid_c=%f\n" % C() )
-        self.mOutfile.write( "exponential_E=%f\n" % E() )                                
-        self.mOutfile.write( "exponential_F=%f\n" % F() )
 
+        try:
+            A,B,C,K = self.fitTransfer()
+            self.mOutfile.write( "sigmoid_min=%f\n" % A() )
+            self.mOutfile.write( "sigmoid_max=%f\n" % B() )
+            self.mOutfile.write( "sigmoid_k=%f\n" % K() )
+            self.mOutfile.write( "sigmoid_c=%f\n" % C() )
+        except ValueError, msg:
+            self.warn( "could not compute overhang values: %s" % msg )
+
+        try:
+            E, F = self.fitOverhang()
+            self.mOutfile.write( "exponential_E=%f\n" % E() )                                
+            self.mOutfile.write( "exponential_F=%f\n" % F() )
+        except ValueError:
+            self.warn( "could not compute overhang values: %s" % msg )
+            
         self.mOutfile.close()
+
         ## close here, so that all is flushed before merge is called
         if self.mOutfileDetails: self.mOutfileDetails.close()
 
@@ -572,9 +541,9 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         B = Parameter(1.0)
         C = Parameter(76.0)
         K = Parameter(8.6)
-
+        
         result = fit(f,[A,B,C,K], y=counts, x=bins)
-
+        
         AddaPlot.plotHistogram( bins, counts, 
                                 f = f,
                                 filename = self.mFilenameTransfer + ".png",
@@ -633,3 +602,195 @@ class\tnid1\tdfrom1\tdto1\tafrom1\tato1\tdnid2\tdfrom2\tdto2\tafrom2\tato2\tlali
         self.finish()
             
         return True
+
+if __name__ == "__main__":
+    
+    parser = optparse.OptionParser( version = "%prog version: $Id$",
+                                    usage = globals()["__doc__"],
+                                    )
+
+    parser.add_option( "--filename-data", dest="filename_data", type="string",
+                      help="read data from ADDA 1.0 'analyse_transfer' file "
+                           "[default=%default].")
+
+    parser.add_option( "--filename-overhang-hist", dest="filename_overhang_hist", type="string",
+                      help="histogram with overhang values "
+                           "tab-separated table: bin and counts "
+                           "[default=%default].")
+
+    parser.add_option( "--method", dest="method", type="choice",
+                       choices=("finish", "merge" ),
+                       help="method to test "
+                           "[default=%default].")
+
+    parser.set_defaults( 
+        filename_data = None,
+        filename_overhang_hist = None,
+        method = "finish",
+        filename_config = "adda.ini", )
+
+    (options, args) = E.Start( parser )
+
+    config = AddaIO.ConfigParser()
+    config.read( os.path.expanduser( options.filename_config ) )
+
+    filename_graph = config.get( "output", "output_graph", "adda.graph")
+    filename_index = config.get( "output", "output_index", "adda.graph.index")
+    filename_fasta= config.get( "output", "output_fasta", "adda" )
+
+    config.set( "output", "output_fit", "test.fit" )
+    config.set( "output", "output_fit_data", "test.fit.data" )
+    config.set( "output", "output_fit_details", "test.fit.details" )
+    config.set( "output", "output_fit_overhang", "test.fit.overhang" )
+    config.set( "output", "output_fit_transfer", "test.fit.transfer" )
+    
+    fasta = None
+
+    module = AddaFit( config = config,
+                      fasta = fasta,
+                      )
+
+    module.startUp()
+
+    if options.filename_overhang_hist:
+
+        E.info( "testing fitting" )
+
+        infile = open(options.filename_overhang_hist)
+        bins, counts = [], []
+        for line in infile:
+            if line.startswith("#"): continue
+            bin, count = line[:-1].split("\t")
+            bins.append( int(float(bin)) )
+            counts.append( float( count ) )
+
+        def f(x): return F() * numpy.exp ( -(x)* E() )
+        
+        E = Parameter(0.05)
+        F = Parameter(1.0)
+
+        bins=numpy.array( bins )
+        counts=numpy.array( counts )
+
+        result = fit(f,[E,F], y=counts, x=bins)
+
+        options.stdout.write("fitting results: %s" % str(result))
+
+    if options.method == "finish":
+
+        if options.filename_data == None:
+            raise ValueError( "please supply analyse_transfer file" )
+
+        E.info( "testing data aggregation" )
+
+        # module.mTransferValues = []
+        # module.mOverhangValues = []
+
+        infile = open(options.filename_data)
+        
+        all_data = []
+
+        # emulate filtering in Adda 1.0
+        # - average over repeats (same family in query/sbjct. 
+        #            This will automatically average query and sbjct as well)
+        # - only classes 00a-00d
+        # - minimum transfer = 10
+
+        for line in infile:
+            if line.startswith("#"): continue
+            data = line[:-1].split("\t")
+            # q,s: query/sbjct
+            # d,a: domain, alignment
+            (family, qnid, qdstart, qdend, qafrom, qaend, snid, sdstart, sdend, sastart, saend, \
+                 lali, lx, ly, trans, ptrans, atran, score ) = data
+
+            if family[:3] not in ("00a", "00b", "00c", "00d" ):
+                continue
+
+            trans = int(trans )
+            if trans < 10 : continue
+
+            all_data.append( ("%s%s%s" % (family, qnid, snid), int(lx) - int(trans), int(trans) ) )
+            all_data.append( ("%s%s%s" % (family, qnid, snid), int(ly) - int(trans), int(trans) ) )
+
+        E.info( "received %i values" % len(all_data) )
+
+        all_data.sort()
+
+        for g, vals in itertools.groupby( all_data, key = lambda x: x[0] ):
+
+            vals = list(vals)
+            overhangs = [x[1] for x in vals ]
+            transfers = [x[2] for x in vals ]
+
+            if overhangs:
+
+                overhang = int(math.floor(sum( overhangs ) / float(len(overhangs))))
+
+                # applied here only, while transfer filter applies to both
+                # overhang and transfer values
+                # - minimum overhang = 10
+                if overhang >= 10:
+                    module.mOverhangValues[overhang] += 1
+                    
+            if transfers:
+                transfer = int(round(sum( transfers ) / float(len(transfers))))
+                module.mTransferValues[transfer] += 1
+
+        E.info( "added: overhang=%i, transfer=%i" % (sum(module.mOverhangValues), 
+                                                     sum(module.mTransferValues)))
+            
+        module.finish()
+
+        E.Stop()
+        sys.exit(0)
+
+    elif options.method == "merge":
+
+        E.info( "testing merge step" )
+
+        if options.filename_data == None:
+            raise ValueError( "please supply analyse_transfer file" )
+
+        infile = open(options.filename_data)
+        
+        all_data = []
+
+        # emulate filtering in Adda 1.0
+        # - average over repeats (same family in query/sbjct. 
+        #            This will automatically average query and sbjct as well)
+        # - only classes 00a-00d
+        # - minimum transfer = 10
+
+        module.mOutfileData.close()
+        outfile = open( "test.fit.data", "w" )
+
+        outfile.write( "class\tquery_nid\tsbjct_nid\ttransfer\tquery_overhang\tsbjct_overhang\n")
+        
+        noutput = 0
+        for line in infile:
+            if line.startswith("#"): continue
+            data = line[:-1].split("\t")
+            # q,s: query/sbjct
+            # d,a: domain, alignment
+            (family, qnid, qdstart, qdend, qafrom, qaend, snid, sdstart, sdend, sastart, saend, \
+                 lali, lx, ly, trans, ptrans, atran, score ) = data
+
+            if family[:3] not in ("00a", "00b", "00c", "00d" ):
+                continue
+            
+            outfile.write( "\t".join( (family, qnid, snid, trans,
+                                       str(int(lx) - int(trans)),
+                                       str(int(ly) - int(trans)) ) ) + "\n" )
+
+            noutput += 1
+
+        E.info("written %i values" % noutput )
+
+        outfile.write("#//\n" )
+        outfile.flush()
+        outfile.close()
+        
+        module.merge()
+        
+    E.Stop()

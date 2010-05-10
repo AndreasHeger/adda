@@ -182,7 +182,7 @@ create-database:
 %_nids.load: $(PARAM_DIR_ADDA)%.nids
 	$(PROLOG)
 	@perl -p -e "s/nid/adda_nid/; s/pid/nid/" < $< |\
-	python $(DIR_SCRIPTS)csv2db.py \
+	python $(DIR_SCRIPTS_SRC)csv2db.py \
 		$(PARAM_DB_CONNECTION) \
 		--table=$(PARAM_TABLE_NIDS) \
 		--index=nid > $@
@@ -196,7 +196,7 @@ create-database:
 #####################################################
 %_nrdb.load: $(PARAM_DIR_ADDA)%.nids
 	$(PROLOG)
-	@python $(DIR_SCRIPTS)csv2db.py \
+	@python $(DIR_SCRIPTS_SRC)csv2db.py \
 		$(PARAM_DB_CONNECTION) \
 		--table=$(PARAM_DATABASE_PAIRSDB).nrdb \
 		--index=nid < $< > $@
@@ -211,7 +211,7 @@ create-database:
 pairsdb_100x40.load: $(PARAM_DIR_ADDA)pairsdb_100x40.gz
 	$(PROLOG)
 	@gunzip < $< |\
-	python $(DIR_SCRIPTS)csv2db.py \
+	python $(DIR_SCRIPTS_SRC)csv2db.py \
 		$(PARAM_DB_CONNECTION) \
 		--table=$(PARAM_DATABASE_PAIRSDB).pairsdb_100x40 \
 		--index=rep_nid \

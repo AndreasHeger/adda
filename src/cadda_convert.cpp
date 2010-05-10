@@ -239,7 +239,7 @@ protected:
 	outstream
 	  << it->mQueryToken << SEPARATOR
 	  << it->mSbjctToken << SEPARATOR
-	  << ( (it->mScore < param_evalue_threshold_trusted_links) ? 
+	  << ( (it->mScore > param_evalue_threshold_trusted_links) ? 
 	       (200 - it->mRelativeOverlap * 100) : 
 	       (100 - it->mRelativeOverlap * 100) ) << std::endl;
       }
