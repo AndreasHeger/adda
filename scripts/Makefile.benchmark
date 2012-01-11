@@ -1,0 +1,32 @@
+# commands to query alignment graph
+
+%.graph:
+	gunzip < alignment_graph.gz | grep $* > $@
+
+%.vertices: %.graph
+	cut -f 2,3 $< | xargs --max-args=1 | sort | uniq > $@
+
+%.adda: %.vertices
+	awk '{printf("%s_%i_%i\t%s\n", $$1,$$2,$$3,$$4);}' < ../data/adda.clusters \
+	| python ~/t/filter_tokens.py --apply=$< --column=1 \
+	> $@
+
+%.shapes: %.adda
+	cat $< \
+	| python ~/workspace/adda/scripts/adda_links2colours.py -l --label=info1 --attribute=shape --format=nodelist > $@
+
+%.colors: %.graph
+	cut -f 2,3,15,16 < $< \
+	| python ~/workspace/adda/scripts/adda_links2colours.py -l --label=info2 --attribute=color > $@
+
+%.gdl: %.graph %.shapes %.colors
+	cat $< \
+	| grep $* | cut -f 1,2,3 \
+	| awk '{ printf("%s\t%s\t%i\n", $$2, $$3, $$1 == "+")}' \
+	| python ~/workspace/adda/scripts/adda_links2gdl.py -v 0 --weights --edge-colour=binary \
+	--filename-node-attributes=$*.shapes --filename-node-attributes=$*.colors > $@
+
+%.view: %.gdl
+	aisee3 $<
+
+.PRECIOUS: %.shapes %.adda %.colors %.vertices

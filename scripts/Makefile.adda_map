@@ -1,0 +1,246 @@
+include /home/andreas/gpipe/Makefile.common
+
+DIR_SCRIPTS_PAIRSDB?=/net/cpp-data/backup/andreas/projects/pairsdb/src/
+
+
+PARAM_MIN_IDENTITY?=40
+
+################################################
+################################################
+## Options for queue control
+################################################
+
+## priority on the cluster
+PARAM_PRIORITY?=-20
+
+## queue to use
+PARAM_QUEUE?=long_jobs.q
+
+## number of jobs to submit to the queue in parallel
+PARAM_NUM_JOBS?=300
+
+#########################################################################
+##
+## 
+##
+##
+##
+## input filename with latest uniprot sequences
+PARAM_DIR_DATA?=/net/cpp-compute/backup/andreas/projects/adda/data/
+
+## filename with pfam sequences
+PARAM_FILENAME_UNIPROT_SEQUENCES?=$(PARAM_DIR_DATA)pfamseq.gz
+
+## filename with adda sequences
+PARAM_FILENAME_ADDA_SEQUENCES?=$(PARAM_DIR_DATA)adda.fasta.gz
+
+## filename with adda domains
+PARAM_FILENAME_ADDA_DOMAINS?=$(PARAM_DIR_DATA)adda.domains
+
+## number of sequences for each BLAT run
+PARAM_CHUNK_SIZE?=1000
+
+#########################################################################
+#########################################################################
+#########################################################################
+## compile list of new sequences
+#########################################################################
+new.fasta.gz:
+	$(PRELOG)
+	@python $(DIR_SCRIPTS_PAIRSDB)map_fasta2fasta.py \
+		--filename-reference=$(PARAM_FILENAME_ADDA_SEQUENCES) \
+		$(PARAM_FILENAME_UNIPROT_SEQUENCES) > $@.log
+	$(EPILOG)
+
+#########################################################################
+## message to echo at start of task
+PRELOG?=$(CMD_LOG) "$@ started."
+
+## message to echo at end of task
+EPILOG?=$(CMD_LOG) "$@ completed."
+
+#########################################################################
+#########################################################################
+#########################################################################
+## build blat index
+#########################################################################
+5.ooc: new.fasta target.fasta
+	$(PRELOG)
+	@$(CMD_LOCAL_SUBMIT) blat -dots=100 -prot -makeOoc=$@ \
+		-minIdentity=$(PARAM_MIN_IDENTITY) \
+		target.fasta new.fasta $@.log < /dev/null >> $@.log
+	$(EPILOG)
+
+#########################################################################
+#########################################################################
+#########################################################################
+## unpack ADDA Sequences
+#########################################################################
+input.lengths:
+	$(PRELOG)
+	@gunzip < $(PARAM_FILENAME_UNIPROT_SEQUENCES) |\
+	python $(DIR_SCRIPTS_GENEPREDICTION)analyze_codonbias_shannon.py \
+		--regex-identifier="(\S+)" \
+		--sections=length \
+	> $@
+	$(EPILOG)
+
+#########################################################################
+#########################################################################
+#########################################################################
+## unpack ADDA Sequences
+#########################################################################
+target.fasta:
+	$(PRELOG)
+	@gunzip < $(PARAM_FILENAME_ADDA_SEQUENCES) > $@
+	$(EPILOG)
+
+#########################################################################
+#########################################################################
+#########################################################################
+## do mapping in parallel using BLAT
+#########################################################################
+map: data.prepare data.run data.finish
+
+data.prepare: # 5.ooc new.fasta
+	$(PRELOG)
+	$(MAKE) data.dir
+	@perl $(DIR_SCRIPTS_GENEPREDICTION)split_fasta.pl -a data.dir/chunk_%s.fasta $(PARAM_CHUNK_SIZE) < new.fasta > $@
+	$(EPILOG)
+
+data.show-progress:
+	@echo "# progress at `date`" >> data.progress
+	@ninput=`grep "found:" new.fasta.log | perl -pe "s/.*new: //; s/ .*//"`; \
+	cat data.dir/chunk_*.blat.gz.log |\
+	awk -v ninput=$$ninput '/Searched/ { nfinished += $$5;} \
+		END { printf("input\tdone\tdone [%%]\n"); \
+		printf("%i\t%i\t%5.2f\n", ninput, nfinished, 100.0 * nfinished/ninput)}'  \
+	>> data.progress
+	@tail data.progress
+
+QUERIES=$(wildcard chunk*.fasta)
+TARGETS=$(QUERIES:%.fasta=%.blat.gz) 
+TARGETS_STATS=$(QUERIES:%.fasta=%.stats)
+
+data.run: 
+	$(MAKE) -j $(PARAM_NUM_JOBS) -k -C data.dir data.run-subhook
+
+data.run-subhook: $(TARGETS) $(TARGETS_STATS)
+
+%.blat.gz: %.fasta
+	$(PRELOG)
+	$(CMD_REMOTE_SUBMIT) -l mem_free=4000M \
+	"blat \
+		-dots=100 \
+		-prot \
+		-ooc=../5.ooc \
+		-noHead \
+		-minIdentity=$(PARAM_MIN_IDENTITY) \
+		../target.fasta \
+		$< \
+		$@.tmp; \
+	gzip < $@.tmp > /tmp/$@; \
+	rm -f $@.tmp; \
+	mv /tmp/$@ $@" \
+	< /dev/null >& $@.log
+	$(EPILOG)
+
+%.stats: %.blat.gz
+	$(PRELOG)
+	$(CMD_REMOTE_SUBMIT) -l mem_free=4000M \
+	python $(DIR_SCRIPTS_PAIRSDB)map_blat2adda.py \
+		--from-zipped \
+		--filename-domains=$(PARAM_FILENAME_ADDA_DOMAINS) \
+		--output-filename-pattern="$@.%s" \
+		--log=$@.log \
+		--verbose=2 \
+	$< \
+	< /dev/null > $@
+	$(EPILOG)
+
+
+data.finish: mapped.domains mapped.stats
+
+mapped.stats:
+	$(PRELOG)
+	@for x in full good partial log; do \
+		cat data.dir/*.stats.$${x} > $@.$${x}; \
+	done
+	@for x in mapped aggregate; do \
+		ct data.dir/*.stats.$${x} |\
+		grep -v "#" |\
+		awk 'BEGIN{ printf ("bin\tcounts\n") ; } \
+			!/^bin/ { a=0; for (x=2; x <= NF; ++x) { a += $$x}; printf("%i\t%i\n", $$1,a)}' |\
+		sort -n > $@.$${x}; \
+	done
+	$(EPILOG)
+
+mapped.domains:
+	$(PRELOG)
+	cat data.dir/*.stats | awk 'BEGIN{printf("id\tstart\tend\tfamily\n")}; !/^id/ {print;}' > $@
+	$(EPILOG)
+
+direct.domains: $(PARAM_FILENAME_ADDA_DOMAINS)
+	$(PRELOG)
+	python $(DIR_SCRIPTS_TOOLS)substitute_tokens.py \
+		--apply=map_new2old \
+		--invert \
+		--column=1 \
+		--filter \
+	< $(PARAM_FILENAME_ADDA_DOMAINS) > $@
+	$(EPILOG)
+
+indirect.domains: mapped.domains direct.domains
+	$(PRELOG)
+	cat $^ |\
+	python $(DIR_SCRIPTS_TOOLS)substitute_tokens.py \
+		--apply=map_new2new \
+		--column=1 \
+		--invert \
+		--filter > $@
+	$(EPILOG)
+
+overlap.table: mapped.domains direct.domains indirect.domains
+	$(PRELOG)
+	@python $(DIR_SCRIPTS_TOOLS)set_diff.py --add-percent $^ > $@
+	$(EPILOG)
+
+all.domains: mapped.domains direct.domains indirect.domains
+	cat $^ > $@
+
+%.families: %.domains
+	$(PRELOG)
+	@awk '!/^id/ { families[$$4] += 1; } \
+		END { printf("family\tcounts\n" ); for (x in families) {printf("%s\t%i\n", x, families[x]); }}' \
+	< $< > $@
+	$(EPILOG)
+
+%.coverage: %.domains input.lengths
+	$(PRELOG)
+	@python $(DIR_SCRIPTS_GENEPREDICTION)adda2coverage.py \
+		--log=$@.log \
+		--filename-lengths=input.lengths \
+	< $< > $@
+	$(EPILOG)
+
+stats:
+	$(PRELOG)
+	@date >> $@
+	@printf "%s\tsequences\t%i\n" "ref" `gunzip < $(PARAM_FILENAME_ADDA_SEQUENCES) | grep -c ">"` >> $@
+	@printf "%s\tsequences\t%i\n" "ref" `cut -f 1 $(PARAM_FILENAME_ADDA_DOMAINS) | sort | uniq| wc -l` >> $@
+	@printf "%s\tdomains\t%i\n" "ref" `cat $(PARAM_FILENAME_ADDA_DOMAINS) | wc -l ` >> $@
+	@printf "%s\tfamilies\t%i\n" "ref" `cut -f 4 < $(PARAM_FILENAME_ADDA_DOMAINS) | sort | uniq | wc -l` >> $@
+	@printf "input\tsequences\t%i\n" `gunzip < $(PARAM_FILENAME_UNIPROT_SEQUENCES) | grep -c ">"` >> $@
+	@printf "old\tsequences\t%i\n" `cut -f 2 map_new2old | wc -l` >> $@
+	@printf "redundant\tsequences\t%i\n" `cut -f 1 map_new2new | wc -l` >> $@
+	@printf "new\tsequences\t%i\n" `gunzip < new.fasta.gz | grep -c ">"` >> $@
+	@for x in mapped.domains direct.domains indirect.domains all.domains; do \
+		printf "%s\tsequences\t%i\n" $${x} `cut -f 1 < $${x} | sort | uniq | wc -l` >> $@; \
+		printf "%s\tdomains\t%i\n" $${x} `wc -l < $${x}` >> $@; \
+		printf "%s\tfamilies\t%i\n" $${x} `cut -f 4 < $${x} | sort | uniq | wc -l` >> $@; \
+	done
+	$(EPILOG)
+
+
+
+.PRECIOUS: %.blat.gz
