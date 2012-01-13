@@ -71,6 +71,7 @@ def indexSequences(infile, outfile ):
     '''
     cmd = "sequences"
     statement = ADDA_STATEMENT
+    to_cluster = True
     P.run()
 
 @files(  PARAMS["output_nids"], PARAMS["output_fasta"] + ".fasta" )
@@ -78,6 +79,7 @@ def reindexSequences( infile, outfile ):
     '''rebuild the adda sequence database from adda.nids.'''
 
     database = outfile[:-len(".fasta")]
+    to_cluster = True
     statement = '''
     awk '!/^nid/ { printf(">%%s\\n%%s\\n", $1, $5)};' 
     < %(infile)s
@@ -90,6 +92,7 @@ def reindexSequences( infile, outfile ):
 def indexGraph(infile, outfile):
     '''index graph and store in compressed format.'''
     cmd = "index"
+    to_cluster = True
     statement = ADDA_STATEMENT
     P.run()
 
@@ -97,18 +100,21 @@ def indexGraph(infile, outfile):
 def computeParameters(infile, outfile ):
     '''pre-process graph.'''
     cmd = "fit"
+    to_cluster = True
     statement = ADDA_STATEMENT
     P.run()
 
 @files( indexGraph, PARAMS["output_segments"])
 def segmentSequences(infile, outfile):
     cmd = "segment"
+    to_cluster = True
     statement = ADDA_STATEMENT
     P.run()
 
 @files( indexGraph, PARAMS["output_stats"])
 def buildGraphStats(infile, outfile):
     cmd = "stats"
+    to_cluster = True
     statement = ADDA_STATEMENT
     P.run()
 
@@ -116,48 +122,56 @@ def buildGraphStats(infile, outfile):
         PARAMS["output_domains"])
 def optimiseSegments(infile, outfile):
     cmd = "optimise"
+    to_cluster = True
     statement = ADDA_STATEMENT
     P.run()
 
 @files( optimiseSegments, PARAMS["output_domaingraph"])
 def convertToDomainGraph(infile, outfile):
     cmd = "convert"
+    to_cluster = True
     statement = ADDA_STATEMENT
     P.run()
 
 @files( convertToDomainGraph, PARAMS["output_mst"])
 def buildMST(infile, outfile):
     cmd = "mst"
+    to_cluster = True
     statement = ADDA_STATEMENT
     P.run()
 
 @files( buildMST, PARAMS["output_mst"] + ".components")
 def computeMSTComponents(infile, outfile):
     cmd = "mst-components"
+    to_cluster = True
     statement = ADDA_STATEMENT
     P.run()
 
 @files( buildMST, PARAMS["output_align"])
 def alignDomains(infile, outfile):
     cmd = "align"
+    to_cluster = True
     statement = ADDA_STATEMENT
     P.run()
 
 @files( alignDomains, PARAMS["output_cluster"])
 def clusterDomains(infile, outfile):
     cmd = "cluster"
+    to_cluster = True
     statement = ADDA_STATEMENT
     P.run()
 
 @files( clusterDomains, PARAMS["output_families"])
 def buildFamilies(infile, outfile):
     cmd = "families"
+    to_cluster = True
     statement = ADDA_STATEMENT
     P.run()
 
 @files( buildFamilies, PARAMS["output_summary"])
 def buildAddaSummary(infile, outfile):
     cmd = "summary"
+    to_cluster = True
     statement = ADDA_STATEMENT
     P.run()
 
@@ -197,12 +211,14 @@ def exportPfam( infile, outfile ):
 #########################################################################
 #########################################################################
 #########################################################################
-@merge( (PARAMS["filename_target_sequences"], 
-         PARAMS["filename_adda_sequences"]),
+@merge( (PARAMS["map_filename_target_sequences"], 
+         PARAMS["map_filename_adda_sequences"]),
          "target.new.fasta" )
 def collectTargetSequences( infiles, outfile ):
     '''extract new sequences from input.'''
         
+    to_cluster = True
+
     filename_target, filename_adda = infiles
     statement = '''
 	python %(scriptsdir)s/map_fasta2fasta.py 
@@ -216,9 +232,11 @@ def collectTargetSequences( infiles, outfile ):
 #########################################################################
 #########################################################################
 #########################################################################
-@files( PARAMS["filename_adda_sequences"], "query.fasta" )
+@files( PARAMS["map_filename_adda_sequences"], "query.fasta" )
 def collectADDASequences( infile, outfile ):
     '''unpack adda sequences.'''
+
+    to_cluster = True
 
     if infile.endswith(".gz"):
         statement = '''gunzip < %(infile)s > %(outfile)s'''
@@ -247,7 +265,7 @@ def buildBlatIndex( infiles, outfile):
 #########################################################################
 #########################################################################
 #########################################################################
-@files( PARAMS["filename_target_sequences"], "target.lengths" )
+@files( PARAMS["map_filename_target_sequences"], "target.lengths" )
 def collectSequenceLengths( infile, outfile ):
     '''get sequence lengths from input file.'''
 

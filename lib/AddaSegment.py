@@ -39,7 +39,7 @@ class AddaSegment( AddaModuleRecord ):
         
         AddaModuleRecord.__init__( self, *args, **kwargs )
 
-        self.mFilenameSegments = self.mConfig.get("files","output_segments", "adda.segments" ) 
+        self.mFilenameSegments = self.mConfig.get("output","segments", "adda.segments" ) 
         self.mFilenames = (self.mFilenameSegments, )
 
         self.covering_trees = self.mConfig.get("segments", "covering_trees", True)
@@ -947,16 +947,16 @@ if __name__ == "__main__":
     config = AddaIO.ConfigParser()
     config.read( os.path.expanduser( options.filename_config ) )
 
-    filename_graph = config.get( "files", "output_graph", "adda.graph")
-    filename_index = config.get( "files", "output_index", "adda.graph.index")
-    filename_fasta= config.get( "files", "output_fasta", "adda" )
+    filename_graph = config.get( "output", "graph", "adda.graph")
+    filename_index = config.get( "output", "index", "adda.graph.index")
+    filename_fasta= config.get( "output", "fasta", "adda" )
 
     fasta = IndexedFasta.IndexedFasta( filename_fasta )
 
     index = cadda.IndexedNeighbours( filename_graph, 
                                      filename_index )
 
-    config.set( "files", "output_segments", "test.segments" )
+    config.set( "output", "segments", "test.segments" )
 
     module = AddaSegment( config = config,
                           fasta = fasta,

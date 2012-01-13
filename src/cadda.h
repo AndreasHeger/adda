@@ -46,7 +46,6 @@ int cadda_optimise_save_partitions( const char * f);
 int cadda_optimise_load_partitions( const char * f);
 long cadda_optimise_get_num_partitions();
 
-
 // build index
 int cadda_build_index();
 
@@ -59,7 +58,6 @@ int cadda_convert( const char * f);
 // construct mst
 int cadda_build_mst( const char * out,
 		     const char * in);
-
 
 // dump parameters
 void cadda_dump_parameters();

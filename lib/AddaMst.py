@@ -22,8 +22,8 @@ class AddaMst( AddaModuleBlock ):
 
         AddaModuleBlock.__init__( self, *args, **kwargs )
                 
-        self.mFilenameDomainGraph = self.mConfig.get( "files", "output_domaingraph", "adda.domaingraph.gz" )
-        self.mFilenameMst = self.mConfig.get( "files", "output_mst", "adda.mst" )
+        self.mFilenameDomainGraph = self.mConfig.get( "output", "domaingraph", "adda.domaingraph.gz" )
+        self.mFilenameMst = self.mConfig.get( "output", "mst", "adda.mst" )
                 
         cadda.setLogLevel( self.mLogLevel )
         # cadda.setReportStep( 1 )

@@ -41,10 +41,10 @@ class AddaFamilies( AddaModuleBlock ):
 
         AddaModuleBlock.__init__( self, *args, **kwargs )
                 
-        self.mFilenameClusters = self.mConfig.get( "files", "output_clusters", "adda.clusters" )
-        self.mFilenameFamilies = self.mConfig.get( "files", "output_families", "adda.families" )
-        self.mFilenameDomains = self.mConfig.get( "files", "output_adda", "adda.result" )
-        self.mFilenamesNids = self.mConfig.get( "files", "output_nids", "adda.nids" )
+        self.mFilenameClusters = self.mConfig.get( "output", "clusters", "adda.clusters" )
+        self.mFilenameFamilies = self.mConfig.get( "output", "families", "adda.families" )
+        self.mFilenameDomains = self.mConfig.get( "output", "adda", "adda.result" )
+        self.mFilenamesNids = self.mConfig.get( "output", "nids", "adda.nids" )
 
         self.mFilenames = (self.mFilenameFamilies, self.mFilenameDomains )
 

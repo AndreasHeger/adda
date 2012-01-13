@@ -58,12 +58,12 @@ class AddaOptimise( AddaModuleBlock ):
 
         AddaModuleBlock.__init__( self, *args, **kwargs )
                 
-        self.mFilenameGraph = self.mConfig.get( "files", "output_graph")
-        self.mFilenameIndex = self.mConfig.get( "files", "output_index")
-        self.mFilenameTransfers = self.mConfig.get( "files", "output_fit_transfer" )
-        self.mFilenameFit = self.mConfig.get( "files", "output_fit", "adda.fit" )
-        self.mFilenameNids = self.mConfig.get( "files", "output_nids" )    
-        self.mFilenameDomains = self.mConfig.get( "files", "output_domains" )
+        self.mFilenameGraph = self.mConfig.get( "output", "graph")
+        self.mFilenameIndex = self.mConfig.get( "output", "index")
+        self.mFilenameTransfers = self.mConfig.get( "output", "fit_transfer" )
+        self.mFilenameFit = self.mConfig.get( "output", "fit", "adda.fit" )
+        self.mFilenameNids = self.mConfig.get( "output", "nids" )    
+        self.mFilenameDomains = self.mConfig.get( "output", "domains" )
         self.mMaxIterations = int( self.mConfig.get( "optimise", "iterations" ) )   
         self.mResolution = float( self.mConfig.get( "optimise", "resolution" ) )   
         self.mMinAbsImprovement = float(self.mConfig.get( "optimise", "min_abs_improvement" ))

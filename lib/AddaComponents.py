@@ -22,7 +22,7 @@ class AddaComponents( AddaModuleBlock ):
 
         AddaModuleBlock.__init__( self, *args, **kwargs )
                 
-        self.mFilenamesNids = self.mConfig.get( "files", "output_nids", "adda.nids" )
+        self.mFilenamesNids = self.mConfig.get( "output", "nids", "adda.nids" )
 
         self.mMinAlignedResidues = self.mConfig.get("cluster", "min_aligned_residues", 30 )
         self.mPatternFamily = self.mConfig.get("cluster", "pattern_family", "AD%06i" )

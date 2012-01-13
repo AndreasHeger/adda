@@ -22,10 +22,10 @@ class AddaIndex( AddaModuleBlock ):
     def __init__(self, *args, **kwargs ):
         AddaModuleBlock.__init__( self, *args, **kwargs )
                 
-        self.mFilenameInputGraph = self.mConfig.get( "files", "input_graph", "pairsdb_40x40.links.gz")
+        self.mFilenameInputGraph = self.mConfig.get( "input", "graph", "pairsdb_40x40.links.gz")
 
-        self.mFilenameOutputGraph = self.mConfig.get( "files", "output_graph", "adda.graph")
-        self.mFilenameOutputIndex = self.mConfig.get( "files", "output_index", "adda.graph.index")
+        self.mFilenameOutputGraph = self.mConfig.get( "output", "graph", "adda.graph")
+        self.mFilenameOutputIndex = self.mConfig.get( "output", "index", "adda.graph.index")
                         
         cadda.setLogLevel( self.mLogLevel )
         cadda.setReportStep( self.mConfig.get( "adda", "report_step", 1000 ) )
@@ -34,10 +34,12 @@ class AddaIndex( AddaModuleBlock ):
         self.mFilenames = (self.mFilenameOutputGraph, 
                            self.mFilenameOutputIndex, )
 
-        self.mAlignmentFormat = self.mConfig.get( "files", "graph_format", "pairsdb")
+        self.mAlignmentFormat = self.mConfig.get( "input", "graph_format", "pairsdb")
 
         if self.mAlignmentFormat == "pairsdb":
-            self.mGraphIterator = cadda.PairsDBNeighbourIterator
+            self.mGraphIterator = cadda.PairsDBNeighbourIteratorEmissions
+        elif self.mAlignmentFormat == "pairsdb-blocks":
+            self.mGraphIterator = cadda.PairsDBNeighbourIteratorBlocks
         elif self.mAlignmentFormat == "pairsdb-old":
             self.mGraphIterator = cadda.PairsDBNeighbourIteratorOldFormat
         elif self.mAlignmentFormat == "simap":
@@ -75,10 +77,10 @@ class AddaIndexBuild( AddaIndex ):
         """
         self.info( "indexing of %s started" % self.mFilenameInputGraph )
 
-        self.info( "loading map_id2nid from %s" % self.mConfig.get( "files", "output_nids", "adda.nids" ))
-        infile = open( self.mConfig.get( "files", "output_nids", "adda.nids" ) )
+        self.info( "loading map_id2nid from %s" % self.mConfig.get( "output", "nids", "adda.nids" ))
+        infile = open( self.mConfig.get( "output", "nids", "adda.nids" ) )
         map_id2nid = AddaIO.readMapId2Nid( infile, 
-                                           storage = self.mConfig.get( "files", "storage_nids", "memory" ) )
+                                           storage = self.mConfig.get( "adda", "storage_nids", "memory" ) )
         infile.close()
     
         infile = AddaIO.openStream( self.mFilenameInputGraph )
@@ -125,11 +127,13 @@ class AddaIndexBuild( AddaIndex ):
 
         self.info( "rebuilding index" )
 
-        self.info( "loading map_id2nid from %s" % self.mConfig.get( "files", "output_nids", "adda.nids" ))
-        infile = open( self.mConfig.get( "files", "output_nids", "adda.nids" ) )
+        self.info( "loading map_id2nid from %s" % self.mConfig.get( "output", "nids", "adda.nids" ))
+        infile = open( self.mConfig.get( "output", "nids", "adda.nids" ) )
         map_id2nid = AddaIO.readMapId2Nid( infile, 
-                                           storage = self.mConfig.get( "files", "storage_nids", "memory" ) )
+                                           storage = self.mConfig.get( "adda", "storage_nids", "memory" ) )
         infile.close()
+
+        self.info( "starting the indexing" )
 
         cadda.reindexGraph( 
             len(map_id2nid), 

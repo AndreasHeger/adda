@@ -27,8 +27,8 @@ class AddaComponentsMst( AddaComponents ):
 
         AddaComponents.__init__( self, *args, **kwargs )
                 
-        self.mFilenameOutput = self.mConfig.get( "files", "output_mst_components", "adda.mst.components" )
-        self.mFilenameInput = self.mConfig.get("files","output_mst", "adda.mst" )
+        self.mFilenameOutput = self.mConfig.get( "output", "mst_components", "adda.mst.components" )
+        self.mFilenameInput = self.mConfig.get( "output", "mst", "adda.mst" )
 
         self.mFilenames = (self.mFilenameOutput, )
 

@@ -85,9 +85,9 @@ class AddaSequences( AddaModuleBlock ):
 
         AddaModuleBlock.__init__( self, *args, **kwargs )
                 
-        self.mFilenameNids = self.mConfig.get( "files", "output_nids", "adda.nids" )  
-        self.mFilenameInputFasta = self.mConfig.get( "files", "input_fasta" )
-        self.mFilenameOutputFasta = self.mConfig.get( "files", "output_fasta", "adda" )
+        self.mFilenameNids = self.mConfig.get( "output", "nids", "adda.nids" )  
+        self.mFilenameInputFasta = self.mConfig.get( "input", "fasta" )
+        self.mFilenameOutputFasta = self.mConfig.get( "output", "fasta", "adda" )
         self.mMaxSequenceLength = self.mConfig.get( "segments", "max_sequence_length", 10000 )
 
         self.mFilenames = (self.mFilenameNids, )

@@ -147,9 +147,9 @@ class AddaFit( AddaModuleRecord ):
 
         #self.mMapId2Nid = AddaIO.readMapId2Nid( open( self.mFilenameNids, "r") )
 
-        #self.info( "reading domains from %s" % self.mConfig.get( "files", "input_reference") )
+        #self.info( "reading domains from %s" % self.mConfig.get( "input", "reference") )
 
-        #infile = AddaIO.openStream( self.mConfig.get( "files", "input_reference") )
+        #infile = AddaIO.openStream( self.mConfig.get( "input", "reference") )
         #rx_include = self.mConfig.get( "fit", "family_include", "") 
         #self.mDomainBoundaries = AddaIO.readMapNid2Domains( infile, self.mMapId2Nid, rx_include )
         #infile.close()

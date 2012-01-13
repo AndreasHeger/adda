@@ -15,12 +15,12 @@ class AddaOptimise( AddaModule ):
 
         AddaModule.__init__( self, *args, **kwargs )
                 
-        self.mFilenameGraph = self.mConfig.get( "files", "output_graph")
-        self.mFilenameIndex = self.mConfig.get( "files", "output_index")
-        self.mFilenameTransfers = self.mConfig.get( "files", "output_fit_transfer" )
-        self.mFilenameFit = self.mConfig.get( "files", "output_fit" )
-        self.mFilenameNids = self.mConfig.get( "files", "output_nids" )    
-        self.mFilenameDomains = self.mConfig.get( "files", "output_families" )    
+        self.mFilenameGraph = self.mConfig.get( "output", "graph")
+        self.mFilenameIndex = self.mConfig.get( "output", "index")
+        self.mFilenameTransfers = self.mConfig.get( "output", "fit_transfer" )
+        self.mFilenameFit = self.mConfig.get( "output", "fit" )
+        self.mFilenameNids = self.mConfig.get( "output", "nids" )    
+        self.mFilenameDomains = self.mConfig.get( "output", "families" )    
         self.mDatabase = self.mConfig.get( "load", "database", "adda.db" ) 
         self.mBackend = self.mConfig.get( "load", "database", "sqlite" ) 
         self.mGuessSize = 1000

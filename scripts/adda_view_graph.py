@@ -1,8 +1,25 @@
 #!/usr/bin/env python
 
-USAGE="""view_graph.py [OPTIONS] cmds
+USAGE="""view_graph.py [OPTIONS] [nids] [domains]
 
-view links in indexed graph.
+view links in indexed graph. The following methods are available:
+
+view
+   view pairwise alignments for nids
+
+align
+   align two domains
+
+pileup
+   view pileup alignment for domain
+
+echo
+   read graph from start
+
+profile
+   output profile for a domain
+
+
 """
 
 import sys, os, re, time, optparse, logging
@@ -17,7 +34,7 @@ def main():
     parser = optparse.OptionParser( version = "%prog version: $Id$", usage = USAGE )
 
     parser.add_option( "--method", dest="method", type="choice",
-                       choices=("view", "align", "pileup", "profile" ),
+                       choices=("view", "align", "pileup", "profile", "echo", "echo-pileup" ),
                        help="method to perform [default=%default].")
 
     parser.add_option( "--mode", dest="mode", type="choice",
@@ -49,23 +66,44 @@ def main():
     config = AddaIO.ConfigParser()
     config.read( os.path.expanduser( options.filename_config ) )
 
-    index = cadda.IndexedNeighbours( options.filename_graph,
-                                     options.filename_index )
-
     alignlib.getDefaultToolkit().setEncoder( alignlib.getEncoder( alignlib.Protein20 ) )
     alignlib.getDefaultToolkit().setRegularizor( alignlib.makeRegularizorDirichletPrecomputed() )
     alignlib.getDefaultToolkit().setLogOddor( alignlib.makeLogOddorDirichlet( 0.3 ) )
     alignlib.getDefaultToolkit().setWeightor( alignlib.makeWeightor() )
 
+    E.info( "loading sequence index")
     fasta = IndexedFasta.IndexedFasta( options.filename_fasta )
     align = AddaProfiles.AddaProfiles( config, fasta = fasta )
+
+    if options.method == "echo":
+        # do not use index for echo
+        for nid, neighbours in cadda.AddaGraphIterator( options.filename_graph ):
+            options.stdout.write( "query = %i\n" % nid )
+            for n in neighbours:
+                options.stdout.write( "  %s\n" % str(n))
+            
+
+        E.Stop()
+        sys.exit(0)
+    elif options.method == "echo-pileup":
+        
+        for nid, neighbours in cadda.AddaGraphIterator( options.filename_graph ):
+            options.stdout.write( "query = %i\n" % nid )
+            mali = align.buildMali( nid, neighbours )
+            options.stdout.write( "%s\n" % str(mali))
+        E.Stop()
+        sys.exit(0)
+
+    index = cadda.IndexedNeighbours( options.filename_graph,
+                                     options.filename_index )
+
 
     if options.method == "view":
         for nid in  args:
             nid = int(args[0])
     
             neighbours = index.getNeighbours( nid )
-    
+            
             for n in neighbours:
                 print str(n)
 

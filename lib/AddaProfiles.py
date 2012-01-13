@@ -26,7 +26,7 @@ class AddaProfiles( AddaModuleRecord ):
 
         AddaModuleRecord.__init__( self, *args, **kwargs )
 
-        self.mFilenameProfile = self.mConfig.get( "files", "output_profiles", "adda.profiles" )
+        self.mFilenameProfile = self.mConfig.get( "output", "profiles", "adda.profiles" )
         self.mScaleFactor  = self.mConfig.get( "profiles", "scale_factor", 0.3 )
         self.mMaxNumNeighbours = self.mConfig.get( "profiles", "max_neighbours", 1000)
         self.mMaxEvalue = self.mConfig.get( "profiles", "max_evalue", 0.0)

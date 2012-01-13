@@ -36,12 +36,12 @@ class AddaAlign( AddaModuleRecord ):
 
         AddaModuleRecord.__init__( self, *args, **kwargs )
 
-        self.mFilenameAlignments = self.mConfig.get("files","output_align", "adda.align" )
-        self.mFilenameGraph = self.mConfig.get("files","output_graph", "adda.graph" )
-        self.mFilenameIndex = self.mConfig.get("files","output_index", "adda.graph.index" )
+        self.mFilenameAlignments = self.mConfig.get("output","align", "adda.align" )
+        self.mFilenameGraph = self.mConfig.get("output","graph", "adda.graph" )
+        self.mFilenameIndex = self.mConfig.get("output","index", "adda.graph.index" )
 
-        self.mFilenameProfiles = self.mConfig.get( "files", "output_profiles", "adda.profiles")
-        self.mFilenameMst = self.mConfig.get( "files", "output_mst", "adda.mst" )              
+        self.mFilenameProfiles = self.mConfig.get( "output", "profiles", "adda.profiles")
+        self.mFilenameMst = self.mConfig.get( "output", "mst", "adda.mst" )              
 
         self.mUsePrebuiltProfiles = self.mConfig.get( "profiles", "use_prebuilt_profiles", False)
         

@@ -29,9 +29,9 @@ class AddaCluster( AddaModuleBlock ):
 
         AddaModuleBlock.__init__( self, *args, **kwargs )
                 
-        self.mFilenameClusters = self.mConfig.get( "files", "output_clusters", "adda.clusters" )
-        self.mFilenameAlignments = self.mConfig.get("files","output_align", "adda.align" )
-        self.mFilenamesNids = self.mConfig.get( "files", "output_nids", "adda.nids" )
+        self.mFilenameClusters = self.mConfig.get( "output", "clusters", "adda.clusters" )
+        self.mFilenameAlignments = self.mConfig.get("output","align", "adda.align" )
+        self.mFilenamesNids = self.mConfig.get( "output", "nids", "adda.nids" )
 
         self.mFilenames = (self.mFilenameClusters, )
 

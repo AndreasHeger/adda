@@ -1,20 +1,48 @@
+################################################################################
+#
+#   MRC FGU Computational Genomics Group
+#
+#   $Id$
+#
+#   Copyright (C) 2009 Andreas Heger
+#
+#   This program is free software; you can redistribute it and/or
+#   modify it under the terms of the GNU General Public License
+#   as published by the Free Software Foundation; either version 2
+#   of the License, or (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program; if not, write to the Free Software
+#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+#################################################################################
+'''
+Stats.py - 
+======================================================
+
+:Author: Andreas Heger
+:Release: $Id$
+:Date: |today|
+:Tags: Python
+
+Code
+----
+
+'''
 import types
 import math
 import numpy
 import scipy
-# scipy.stats fails if lapack/blas is
-# not installed correctly.
-try:
-    import scipy.stats
-except ImportError:
-    pass
-
+import scipy.stats
+import scipy.interpolate
 import collections
-try:
-    from rpy import r as R
-    import rpy
-except ImportError:
-    pass
+from rpy2.robjects import r as R
+import rpy2.robjects as ro
+import rpy2.robjects.numpy2ri
 
 def getSignificance( pvalue, thresholds=[0.05, 0.01, 0.001] ):
     """return cartoon of significance of a p-Value."""
@@ -23,6 +51,53 @@ def getSignificance( pvalue, thresholds=[0.05, 0.01, 0.001] ):
         if pvalue > x: return "*" * n
         n += 1
     return "*" * n
+
+class Result(object):
+    '''allow both member and dictionary access.'''
+    slots=("_data")
+    def __init__(self):
+        object.__setattr__(self, "_data", dict())
+    def fromR( self, take, r_result ):
+        '''convert from an *r_result* dictionary using map *take*.
+
+        *take* is a list of tuples mapping a field to the corresponding
+        field in *r_result*.
+        '''
+        for x,y in take:
+            if y:
+                self._data[x] = r_result.rx(y)[0][0]
+            else:
+                self._data[x] = r_result.rx(x)[0][0]
+
+            # if y:
+            #     self._data[x] = r_result[y]
+            # else:
+            #     self._data[x] = r_result[x]
+
+        return self
+    def __getattr__(self, key):
+        if not key.startswith("_"):
+            try: return object.__getattribute__(self,"_data")[key]
+            except KeyError: pass
+        return getattr( self._data, key )
+    def keys(self): return self._data.keys()
+    def values(self): return self._data.values()
+    def __len__(self): return self._data.__len__()
+    def __str__(self):
+        return str(self._data)
+    def __contains__(self,key):
+        return key in self._data
+    def __getitem__(self, key ):
+        return self._data[key]
+    def __delitem__(self, key ):
+        del self._data[key]
+    def __setitem__(self, key, value ):
+        self._data[key] = value
+    def __setattr__(self, key, value):
+        if not key.startswith("_"):
+            self._data[key] = value
+        else:
+            object.__setattr__(self,key,value)
 
 #################################################################
 #################################################################
@@ -191,6 +266,8 @@ class DistributionalParameters:
     are:
 
     mMean, mMedian, mMin, mMax, mSampleStd, mSum, mCounts
+
+    This method is deprecated - use :class:`Summary` instead.
     """
     def __init__(self, values = None, format = "%6.4f", mode="float"):
 
@@ -225,11 +302,14 @@ class DistributionalParameters:
         else:
             n = values
 
+        if len(n) == 0:
+            raise ValueError( "no data for statistics" )
+
         ## use a non-sort algorithm later.
         n.sort()
         self.mQ1 = n[len(n) / 4]
         self.mQ3 = n[len(n) * 3 / 4]
-        
+
         self.mCounts = len(n)
         self.mMin = min(n)
         self.mMax = max(n)
@@ -295,11 +375,91 @@ class DistributionalParameters:
                             format_vals % self.mQ3,                            
                             ) )
 
-class Summary(DistributionalParameters):
-    """a shorter name for DistributionalParameters
-    """
-    pass
+class Summary( Result ):
+    """a collection of distributional parameters. Available properties
+    are:
 
+    mean, median, min, max, samplestd, sum, counts
+    """
+
+    fields = ("nval", "min", "max", "mean", "median", "stddev", "sum", "q1", "q3")
+
+    def __init__(self, values = None, 
+                 format = "%6.4f", mode="float",
+                 allow_empty = True ):
+
+        Result.__init__(self)
+        self._format = format
+        self._mode = mode
+
+        # note that this determintes the order of the fields at output
+        self.counts, self.min, self.max, self.mean, self.median, self.samplestd, self.sum, self.q1, self.q3 = \
+                    (0, 0, 0, 0, 0, 0, 0, 0, 0)
+        
+        if values != None:
+
+            values = [x for x in values if x != None ]
+
+            if len(values) == 0:
+                if allow_empty: return
+                else: raise ValueError( "no data for statistics" )
+
+            # convert
+            self._nerrors = 0
+            if type(values[0]) not in (types.IntType, types.FloatType):
+                n = []
+                for x in values:
+                    try:
+                        n.append( float(x) )
+                    except ValueError:
+                        self._nerrors += 1
+            else:
+                n = values
+
+            ## use a non-sort algorithm?
+            n.sort()
+            if len(n):
+                self.q1 = n[len(n) / 4]
+                self.q3 = n[len(n) * 3 / 4]
+            else:
+                self.q1 = self.q3 = 0 
+
+            self.counts = len(n)
+            self.min = min(n)
+            self.max = max(n)
+            self.mean = scipy.mean( n )
+            self.median = scipy.median( n )
+            self.samplestd = scipy.std( n )
+            self.sum = reduce( lambda x, y: x+y, n )
+
+    def getHeaders( self ):
+        """returns header of column separated values."""
+        return self.fields
+
+    def getHeader( self ):
+        """returns header of column separated values."""
+        return "\t".join( self.getHeaders())
+
+    def __str__( self ):
+        """return string representation of data."""
+        
+        if self._mode == "int":
+            format_vals = "%i"
+            format_median = "%.1f"
+        else:
+            format_vals = self._format
+            format_median = self._format
+
+        return "\t".join( ( "%i" % self.counts,
+                            format_vals % self.min,
+                            format_vals % self.max,
+                            self._format % self.mean,
+                            format_median % self.median,
+                            self._format % self.samplestd,                                      
+                            format_vals % self.sum,
+                            format_vals % self.q1,
+                            format_vals % self.q3,                            
+                            ) )
 
 def adjustPValues( pvalues, method ):
     '''adjust P-Values for multiple testing using
@@ -459,12 +619,13 @@ class FDRResult:
             R.dev_off()
 
 def doFDR(pvalues, 
-          vlambda=numpy.arange(0,0.95,0.05), 
+          vlambda=None,
           pi0_method="smoother", 
           fdr_level=None, 
           robust=False,
           smooth_df = 3,
-          smooth_log_pi0 = False):
+          smooth_log_pi0 = False,
+          plot = False ):
     """modeled after code taken from http://genomics.princeton.edu/storeylab/qvalue/linux.html.
 
     I did not like the error handling so I translated most to python.
@@ -472,8 +633,14 @@ def doFDR(pvalues,
     Compute FDR after method by Storey et al. (2002).
     """
 
+    # set to default of qvalue method
+    if vlambda == None: vlambda = numpy.arange(0,0.95,0.05)
+
     if min(pvalues) < 0 or max(pvalues) > 1:
         raise ValueError( "p-values out of range" )
+
+    if type(vlambda) == float:
+        vlambda = (vlambda, )
 
     if len(vlambda) > 1 and len(vlambda) < 4:
         raise ValueError(" If length of vlambda greater than 1, you need at least 4 values." )
@@ -506,9 +673,19 @@ def doFDR(pvalues,
                 pi0 = math.log(pi0)
                 
             R.assign( "smooth_df", smooth_df)
-
             spi0 = R("""spi0 <- smooth.spline(vlambda,pi0, df = smooth_df)""")
-            pi0 = R("""pi0 <- predict( spi0, x = max(vlambda) )$y""")
+            if plot:
+                import matplotlib.pyplot as plt
+                plt.figure()
+                plt.plot( vlambda, pi0 )
+                x2 = numpy.arange( 0, 1, 0.001 )
+                R.assign( "x2", x2)
+                y2 = R("""y2 <- predict( spi0, x = x2 )$y""")
+                plt.plot( x2, y2 )
+                plt.show()
+            
+            pi0 = R("""pi0 <- predict( spi0, x = max(vlambda) )$y""")[0]
+
             if smooth_log_pi0:
                 pi0 = math.exp(pi0)
 
@@ -534,7 +711,7 @@ def doFDR(pvalues,
                 }
                 mse <- mse + (pi0_boot-minpi0)^2
             }
-            pi0 <- min(pi0[mse==min(mse)])""")
+            pi0 <- min(pi0[mse==min(mse)])""")[0]
         else:
             raise ValueError( "'pi0_method' must be one of 'smoother' or 'bootstrap'.")
 
@@ -542,7 +719,7 @@ def doFDR(pvalues,
         R.assign( "pi0", pi0 )
 
     if pi0 <= 0:
-        raise ValueError( "The estimated pi0 <= 0. Check that you have valid p-values or use another vlambda method." )
+        raise ValueError( "The estimated pi0 (%f) <= 0. Check that you have valid p-values or use another vlambda method." % pi0)
 
     if fdr_level != None and (fdr_level <= 0 or fdr_level > 1):
         raise ValueError( "'fdr_level' must be within (0, 1].")
@@ -552,7 +729,7 @@ def doFDR(pvalues,
 
     # change by Alan
     # ranking function which returns number of observations less than or equal
-    R.assign( "pvalues", pvalues )
+    ro.globalenv['pvalues'] = ro.FloatVector( pvalues )
     R.assign( "robust", robust )
     qvalues = R("""u <- order(pvalues)
     qvalues.rank <- function(x) 
@@ -581,10 +758,13 @@ if(robust)
 }
 qvalues[u[m]] <- min(qvalues[u[m]],1)
 
+rqvalues <- qvalues
 for(i in (m-1):1) 
 {
    qvalues[u[i]] <- min(qvalues[u[i]],qvalues[u[i+1]],1)
 }
+
+
 qvalues
 """)
 
@@ -599,6 +779,146 @@ qvalues
     result.mPValues = pvalues
     result.mPi0 = pi0
     result.mLambda = vlambda
+
+    return result
+
+def doFDRPython(pvalues, 
+                vlambda=None,
+                pi0_method="smoother", 
+                fdr_level=None, 
+                robust=False,
+                smooth_df = 3,
+                smooth_log_pi0 = False,
+                pi0 = None,
+                plot = False ):
+    """modeled after code taken from http://genomics.princeton.edu/storeylab/qvalue/linux.html.
+
+    I did not like the error handling so I translated most to python.
+    
+    Compute FDR after method by Storey et al. (2002).
+    """
+
+    if min(pvalues) < 0 or max(pvalues) > 1:
+        raise ValueError( "p-values out of range" )
+
+    # set to default of qvalue method
+    if vlambda == None: vlambda = numpy.arange(0,0.95,0.05)
+
+    m = len(pvalues)
+    pvalues = numpy.array( pvalues, dtype = numpy.float )
+
+    if pi0 == None:
+        if type(vlambda) == float:
+            vlambda = (vlambda,)
+
+        if len(vlambda) > 1 and len(vlambda) < 4:
+            raise ValueError(" if length of vlambda greater than 1, you need at least 4 values." )
+
+        if len(vlambda) > 1 and (min(vlambda) < 0 or max(vlambda) >= 1):
+            raise ValueError( "vlambda must be within [0, 1).")
+
+        # estimate pi0
+        if len(vlambda)==1: 
+            vlambda = vlambda[0]
+            if  vlambda < 0 or vlambda >=1 :
+                raise ValueError( "vlambda must be within [0, 1).")
+
+            pi0 = numpy.mean( [ x >= vlambda for x in pvalues ] ) / (1.0 - vlambda)
+            pi0 = min(pi0, 1.0)
+        else:
+
+            pi0 = numpy.zeros( len(vlambda), numpy.float )
+
+            for i in range( len(vlambda) ):
+                pi0[i] = numpy.mean( [x >= vlambda[i] for x in pvalues ]) / (1.0 - vlambda[i] )
+
+            if pi0_method=="smoother":
+
+                if smooth_log_pi0: pi0 = math.log(pi0)
+
+                tck = scipy.interpolate.splrep( vlambda,
+                                                pi0, 
+                                                k = smooth_df,
+                                                s = 10000 )
+                
+                if plot:
+                    import matplotlib.pyplot as plt
+                    plt.figure()
+                    plt.plot( vlambda, pi0 )
+                    x2 = numpy.arange( 0, 1, 0.001 )
+                    y2 = scipy.interpolate.splev( x2, tck )
+                    plt.plot( x2, y2 )
+                    plt.show()
+                
+                pi0 = scipy.interpolate.splev( max(vlambda), tck )
+                if smooth_log_pi0: pi0 = math.exp(pi0)
+
+            elif pi0_method=="bootstrap":
+
+                minpi0 = min(pi0)
+
+                mse = numpy.zeros( len(vlambda), numpy.float )
+                pi0_boot = numpy.zeros( len(vlambda), numpy.float )
+
+                for i in xrange(100):
+                    # sample pvalues
+                    idx_boot = numpy.random.random_integers( 0, m-1, m) 
+                    pvalues_boot = pvalues[idx_boot]
+
+                    for x in xrange( len(vlambda )):
+                        # compute number of pvalues larger than lambda[x]
+                        pi0_boot[x] = numpy.mean( pvalues_boot > vlambda[x]) / (1.0 - vlambda[x]) 
+                    mse += (pi0_boot - minpi0) ** 2
+                pi0 = min( pi0[mse==min(mse)] )
+            else:
+                raise ValueError( "'pi0_method' must be one of 'smoother' or 'bootstrap'.")
+
+            pi0 = min(pi0,1.0)
+    
+    if pi0 <= 0:
+        raise ValueError( "The estimated pi0 <= 0. Check that you have valid p-values or use another vlambda method." )
+
+    if fdr_level != None and (fdr_level <= 0 or fdr_level > 1):
+        raise ValueError( "'fdr_level' must be within (0, 1].")
+
+    # compute qvalues
+    idx = numpy.argsort( pvalues )
+    # monotonically decreasing bins, so that bins[i-1] > x >=  bins[i]
+    bins = numpy.unique( pvalues )[::-1]
+
+    # v[i] = number of observations less than or equal to pvalue[i]
+    # could this be done more elegantly?
+    val2bin = len(bins) - numpy.digitize( pvalues, bins )
+    v = numpy.zeros( m, dtype = numpy.int )
+    lastbin = None
+    for x in xrange( m-1, -1, -1 ):
+        bin = val2bin[idx[x]]
+        if bin != lastbin: c = x
+        v[idx[x]] = c+1
+        lastbin = bin
+
+    qvalues = pvalues * pi0 * m / v
+    if robust:
+        qvalues /= ( 1.0 - ( 1.0 - pvalues)**m )
+
+    # bound qvalues by 1 and make them monotonic
+    qvalues[idx[m-1]] = min(qvalues[idx[m-1]],1.0)
+    for i in xrange(m-2,-1,-1):
+        qvalues[idx[i]] = min(min(qvalues[idx[i]],qvalues[idx[i+1]]),1.0)
+
+    result = FDRResult()
+    result.mQValues = qvalues
+
+    if fdr_level != None:
+        result.mPassed = [ x <= fdr_level for x in result.mQValues ]
+    else:
+        result.mPassed = [ False for x in result.mQValues ]
+        
+    result.mPValues = pvalues
+    result.mPi0 = pi0
+    result.mLambda = vlambda
+    
+    result.xvalues = qvalues
     
     return result
 
@@ -625,6 +945,13 @@ class CorrelationTest:
             self.mPValue = s_result[1]
             self.mNObservations = 0
             self.mAlternative = "two-sided"
+        else:
+            self.mCoefficient = 0
+            self.mPValue = 1
+            self.mSignificance = "na"
+            self.mNObservations = 0
+            self.mAlternative = "na"
+            self.mMethod = "na"
 
         if method: self.mMethod = method
 
@@ -639,7 +966,9 @@ class CorrelationTest:
             "%i" % self.mNObservations,
             self.mMethod,
             self.mAlternative ) )
-    def getHeaders(self):
+
+    @classmethod
+    def getHeaders(cls):
         return ("coeff", "pvalue", "significance", "observations", "method", "alternative" )
     
 def filterMasked( xvals, yvals, missing = ("na", "Nan", None, ""), dtype = numpy.float ):
@@ -696,6 +1025,8 @@ def computeROC( values ):
     '''return a roc curve for *values*. Values
     is a sorted list of (value, bool) pairs.
 
+    Deprecated - use getPerformance instead
+
     returns a list of (FPR,TPR) tuples.
     '''
     roc = []
@@ -709,6 +1040,7 @@ def computeROC( values ):
     last_value, last_fpr = None, None
     tp, fp = 0, 0
     tn, fn = ntotal - npositives, npositives 
+
     for value, is_positive in values:
         if is_positive: 
             tp += 1
@@ -718,9 +1050,17 @@ def computeROC( values ):
             tn -= 1
 
         if last_value != value:
-            tpr = float(tp) / (tp + fn)
-            fpr = float(fp) / (fp + tn)
-            
+
+            try:
+                tpr = float(tp) / (tp + fn)
+            except ZeroDivisionError:
+                tpr = 0
+
+            try:
+                fpr = float(fp) / (fp + tn)
+            except ZeroDivisionError:
+                fpr = 0
+                
             if last_fpr != fpr:
                 roc.append( (fpr,tpr) )
                 last_fpr = fpr
@@ -730,14 +1070,19 @@ def computeROC( values ):
     return roc
 
 class TTest:
-
-    def __init__(self):
-        pass
+    def __init__(self): pass
 
 class WelchTTest:
+    def __init__(self): pass
 
-    def __init__(self):
-        pass
+PairedTTest = collections.namedtuple( "PairedTTest", "statistic pvalue" )
+
+def doPairedTTest( vals1, vals2) :
+    '''perform paired t-test.
+
+    vals1 and vals2 need to contain the same number of elements.
+    '''
+    return PairedTTest._make( scipy.stats.ttest_rel( vals1, vals2 ) )
 
 def doWelchsTTest(n1, mean1, std1, 
                   n2, mean2, std2,
@@ -830,6 +1175,8 @@ def getSensitivityRecall( values ):
     '''return sensitivity/selectivity.
 
     Values is a sorted list of (value, bool) pairs.
+
+    Deprecated - use getPerformance instead
     '''
 
     npositives = 0.0
@@ -847,3 +1194,144 @@ def getSensitivityRecall( values ):
         result.append( (l, npositives / npredicted, npredicted/total ) )
 
     return result
+
+###################################################################
+###################################################################
+###################################################################
+## 
+###################################################################
+ROCResult = collections.namedtuple( "ROCResult", 
+                                    "value pred tp fp tn fn tpr fpr tnr fnr rtpr rfnr" ) 
+
+def getPerformance( values, 
+                    skip_redundant = True,
+                    false_negatives = False,
+                    bin_by_value = True,
+                    monotonous = False,
+                    multiple = False,
+                    increasing = True,
+                    total_positives = None,
+                    total_false_negatives = None,
+                    ):
+    '''compute performance estimates for a list of ``(score, flag)``
+    tuples in *values*.
+
+    Values is a sorted list of (value, bool) pairs.    
+
+    If the option *false-negative* is set, the input is +/- or 1/0 for a 
+    true positive or false negative, respectively.
+
+    TP: true positives
+    FP: false positives
+    TPR: true positive rate  = true_positives /  predicted
+    P: predicted
+    FPR: false positive rate = false positives  / predicted
+    value: value
+
+
+    '''
+
+    true_positives = 0
+    predicted = 0
+
+    last_value = None
+    
+    binned_values = []
+
+    for value, flag in values:
+        if not bin_by_value:
+            if last_value != value:
+                binned_values.append( (true_positives, predicted, value) )
+        else:
+            if last_value != None and last_value != value:
+                binned_values.append( (true_positives, predicted, last_value) )
+
+        predicted += 1
+
+        if flag: true_positives += 1
+
+        last_value = value
+
+    binned_values.append( (true_positives, predicted, last_value) )
+    binned_values.append( (true_positives, predicted, value) )
+
+    if true_positives == 0:
+        raise ValueError("# no true positives!")
+        
+    if total_positives == None:
+        if total_false_negatives:
+            positives = float(predicted)
+        else:
+            positives = float(true_positives)
+    else:
+        positives = float(total_positives)
+
+    last_positives = None
+    last_tpr = None
+    result = []
+
+    for true_positives, predicted, value in binned_values:
+
+        if (predicted == 0):
+            predicted = 1
+
+        if total_false_negatives:
+            false_negatives = predicted - true_positives
+            false_positives = 0
+            true_negatives = 0
+        else:
+            true_negatives = 0
+            false_negatives = positives - true_positives
+            false_positives = predicted - true_positives
+
+        tpr = float(true_positives) / predicted
+        fpr = float(false_positives) / (true_positives + false_negatives )
+        fnr = float(false_negatives) / positives
+        tnr = 0
+
+        # relative rates 
+        rfpr = float(false_positives) / predicted
+        rfnr = float(false_negatives) / predicted
+
+        if monotonous and last_tpr and last_tpr < tpr:
+            continue
+
+        if skip_redundant and true_positives == last_positives:
+            continue
+        
+        if (predicted > 0):
+            result.append( ROCResult._make( 
+                    (value,
+                     predicted,
+                     true_positives,
+                     false_positives,
+                     true_negatives,
+                     false_negatives,
+                     tpr, fpr, tnr, fnr,
+                     rfpr, rfnr ) ) )
+
+        last_positives = true_positives
+        last_tpr = tpr
+
+    return result
+
+###################################################################
+###################################################################
+###################################################################
+## 
+###################################################################
+def doMannWhitneyUTest( xvals, yvals ):
+    '''apply the Mann-Whitney U test to test for the difference of medians.'''
+
+
+    r_result = R.wilcox_test( xvals, yvals, paired = False )
+
+    result = Result().fromR( 
+        ( ("pvalue", 'p.value'),
+          ('alternative', None),
+          ('method', None ) ), 
+        r_result )
+
+    return result
+
+

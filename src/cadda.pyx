@@ -20,6 +20,9 @@ cdef extern from "stdlib.h":
     void qsort(void *base, size_t nmemb, size_t size,
              int (*compar)(void *,void *))
 
+cdef extern from "math.h":
+    double log(double)
+
 cdef extern from "stdio.h":
     ctypedef struct FILE:
         pass
@@ -260,10 +263,13 @@ cdef destroy_neighbour( Neighbour * n):
     if n.sbjct_ali != NULL: free( n.sbjct_ali)
 
 cdef class PairsDBNeighbourRecord
-cdef fromPairsDBNeighbour( Neighbour * dest, 
-                           Nid sbjct_nid,
-                           PairsDBNeighbourRecord src ):
-    '''load data from neighbour.'''
+cdef fromNeighbourIterator( Neighbour * dest, 
+                            Nid sbjct_nid,
+                            PairsDBNeighbourRecord src ):
+    '''load data from neighbour.
+
+    obsolete
+    '''
     if dest.query_ali != NULL: free( dest.query_ali)
     if dest.sbjct_ali != NULL: free( dest.sbjct_ali)
     dest.sbjct_nid = sbjct_nid
@@ -707,12 +713,104 @@ cdef class IndexedNeighbours:
         free( buffer )
         return result
 
+cdef class AddaGraphIterator:
+
+    cdef FILE * input_f
+    cdef unsigned char * buffer
+
+    def __cinit__(self, input_filename_graph ):
+        # open output file
+    
+        self.input_f = fopen( input_filename_graph, "rb" )
+        if self.input_f == NULL:
+            raise ValueError( "opening of file %s failed" % input_filename_graph )
+
+        self.buffer = <unsigned char *>calloc( MAX_BUFFER_SIZE, sizeof(unsigned char) )
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        cdef Nid query_nid = 0
+        cdef int nneighbours
+        cdef int n
+
+        if feof( self.input_f ): raise StopIteration()
+        
+        while query_nid == 0:
+            n = fread( &query_nid, sizeof(Nid), 1, self.input_f )
+            n += fread( &nneighbours, sizeof(size_t), 1, self.input_f )
+        
+            if feof( self.input_f ): raise StopIteration
+
+            # skip place holder pos (there might be several in the file
+            # if it is the result of a merging operation)
+            if query_nid != 0: break
+
+
+        retval = fromCompressedFile( self.buffer, MAX_BUFFER_SIZE, self.input_f )
+        if retval != 0: 
+            raise ValueError("error while reading data for %i" % query_nid )
+        
+        # create neighbours
+        cdef Neighbour neighbour
+        init_neighbour( &neighbour )
+
+        cdef unsigned char * p
+        cdef int i
+
+        result = []
+
+        p = self.buffer
+        for i from 0 <= i < nneighbours:
+            p = fromBuffer( &neighbour, p )
+            result.append( toNeighbour( query_nid, &neighbour) )
+
+        destroy_neighbour( &neighbour )
+
+        return (query_nid, result )
+
+    def __dealloc__(self):
+        fclose( self.input_f )
+        free( self.buffer )
+            
+            
+
 ###############################################################################
 ###############################################################################
 ###############################################################################
 ## methods for parsing PairsDB input graph
 ###############################################################################
 cdef class PairsDBNeighbourRecord:
+    cdef:
+       char* query_token
+       char* sbjct_token
+       float evalue
+       uResidue query_start
+       uResidue query_end
+       uResidue sbjct_start
+       uResidue sbjct_end
+
+    def __cinit__(self, char * line ): 
+        cdef int l = strlen(line)
+        self.query_token = <char*>calloc(l,1)
+        self.sbjct_token = <char*>calloc(l,1)
+
+    def __dealloc__(self):
+        free( self.query_token )
+        free( self.sbjct_token )
+
+    cdef fillNeighbour( self, Neighbour * dest ):
+        '''fill adda neighbour record from this information.'''
+        if dest.query_ali != NULL: free( dest.query_ali)
+        if dest.sbjct_ali != NULL: free( dest.sbjct_ali)
+        dest.query_start = self.query_start
+        dest.query_end = self.query_end
+        dest.sbjct_start = self.sbjct_start
+        dest.sbjct_end = self.sbjct_end
+        dest.evalue = self.evalue
+
+cdef class PairsDBNeighbourRecordEmissions(PairsDBNeighbourRecord):
     """a pairwise alignment.
 
     The alignment is parsed from the input line.
@@ -721,7 +819,7 @@ cdef class PairsDBNeighbourRecord:
 
     ``query_token`` the query
     ``sbjct_token`` the sbjct
-    ``evalue`` : the E-Value
+    ``evalue`` : the logged E-Value
     ``query_from``: the first aligned residue in query
     ``query_to``: the last aligned residue + 1 in query
     ``query_ali``: the aligned query in compressed form
@@ -733,25 +831,16 @@ cdef class PairsDBNeighbourRecord:
     """
 
     cdef:
-       char* query_token
-       char* sbjct_token
-       float evalue
-       uResidue query_start
-       uResidue query_end
-       uResidue sbjct_start
-       uResidue sbjct_end
        char * query_ali  
        char * sbjct_ali
 
-    def __init__(self, line ): 
+    def __cinit__(self, char * line ): 
         
         cdef int n, l
-        l = len(line)
-        self.query_token = <char*>calloc(l,1)
-        self.sbjct_token = <char*>calloc(l,1)
+        l = strlen(line)
         self.query_ali = <char*>calloc(l,1)
         self.sbjct_ali = <char*>calloc(l,1)
-
+        
         n = sscanf( line,
                     "%s\t%s\t%f\t%i\t%i\t%s\t%i\t%i\t%s",
                     self.query_token,
@@ -775,8 +864,6 @@ cdef class PairsDBNeighbourRecord:
                     self.sbjct_start, self.sbjct_end, self.sbjct_ali)))
 
     def __dealloc__(self):
-        free( self.query_token )
-        free( self.sbjct_token )
         free( self.query_ali )
         free( self.sbjct_ali )
     
@@ -789,16 +876,147 @@ cdef class PairsDBNeighbourRecord:
         f.copy( r )
         return r   
 
+    cdef fillNeighbour( self, Neighbour * dest ):
+        '''fill adda neighbour record from this information.'''
+
+        PairsDBNeighbourRecord.fillNeighbour( self, dest )
+        dest.query_alen = strlen( self.query_ali )
+        dest.sbjct_alen = strlen( self.sbjct_ali )
+        # copy string explicitely, as lifetime of python object neighbours
+        # is no guaranteed.
+        dest.query_ali = <char*>calloc( dest.query_alen + 1, sizeof(char) )
+        dest.sbjct_ali = <char*>calloc( dest.sbjct_alen + 1, sizeof(char) )
+
+        strncpy( dest.query_ali, self.query_ali, dest.query_alen + 1)
+        strncpy( dest.sbjct_ali, self.sbjct_ali, dest.sbjct_alen + 1)
+        
+
 cdef class PairsDBNeighbourRecordOldFormat(PairsDBNeighbourRecord):
     """a pairwise alignment in old pairsdb format.
 
     The old pairsdb format used one-based coordinates.
     """
-    def __init__(self, line ): 
-        PairsDBNeighbourRecord.__init__( self, line )
+    def __cinit__(self, char * line ): 
         self.query_start -= 1
         self.sbjct_start -= 1
 
+###############################################################################
+###############################################################################
+###############################################################################
+## methods for parsing PairsDB input graph
+###############################################################################
+cdef class PairsDBNeighbourRecordBlocks(PairsDBNeighbourRecord):
+    """a pairwise alignment.
+
+    The alignment is parsed from the input line.
+
+    The input format is tab-separated columns:
+
+    ``query_token`` the query
+    ``sbjct_token`` the sbjct
+    ``evalue`` : the E-Value
+    ``query_from``: the first aligned residue in query
+    ``query_to``: the last aligned residue + 1 in query
+    ``sbjct_from``: the first aligned residue in sbjct
+    ``sbjct_to``: the last aligned residue + 1 in sbjct
+    ``block_sizes``: block sizes
+    ``query_starts``: query starts
+    ``sbjct_starts``: sbjct starts
+
+    Additional columns are ignored.
+    """
+
+    cdef:
+       char * block_sizes
+       char * query_starts  
+       char * sbjct_starts
+
+    def __cinit__(self, char * line ): 
+        
+
+        cdef int n, l
+        l = strlen(line)
+        self.block_sizes = <char*>calloc(l,1)
+        self.query_starts = <char*>calloc(l,1)
+        self.sbjct_starts = <char*>calloc(l,1)
+
+        n = sscanf( line,
+                    "%s\t%s\t%f\t%i\t%i\t%i\t%i\t%s\t%s\t%s\t%*s",
+                    self.query_token,
+                    self.sbjct_token,
+                    &self.evalue,
+                    &self.query_start,
+                    &self.query_end,
+                    &self.sbjct_start,
+                    &self.sbjct_end,
+                    self.block_sizes,
+                    self.query_starts,
+                    self.sbjct_starts,
+                    )
+
+        if n != 10:
+            raise ValueError("parsing error (%i) in line `%s`" % (n,line))
+
+        # log evalue
+        if self.evalue == 0:
+            # set to minimum evalue
+            self.evalue = -200
+        else:
+            self.evalue = log(self.evalue)
+
+    def __str__( self ):
+
+        return "\t".join( map(str, (
+                    self.query_token, self.sbjct_token, self.evalue,
+                    self.query_start, self.query_end,
+                    self.sbjct_start, self.sbjct_end, 
+                    self.block_sizes,
+                    self.query_starts,
+                    self.sbjct_starts)))
+
+    def __dealloc__(self):
+        free( self.block_sizes )
+        free( self.query_starts )
+        free( self.sbjct_starts )
+    
+    def getAlignment(self ):
+        """parse alignment into an AlignmentVector object."""
+        r = alignlib.makeAlignmentVector()
+        f = alignlib.AlignmentFormatBlocks( self.query_start, 
+                                            self.sbjct_start,
+                                            self.block_sizes, 
+                                            self.query_starts, 
+                                            self.sbjct_starts )
+        f.copy( r )
+        return r   
+
+    cdef fillNeighbour( self, Neighbour * dest ):
+        '''fill adda neighbour record from information in this class.
+        '''
+
+        # convert to emissions based alignment
+        # This is all very inefficient as it is all in python
+        PairsDBNeighbourRecord.fillNeighbour( self, dest )
+        r = alignlib.makeAlignmentBlocks()
+        f = alignlib.AlignmentFormatBlocks( self.query_start,
+                                            self.sbjct_start,
+                                            self.block_sizes,
+                                            self.query_starts,
+                                            self.sbjct_starts)
+        f.copy( r )
+        d = str( alignlib.AlignmentFormatEmissions( r ) ).split("\t")
+        
+        query_ali, sbjct_ali = d[2], d[5]
+        dest.query_alen = len(query_ali)
+        dest.sbjct_alen = len(sbjct_ali)
+        dest.query_ali = <char*>calloc( dest.query_alen + 1, sizeof(char) )
+        dest.sbjct_ali = <char*>calloc( dest.sbjct_alen + 1, sizeof(char) )
+        strncpy( dest.query_ali, query_ali, dest.query_alen + 1)
+        strncpy( dest.sbjct_ali, sbjct_ali, dest.sbjct_alen + 1)
+
+#######################################################################################
+#######################################################################################
+#######################################################################################
 cdef class NeighbourProxy:
     '''wrapper for passing around a neighbour.'''
     cdef Nid query_nid
@@ -812,6 +1030,9 @@ cdef class NeighbourProxy:
         if self.neighbour != NULL: 
             destroy_neighbour( self.neighbour )
 
+#######################################################################################
+#######################################################################################
+#######################################################################################
 class PairsDBNeighbourIterator:
     '''iterate over neighbours in input graph and translate
     identifiers to nids
@@ -825,7 +1046,7 @@ class PairsDBNeighbourIterator:
     def __init__(self, infile, mapId2Nid, logger ):
         self.infile = infile
         self.mapId2Nid = mapId2Nid
-        self.record_factory = PairsDBNeighbourRecord
+        self.record_factory = PairsDBNeighbourRecordEmissions
         self.logger = logger
 
     def __iter__(self):
@@ -843,6 +1064,7 @@ class PairsDBNeighbourIterator:
             line = self.infile.readline()
             if not line: raise StopIteration
             if line.startswith("#"): continue
+            if line.startswith('query_nid'): continue
             r = self.record_factory( line )
 
             # check for empty or overflowed alignments
@@ -861,7 +1083,9 @@ class PairsDBNeighbourIterator:
             p = NeighbourProxy()
             p.query_nid = query_nid
 
-            fromPairsDBNeighbour( p.neighbour, sbjct_nid, r )
+            r.fillNeighbour( p.neighbour )
+            p.neighbour.sbjct_nid = sbjct_nid
+
             return p
         
         raise StopIteration                
@@ -871,6 +1095,14 @@ class PairsDBNeighbourIteratorOldFormat(PairsDBNeighbourIterator):
         PairsDBNeighbourIterator.__init__( self, *args, **kwargs )
         self.record_factory = PairsDBNeighbourRecordOldFormat
 
+class PairsDBNeighbourIteratorBlocks(PairsDBNeighbourIterator):
+    def __init__(self, *args, **kwargs ):
+        PairsDBNeighbourIterator.__init__( self, *args, **kwargs )
+        self.record_factory = PairsDBNeighbourRecordBlocks
+
+#######################################################################################
+#######################################################################################
+#######################################################################################
 class PairsDBNeighboursRecord:
     def __init__(self, Nid nid, matches):
         self.query_nid = nid

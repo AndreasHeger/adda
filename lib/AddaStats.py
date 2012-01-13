@@ -23,10 +23,10 @@ class AddaStats( AddaModuleBlock ):
 
         AddaModuleBlock.__init__( self, *args, **kwargs )
 
-        self.mFilenameGraph = self.mConfig.get("files", "output_graph", "adda.graph" )
-        self.mFilenameIndex = self.mConfig.get("files", "output_index", "adda.graph.idx" )
-        self.mFilenameNids = self.mConfig.get("files", "output_nids", "adda.nids" )
-        self.mFilenameStats = self.mConfig.get("files", "output_stats", "adda.stats" )
+        self.mFilenameGraph = self.mConfig.get("output", "graph", "adda.graph" )
+        self.mFilenameIndex = self.mConfig.get("output", "index", "adda.graph.idx" )
+        self.mFilenameNids = self.mConfig.get("output", "nids", "adda.nids" )
+        self.mFilenameStats = self.mConfig.get("output", "stats", "adda.stats" )
         self.mFilenameStatsSequences = self.mFilenameStats + ".persequence" 
         self.mFilenames = (self.mFilenameStats, self.mFilenameStatsSequences )
 
