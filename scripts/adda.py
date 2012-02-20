@@ -93,6 +93,7 @@ def indexGraph(infile, outfile):
     '''index graph and store in compressed format.'''
     cmd = "index"
     to_cluster = True
+    job_options = "-l mem_free=50G"
     statement = ADDA_STATEMENT
     P.run()
 
@@ -108,6 +109,7 @@ def computeParameters(infile, outfile ):
 def segmentSequences(infile, outfile):
     cmd = "segment"
     to_cluster = True
+    job_options = "-l mem_free=10G -pe dedicated %i -R y" % PARAMS["adda_procs"]
     statement = ADDA_STATEMENT
     P.run()
 
@@ -150,6 +152,7 @@ def computeMSTComponents(infile, outfile):
 @files( buildMST, PARAMS["output_align"])
 def alignDomains(infile, outfile):
     cmd = "align"
+    job_options = "-l mem_free=50G -pe dedicated %i -R y" % PARAMS["adda_procs"]
     to_cluster = True
     statement = ADDA_STATEMENT
     P.run()
@@ -175,7 +178,8 @@ def buildAddaSummary(infile, outfile):
     statement = ADDA_STATEMENT
     P.run()
 
-@files( buildAddaSummary, "adda.%s.tgz" % (time.strftime( "%Y-%m-%d", time.localtime(time.time()))))
+@files( buildAddaSummary, 
+        "adda.%s.tgz" % (time.strftime( "%Y-%m-%d", time.localtime(time.time()))))
 def exportResults( infile, outfile ):
     '''export Adda results.'''
     
@@ -201,6 +205,7 @@ def exportPfam( infile, outfile ):
     rm -rf %(outdir)s
     '''
     P.run()
+
 
 ##--------------------------------------------------------------
 ##--------------------------------------------------------------

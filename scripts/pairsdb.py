@@ -51,7 +51,6 @@ import fileinput, collections, gzip, time
 import hashlib, base64
 
 from ruffus import *
-import csv
 import sqlite3
 
 import FastaIterator
@@ -92,16 +91,16 @@ def buildNrdb50( infile, outfile ):
     
     outf_fasta = IOTools.openFile( outfile, "w" )
     outf_table = IOTools.openFile( outfile + ".tsv", "w" )
-    outf_table.write("nid\tpid\thid\tdescription\tval\tn\ttaxon\trepid\n" )
+    outf_table.write("nid\tpid\thid\tdescription\tcluster_size\ttaxon\trepid\n" )
 
     rx = re.compile( "(\S+) (.*) n=(\d+) Tax=(.*) RepID=(\S+)" )
 
     nid = 1
     for entry in FastaIterator.iterate( IOTools.openFile( infile )):
         outf_fasta.write(">%i\n%s\n" % (nid, entry.sequence ) )
-        pid, description, cluster_size, taxon, repid = rx.match( entry.title ).groups()
+        cluster_name, description, cluster_size, taxon, repid = rx.match( entry.title ).groups()
         hid = computeHID( entry.sequence )
-        outf_table.write( "\t".join( (str(nid), pid, hid, description, cluster_size, taxon, repid)) + "\n" )
+        outf_table.write( "\t".join( (str(nid), cluster_name, hid, description, cluster_size, taxon, repid)) + "\n" )
         nid += 1
 
     outf_fasta.close()
@@ -132,6 +131,80 @@ def downloadSCOP( infile, outfile ):
     '''
     
     P.run()
+
+@files( ( (None, ("pfam.fasta.gz", "pfam.seed.gz")), ) ) 
+def downloadPFAM( infile, outfiles ):
+    '''download the latest PFAM domain sequence set'''
+    
+    outfile1, outfile2 = outfiles
+    statement = '''
+    wget -O %(outfile1)s "ftp://ftp.sanger.ac.uk/pub/databases/Pfam/current_release/Pfam-A.fasta.gz";
+    '''
+
+    P.run()
+
+    statement = '''
+    wget -O %(outfile2)s "ftp://ftp.sanger.ac.uk/pub/databases/Pfam/current_release/Pfam-A.seed.gz";
+    '''
+
+    P.run()
+
+@transform( downloadPFAM, suffix('.fasta.gz'), '.domains.gz' )
+def buildPFAMDomains( infiles, outfile ):
+    '''map PFAM domains onto current sequence collection. 
+    The mapping is done by ID lookup.'''
+    
+    infile = infiles[0]
+    with IOTools.openFile( "nrdb50.fasta.tsv") as inf:
+
+        reader = csv.DictReader( inf, dialect='excel-tab' )
+        map_id2nid = {}
+        for row in reader:
+            map_id2nid[row['repid']] = row['nid']
+    
+    rx = re.compile( "(\S+)\/(\d+)-(\d+)\s+(\S+);(.*);" )
+
+    c = E.Counter()
+    outf = IOTools.openFile( outfile, "w" )
+    with IOTools.openFile( infile ) as inf:
+        for entry in FastaIterator.iterate( inf ):
+            c.input += 1
+            pid, start, end, pfam_id, description = rx.match( entry.title ).groups()
+            try:
+                outf.write( "%s\t%i\t%i\t%s\n" % (map_id2nid[pid], int(start)-1, int(end), pfam_id ) )
+            except KeyError:
+                c.missed += 1
+                continue
+            c.output += 1
+
+    outf.close()
+    E.info( c )
+
+@transform( downloadPFAM, suffix('.fasta.gz'), '.families.gz' )
+def buildPFAMFamilies( infiles, outfile ):
+
+    outf = IOTools.openFile( outfile, "w" )
+    outf.write( "family\tshort\tdescription\n" )
+    
+    infile = infiles[1]
+    family, description, short = None, None, None
+    c = E.Counter()
+    with IOTools.openFile( infile ) as inf:
+        for line in inf:
+            if line.startswith( "#=GF AC"):
+                if family:
+                    outf.write( "%s\n" % "\t".join( (family,description,short)))
+                    c.output += 1
+                family = re.match("#=GF AC\s+(\S+)", line[:-1]).groups()[0]
+            elif line.startswith( "#=GF DE"):
+                description = re.match("#=GF DE\s+(.+)",line[:-1]).groups()[0]
+            elif line.startswith( "#=GF ID"):
+                short = re.match("#=GF ID\s+(.+)",line[:-1]).groups()[0]
+    outf.write( "%s\n" % "\t".join( (family,description,short)))
+    c.outptut += 1
+    outf.close()
+    E.info(c)
+
 
 @transform( downloadSCOP, suffix('.fasta'), '.links.gz' )
 def mapSCOP( infile, outfile ):
@@ -448,6 +521,10 @@ def checkBlastRun( infiles, outfile ):
     outf.write( 'nid\n' )
     outf.write( "\n".join( map(str, sorted( list( nids.difference( sbjct_ids )) ) )) + "\n" )
     outf.close()
+
+@follows( buildPFAMDomains, buildPFAMFamilies, buildSCOPDomains )
+def domains(): pass
+    
 
 if __name__ == "__main__":
     sys.exit(P.main())

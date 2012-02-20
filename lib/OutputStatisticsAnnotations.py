@@ -20,7 +20,7 @@
 import sys, re, string, os, time, getopt, math
 
 from Pairsdb import *
-import Histogram, Numeric
+import Histogram, numpy
 #import NeighbourTools, MatlabTools
 from OutputStatistics import OutputStatistics
 from TableDomains import TableDomains, TableFamilies
@@ -549,7 +549,7 @@ class OutputStatisticsAnnotations ( OutputStatistics):
                 continue
 
             ## calculate dot product of the matrix
-##             dot_matrix = Numeric.matrixmultiply( Numeric.transpose( blast_matrix ), blast_matrix)
+##             dot_matrix = numpy.matrixmultiply( numpy.transpose( blast_matrix ), blast_matrix)
 
 ##             if self.mLogLevel >= 3:
 ##                 print "# ------> correlation matrix for %i:" % (nid), dot_matrix.shape
@@ -571,28 +571,28 @@ class OutputStatisticsAnnotations ( OutputStatistics):
 
                     b = blast_matrix[0:nneighbours,y]
                     
-                    intersection = Numeric.logical_and(a,b)
-                    union = Numeric.logical_or(a,b)
+                    intersection = numpy.logical_and(a,b)
+                    union = numpy.logical_or(a,b)
 
-                    unique_a = Numeric.logical_and(union,Numeric.logical_not(b))
-                    unique_b = Numeric.logical_and(union,Numeric.logical_not(a))                    
+                    unique_a = numpy.logical_and(union,numpy.logical_not(b))
+                    unique_b = numpy.logical_and(union,numpy.logical_not(a))                    
 
-                    ngaps = Numeric.logical_and( intersection, Numeric.logical_not(gaps))
-                    ndisjoint = Numeric.logical_and( disjoint, Numeric.logical_not(union))
+                    ngaps = numpy.logical_and( intersection, numpy.logical_not(gaps))
+                    ndisjoint = numpy.logical_and( disjoint, numpy.logical_not(union))
                     
                     print "%s\t" % s + string.join(map(str, (
                         x, y, y-x, nneighbours,
-                        Numeric.dot(a,a),
-                        Numeric.dot(b,b),                        
-                        Numeric.dot(intersection,intersection),
-                        Numeric.dot(union,union),
-                        Numeric.dot(unique_a,unique_a),
-                        Numeric.dot(unique_b,unique_b),
-                        Numeric.dot(ngaps,ngaps),
-                        Numeric.dot(ndisjoint,ndisjoint))), "\t")
+                        numpy.dot(a,a),
+                        numpy.dot(b,b),                        
+                        numpy.dot(intersection,intersection),
+                        numpy.dot(union,union),
+                        numpy.dot(unique_a,unique_a),
+                        numpy.dot(unique_b,unique_b),
+                        numpy.dot(ngaps,ngaps),
+                        numpy.dot(ndisjoint,ndisjoint))), "\t")
                                                               
-                    disjoint = Numeric.logical_or(disjoint, b)
-                    gaps = Numeric.logical_and(gaps, b)
+                    disjoint = numpy.logical_or(disjoint, b)
+                    gaps = numpy.logical_and(gaps, b)
             
     ##------------------------------------------------------------------------                    
     def StructuralCoverage( self ):

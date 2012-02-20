@@ -55,7 +55,7 @@ class DomainsReference(Domains):
             for line in infile:
                 if line.startswith("#"): continue
                 if line.startswith("family\t"): continue
-                family, description = line[:-1].split("\t")
+                family, description = line[:-1].split("\t")[:2]
                 self.mTableFamilies.SetDescription( family.strip(), description.strip() )
                 nset +=1
 

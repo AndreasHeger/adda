@@ -568,7 +568,7 @@ class TableDomains( Table ):
         outfile.close()
 
         os.chmod( filename, 0664)
-        self.dbhandle.Execute( "LOAD DATA INFILE '%s' INTO TABLE %s" % (filename, new_table ))
+        self.dbhandle.Execute( "LOAD DATA LOCAL INFILE '%s' INTO TABLE %s" % (filename, new_table ))
         
     #-----------------------------------------------------------------------------------    
     def Fill(self, table_representatives, table_alignments, table_source ):

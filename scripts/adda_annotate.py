@@ -183,34 +183,33 @@ def annotateAlignmentGraph( infile, outfiles ):
     E.info( "%s" % str( counts ) )
 
 
-@files( ( (PARAMS["filename_adda_nids"], PARAMS["eval_tablename_adda_nids"]+ ".import"), ) )
+@files( ( (PARAMS["eval_filename_adda_nids"], "sequences.import"), ) )
 def importSequences( infile, outfile ):
-    '''import sequences.
+    '''import sequences into database.
 
     This command will also create the database
     '''
 
     statement = '''
-         mysql %(mysql_options)s -e "DROP DATABASE IF EXISTS %(load_database)s"
+         mysql %(load_mysql_options)s -e "DROP DATABASE IF EXISTS %(load_database)s"
     '''
     	
     P.run()
 
     statement = '''
-         mysql %(mysql_options)s -e "CREATE database %(load_database)s"
+         mysql %(load_mysql_options)s -e "CREATE database %(load_database)s"
     '''
     	
     P.run()
-
-    table = outfile[:-len(".import")]
 
     statement ='''
         perl -p -e "s/nid/adda_nid/; s/pid/nid/" 
         < %(infile)s 
 	| python %(scriptsdir)s/csv2db.py 
-        %(csv2db_options)s
-           --database=%(database)s
-	   --table=%(table)s 
+        %(load_csv2db_options)s
+           --database=%(load_database)s
+	   --table=%(load_tablename_adda_nrdb)s 
+           --map=nid:int
 	   --index=nid 
         > %(outfile)s
     '''
@@ -234,8 +233,8 @@ def importADDAIntermediateResults( infile, outfile ):
        --nids=%(eval_filename_adda_nids)s
     < %(infile)s
     | python %(scriptsdir)s/csv2db.py 
-        %(csv2db_options)s
-        --database=%(database)s
+        %(load_csv2db_options)s
+        --database=%(load_database)s
 	--table=%(table)s 
 	--index=nid 
     > %(outfile)s
@@ -258,14 +257,14 @@ def importReference( infile, outfile ):
 
     statement = '''
     python %(scriptsdir)s/DomainsReference.py 
-		--Database=%(database)s
-		--domains=%(database)s.%(tablename_domains)s_src
-		--families=%(database)s.%(tablename_families)s_src
-		--mapped_domains=%(database)s.%(tablename_domains)s
-		--mapped_families=%(database)s.%(tablename_families)s
+		--Database=%(load_database)s
+		--domains=%(load_database)s.%(tablename_domains)s_src
+		--families=%(load_database)s.%(tablename_families)s_src
+		--mapped_domains=%(load_database)s.%(tablename_domains)s
+		--mapped_families=%(load_database)s.%(tablename_families)s
 		--input=%(infile)s
 		--descriptions=%(filename_families)s
-		--source=%(database)s.%(eval_tablename_adda_nids)s
+		--source=%(load_database)s.%(eval_tablename_adda_nrdb)s
 	  Create UpdateDomains MakeNonRedundantClone 
     > %(outfile)s
     '''
@@ -274,17 +273,17 @@ def importReference( infile, outfile ):
 
 @follows( importSequences )
 @files( ( (PARAMS["eval_filename_result"], 
-           PARAMS["tablename_adda"]+".import" ), ) )
+           "results.import" ), ) )
 def importADDAResults( infile, outfile ):
     '''import ADDA results.'''
 
     statement = '''
 	python %(scriptsdir)s/DomainsAdda.py 
-		--Database=%(database)s
-		--domains=%(database)s.nrdb40_%(tablename_adda)s_domains
-		--families=%(database)s.nrdb40_%(tablename_adda)s_families
+		--Database=%(load_database)s
+		--domains=%(load_database)s.nrdb40_%(load_tablename_adda)s_domains
+		--families=%(load_database)s.nrdb40_%(load_tablename_adda)s_families
 		--input=%(infile)s
-		--source=%(database)s.%(eval_tablename_adda_nids)s
+		--source=%(load_database)s.%(eval_tablename_adda_nrdb)s
 		Create Finalize UpdateDomains 
        > %(outfile)s
     '''
@@ -299,14 +298,14 @@ def annotateADDA( infile, outfile ):
 
     statement = '''
         python %(scriptsdir)s/OutputStatisticsClustering.py 
-                --Database=%(database)s
-		--domains=%(database)s.nrdb40_%(tablename_adda)s_domains 
-		--families=%(database)s.nrdb40_%(tablename_adda)s_families
+                --Database=%(load_database)s
+		--domains=%(load_database)s.nrdb40_%(load_tablename_adda)s_domains 
+		--families=%(load_database)s.nrdb40_%(load_tablename_adda)s_families
 		--max_family=%(eval_max_family_size)i
 		--min_evidence=2 
                 --min_units=2 
-		--ref_domains=%(database)s.nrdb40_%(track)s_domains 
-		--ref_families=%(database)s.nrdb40_%(track)s_families
+		--ref_domains=%(load_database)s.nrdb40_%(track)s_domains 
+		--ref_families=%(load_database)s.nrdb40_%(track)s_families
 	        --full-table 
 		Annotation 
         > %(outfile)s
@@ -339,9 +338,9 @@ def evaluateSegments( infile, outfile ):
 
     statement = '''
     python %(scriptsdir)s/evaluate_domain_boundaries.py 
-        --database=%(database)s 
-        --reference=%(database)s.nrdb40_%(track)s_domains
-        --trees=%(database)s.%(eval_tablename_segments)s
+        --database=%(load_database)s 
+        --reference=%(load_database)s.nrdb40_%(track)s_domains
+        --trees=%(load_database)s.%(eval_tablename_segments)s
         --output-filename-pattern=%(outfile)s.%%s
         --switch 
         --skip-repeats 
@@ -365,9 +364,9 @@ def evaluateDomains( infile, outfile ):
 
     statement = '''
     python %(scriptsdir)s/evaluate_domain_boundaries.py 
-        --database=%(database)s
-        --reference=%(database)s.nrdb40_%(track)s_domains
-        --parts=%(database)s.%(eval_tablename_domains)s
+        --database=%(load_database)s
+        --reference=%(load_database)s.nrdb40_%(track)s_domains
+        --parts=%(load_database)s.%(eval_tablename_domains)s
         --output-filename-pattern=%(outfile)s.%%s
         --switch 
         --skip-repeats 

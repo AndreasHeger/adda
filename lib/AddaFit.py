@@ -103,14 +103,14 @@ class AddaFit( AddaModuleRecord ):
 
         AddaModuleRecord.__init__( self, *args, **kwargs )
 
-        self.mFilenameFit = self.mConfig.get("output","output_fit", "adda.fit" )
-        self.mFilenameOverhang = self.mConfig.get( "output", "output_fit_overhang", "adda.fit.overhang" )
-        self.mFilenameTransfer = self.mConfig.get( "output", "output_fit_transfer", "adda.fit.transfer" )
-        self.mFilenameData = self.mConfig.get( "output", "output_fit_data", "adda.fit.data" )
-        self.mFilenameDetails = self.mConfig.get( "output", "output_fit_details", "adda.fit.details" )
+        self.mFilenameFit = self.mConfig.get("output","fit", "adda.fit" )
+        self.mFilenameOverhang = self.mConfig.get( "output", "fit_overhang", "adda.fit.overhang" )
+        self.mFilenameTransfer = self.mConfig.get( "output", "fit_transfer", "adda.fit.transfer" )
+        self.mFilenameData = self.mConfig.get( "output", "fit_data", "adda.fit.data" )
+        self.mFilenameDetails = self.mConfig.get( "output", "fit_details", "adda.fit.details" )
         self.mMinTransfer = float(self.mConfig.get( "fit", "min_transfer" ))
         self.mMinOverhang = float(self.mConfig.get( "fit", "min_overhang" ))
-        self.mFilenameNids = self.mConfig.get( "output", "output_nids", "adda.nids" )
+        self.mFilenameNids = self.mConfig.get( "output", "nids", "adda.nids" )
         self.mMaxSequenceLength = self.mConfig.get( "segment", "max_sequence_length", 10000 )
         
         self.min_counts = self.mConfig.get( "fit", "min_counts", 10 )
@@ -634,15 +634,15 @@ if __name__ == "__main__":
     config = AddaIO.ConfigParser()
     config.read( os.path.expanduser( options.filename_config ) )
 
-    filename_graph = config.get( "output", "output_graph", "adda.graph")
-    filename_index = config.get( "output", "output_index", "adda.graph.index")
-    filename_fasta= config.get( "output", "output_fasta", "adda" )
+    filename_graph = config.get( "output", "graph", "adda.graph")
+    filename_index = config.get( "output", "index", "adda.graph.index")
+    filename_fasta= config.get( "output", "fasta", "adda" )
 
-    config.set( "output", "output_fit", "test.fit" )
-    config.set( "output", "output_fit_data", "test.fit.data" )
-    config.set( "output", "output_fit_details", "test.fit.details" )
-    config.set( "output", "output_fit_overhang", "test.fit.overhang" )
-    config.set( "output", "output_fit_transfer", "test.fit.transfer" )
+    config.set( "output", "fit", "test.fit" )
+    config.set( "output", "fit_data", "test.fit.data" )
+    config.set( "output", "fit_details", "test.fit.details" )
+    config.set( "output", "fit_overhang", "test.fit.overhang" )
+    config.set( "output", "fit_transfer", "test.fit.transfer" )
     
     fasta = None
 

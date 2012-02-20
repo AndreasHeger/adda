@@ -52,28 +52,28 @@ class RunOnGraph(Run):
         # ignore memory usage of previous object
         #h.setrelheap()
 
-        L.info( "loading fasta sequences from %s" % config.get( "files", "output_fasta", "adda" ) ) 
+        L.info( "loading fasta sequences from %s" % config.get( "output", "fasta", "adda" ) ) 
 
-        self.mFasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
+        self.mFasta = IndexedFasta.IndexedFasta( config.get( "output", "fasta", "adda" ) )
 
         #print h.heap()
 
         if command == "fit":
 
-            L.info( "loading map_id2nid from %s" % config.get( "files", "output_nids", "adda.nids" ))
-            infile = open( config.get( "files", "output_nids", "adda.nids" ) )
+            L.info( "loading map_id2nid from %s" % config.get( "output", "nids", "adda.nids" ))
+            infile = open( config.get( "output", "nids", "adda.nids" ) )
             self.mMapId2Nid = AddaIO.readMapId2Nid( infile, 
-                                                    storage = config.get( "files", "storage_nids", "memory" ) )
+                                                    storage = config.get( "adda", "storage_nids", "memory" ) )
             infile.close()
 
-            L.info( "loading domain boundaries from %s" % config.get( "files", "input_reference") )
-            infile = AddaIO.openStream( config.get( "files", "input_reference") )
+            L.info( "loading domain boundaries from %s" % config.get( "input", "reference") )
+            infile = AddaIO.openStream( config.get( "input", "reference") )
             rx_include = config.get( "fit", "family_include", "") 
 
             self.mMapNid2Domains = AddaIO.readMapNid2Domains( infile, 
                                                               self.mMapId2Nid, 
                                                               rx_include,
-                                                              storage = config.get( "files", "storage_domains", "memory" ) )
+                                                              storage = config.get( "adda", "storage_domains", "memory" ) )
             infile.close()
             self.mMapId2Nid = None
             self.mLoadMapNid2Domains = True
@@ -83,8 +83,8 @@ class RunOnGraph(Run):
             self.mLoadMapNid2Domains = False
         #print h.heap()
 
-        self.mFilenameGraph = config.get( "files", "output_graph", "adda.graph")
-        self.mFilenameIndex = config.get( "files", "output_index", "adda.graph.index")
+        self.mFilenameGraph = config.get( "output", "graph", "adda.graph")
+        self.mFilenameIndex = config.get( "output", "index", "adda.graph.index")
 
     def __call__(self, argv ):
         """run job, catching all exceptions and returning a tuple."""
@@ -108,7 +108,7 @@ class RunOnGraph(Run):
         if self.mLoadMapNid2Domains and self.mMapNid2Domains == None:
             # load all maps that were not inherited from the parent process
             L.info( "opening map_nid2domains from cache" )
-            self.mMapNid2Domains = shelve.open( config.get( "files", "storage_domains", "memory" ), "r")
+            self.mMapNid2Domains = shelve.open( config.get( "adda", "storage_domains", "memory" ), "r")
 
         # build the modules
         if module( config = config, 
@@ -170,7 +170,7 @@ def run_on_file( argv ):
 
     L.info( "setting up chunk %i" % chunk )
 
-    fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
+    fasta = IndexedFasta.IndexedFasta( config.get( "output", "fasta", "adda" ) )
 
     if module( config = config, 
                fasta = fasta, 
@@ -216,7 +216,7 @@ def run_on_files( argv ):
 
     L.info( "setting up chunk %i on filename %s" % (chunk, filename) )
 
-    fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
+    fasta = IndexedFasta.IndexedFasta( config.get( "output", "fasta", "adda" ) )
 
     if module( config = config, 
                fasta = fasta,
@@ -450,7 +450,7 @@ def main():
                    }
 
     try:
-        fasta = IndexedFasta.IndexedFasta( config.get( "files", "output_fasta", "adda" ) )
+        fasta = IndexedFasta.IndexedFasta( config.get( "output", "fasta", "adda" ) )
     except KeyError:
         fasta = None
     
@@ -469,7 +469,7 @@ def main():
         if module.isComplete():
             E.info("output of command `%s` present and complete" % options.command )
         else:
-            filename_graph = config.get( "files", "input_graph", "pairsdb_40x40.links.gz")
+            filename_graph = config.get( "input", "graph", "pairsdb_40x40.links.gz")
             if "," in filename_graph:
                 filename_graph = filename_graph.split(",")
                 # permit parallel processing of multiple files
@@ -522,7 +522,7 @@ def main():
 
         run_parallel( 
             run_on_graph,
-            filename = config.get( "files", "input_graph", "adda.graph" ),
+            filename = config.get( "input", "graph", "adda.graph" ),
             options = options,
             module = map_module[options.command],
             config = config,
@@ -539,7 +539,7 @@ def main():
 
         run_parallel( 
             run_on_file,
-            filename = config.get( "files", "output_mst", "adda.mst" ),
+            filename = config.get( "output", "mst", "adda.mst" ),
             options = options,
             module = map_module[options.command],
             config = config,
@@ -554,7 +554,7 @@ def main():
 
         run_parallel( 
             run_on_file,
-            filename = config.get( "files", "output_align", "adda.align" ),
+            filename = config.get( "output", "align", "adda.align" ),
             options = options,
             module = map_module[options.command],
             config = config,

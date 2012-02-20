@@ -5,7 +5,7 @@
 import sys, re ,string, os, gzip
 
 from Domains import Domains
-from Pairsdb import *
+import Pairsdb
 
 from TableDomainsADDA import TableDomainsAdda, TableFamiliesAdda
 import Adda.AddaIO

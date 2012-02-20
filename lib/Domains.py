@@ -4,7 +4,7 @@
 import sys, re, string, os, tempfile, gzip
 
 import Intervals
-from Pairsdb import *
+import Pairsdb
 from Experiment import Experiment
 from Table_nrdb import Table_nrdb
 from TableDomainsCore import TableDomainsCore, TableFamiliesCore
@@ -65,7 +65,7 @@ class Domains (Experiment):
 
 	Experiment.__init__( self )
 
-        dbhandle = Pairsdb()
+        dbhandle = Pairsdb.Pairsdb()
         
         dbhandle.Connect( dbname = self.mDatabase )
 
@@ -175,11 +175,11 @@ class Domains (Experiment):
         """
 
         if self.mFileNameFamilies:
-            (h, self.mTempFileNameFamilies) = tempfile.mkstemp( prefix=self.mFileNameFamilies, dir= PATH_LOAD )
+            (h, self.mTempFileNameFamilies) = tempfile.mkstemp( prefix=self.mFileNameFamilies, dir= Pairsdb.PATH_LOAD )
             self.mFileFamilies = os.fdopen( h, "w" )
 
         if self.mFileNameDomains:
-            (h, self.mTempFileNameDomains) = tempfile.mkstemp( prefix=self.mFileNameDomains, dir= PATH_LOAD )
+            (h, self.mTempFileNameDomains) = tempfile.mkstemp( prefix=self.mFileNameDomains, dir= Pairsdb.PATH_LOAD )
             self.mFileDomains = os.fdopen( h, "w" )
 
     #----------------------------------------------------------------------------------------------------------

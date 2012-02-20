@@ -63,7 +63,7 @@ PARAMS= {
     'cmd-farm' : """%s/farm.py 
                 --method=drmaa 
                 --cluster-priority=-10 
-		--cluster-queue=all.q 
+		--cluster-queue=pairsdb.q 
 		--cluster-num-jobs=100 
 		--cluster-options="" """ % os.path.dirname( __file__ ),
     'cmd-sql' : """sqlite3 -header -csv -separator $'\\t' """,
@@ -682,7 +682,7 @@ def run( **kwargs ):
             tmpfile = tempfile.NamedTemporaryFile( dir = os.getcwd() , delete = False )
             tmpfile.write( "#!/bin/bash\n" ) #  -l -O expand_aliases\n" )
             tmpfile.write( 'echo "START--------------------------------" >> %s \n' % shellfile )
-            tmpfile.write( 'echo "statement=%s" >> %s\n' % (statement, shellfile) )
+            tmpfile.write( '''echo 'statement=%s' >> %s\n''' % (statement, shellfile) )
             tmpfile.write( "set &>> %s\n" % shellfile)
             tmpfile.write( "module list &>> %s\n" % shellfile )
             tmpfile.write( 'echo "END----------------------------------" >> %s \n' % shellfile )

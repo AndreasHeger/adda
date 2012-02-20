@@ -48,6 +48,8 @@ class AddaSegment( AddaModuleRecord ):
         self.normalize_matrix = self.mConfig.get('segments','normalize', False)
         self.add_local_bias =  self.mConfig.get('segments','matrix_add_local_bias', False )
         self.permute_matrix =  self.mConfig.get('segments','permute', False )
+        self.matrix_multiply = int(self.mConfig.get('segments','multiply', 0))
+        self.max_sequence_length = self.mConfig.get("adda", "max_sequence_length")
 
         if self.normalize_matrix:
             E.warn( "matrix normalization is turned on" )
@@ -179,7 +181,7 @@ class AddaSegment( AddaModuleRecord ):
 
         length = self.mFasta.getLength( nid )
         
-        if length > self.mConfig.get("segments", "max_sequence_length"):
+        if length > self.max_sequence_length:
             self.warn( "skipped: nid=%s, length=%i -> too long" % (nid, length) )
             return False
         
@@ -774,8 +776,8 @@ class AddaSegment( AddaModuleRecord ):
                                     format = "%i" )
 
         ## perform some matrix magic
-        if int(self.mConfig.get('segments','multiply')) > 0:
-            for x in range(0, int(self.mConfig.get('segments','multiply'))):
+        if self.matrix_multiply:
+            for x in range(0, self.matrix_multiply):
                 dot_matrix = numpy.dot( dot_matrix, dot_matrix)
 
                 if E.getLogLevel() >= 3:

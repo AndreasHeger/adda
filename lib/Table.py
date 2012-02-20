@@ -30,7 +30,7 @@
 #
 #----------------------------------------------------------------
 
-import string, os, Pairsdb, Experiment
+import string, os, Database, Experiment
 
 class Field:
     def __init__ ( self, name, type, modifier, value):
@@ -355,7 +355,7 @@ class Table:
         
         if not local:
             self.Lock("WRITE")
-            statement = "LOAD DATA INFILE '%s' %s" % (filename, option_duplicates) +\
+            statement = "LOAD DATA LOCAL INFILE '%s' %s" % (filename, option_duplicates) +\
                         " INTO TABLE " + self.name + \
                         " FIELDS TERMINATED BY '%s' (%s) " % (separator, string.join( fields_list, ','))
             result = self.Execute( statement )
