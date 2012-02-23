@@ -52,7 +52,7 @@ PATH_HOME = "/production"
 PATH_TEMP= "/production/tmp"
 
 DEFAULT_SOCKET          = None # "/tmp/mysql.sock"
-DEFAULT_HOST            = 'localhost'
+DEFAULT_HOST            = 'cgatdb'
 DEFAULT_PORT            = 3306
 
 # path to where temporary files are stored
@@ -94,8 +94,8 @@ class Pairsdb (Database):
         
     def Connect( self,
 		 host = DEFAULT_HOST,
-		 user = 'heger',
-		 passwd = 'HeinBloed',
+		 user = 'andreas',
+		 passwd = "",
 		 unix_socket = DEFAULT_SOCKET,
                  port = DEFAULT_PORT,
                  dbname = 'pairsdb' ):
