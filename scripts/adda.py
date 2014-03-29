@@ -38,7 +38,7 @@ Usage
 
 Type::
 
-   python <script_name>.py --help
+   python adda.py --help
 
 for command line help.
 

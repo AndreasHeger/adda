@@ -996,11 +996,11 @@ cdef class PairsDBNeighbourRecordBlocks(PairsDBNeighbourRecord):
         # This is all very inefficient as it is all in python
         PairsDBNeighbourRecord.fillNeighbour( self, dest )
         r = alignlib.makeAlignmentBlocks()
-        f = alignlib.AlignmentFormatBlocks( self.query_start,
-                                            self.sbjct_start,
-                                            self.block_sizes,
-                                            self.query_starts,
-                                            self.sbjct_starts)
+        f = alignlib.AlignmentFormatBlocks(self.query_start,
+                                           self.sbjct_start,
+                                           self.block_sizes,
+                                           self.query_starts,
+                                           self.sbjct_starts)
         f.copy( r )
         d = str( alignlib.AlignmentFormatEmissions( r ) ).split("\t")
         

@@ -4,7 +4,7 @@ import cadda
 
 from AddaModule import AddaModuleBlock
 import AddaIO
-import Components
+import CGAT.Components as Components
 import SegmentedFile
 
 class AddaCluster( AddaModuleBlock ):
