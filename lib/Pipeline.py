@@ -41,7 +41,12 @@ import os, sys, re, subprocess, optparse, stat, tempfile, time, random, inspect,
 import logging, collections, shutil, glob, gzip
 import ConfigParser
 
-import drmaa
+try:
+    import drmaa
+    HAS_DRMAA = True
+except ImportError:
+    HAS_DRMAA = False
+
 from ruffus import *
 import logging as L
 import Experiment as E
@@ -894,7 +899,7 @@ def main( args = sys.argv ):
         multiprocess = 2,
         logfile = "pipeline.log",
         dry_run = False,
-        without_cluster = False,
+        without_cluster = not HAS_DRMAA,
         )
 
     (options, args) = E.Start( parser, 
